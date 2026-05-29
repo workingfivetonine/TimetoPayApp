@@ -56,7 +56,7 @@ export default function ScanScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       base64: true,
-      quality: 0.8,
+      quality: 1.0, // max quality — receipt text needs every pixel
     });
     if (result.canceled || !result.assets[0]?.base64) return;
 

@@ -12,6 +12,32 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require("pdf-parse/lib/pdf-parse.js");
 
+function receiptPrompt(): string {
+  const today = new Date().toISOString();
+  return `You are an expert OCR assistant specialising in paper and thermal receipts.
+
+The image may be a photo of a crumpled, faded, or skewed paper receipt taken with a phone camera. Do your absolute best to read all text, even if parts are blurry, cut off, or at an angle.
+
+Extract the receipt data and return ONLY a single valid JSON object (no markdown, no code fences, no explanation):
+{
+  "storeName": "Name of the store or retailer",
+  "purchasedAt": "ISO 8601 date-time string — read the date printed on the receipt; if unreadable use today: ${today}",
+  "total": <the final total paid as a number, excluding delivery/service fees>,
+  "lineItems": [
+    { "name": "Clean item name in Title Case", "price": <unit price as number>, "quantity": <quantity as integer> }
+  ]
+}
+
+Rules:
+- lineItems must contain ONLY purchased products/items — exclude subtotals, taxes, discounts, delivery fees, tips, and loyalty points lines.
+- price is the per-unit price. If only a line total is shown for qty > 1, divide to get the unit price.
+- If quantity is not printed, default to 1.
+- Normalise item names: Title Case, expand obvious abbreviations (e.g. "CHKN" → "Chicken"), remove SKU codes or PLU numbers.
+- If the store name is ambiguous, use the most prominent text at the top of the receipt.
+- If you cannot confidently read a field, make a reasonable inference rather than omitting it.
+- Never return markdown or prose — only the raw JSON object.`;
+}
+
 const router = Router();
 
 function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) {
@@ -150,21 +176,13 @@ router.post("/parse", async (req, res): Promise<void> => {
           content: [
             {
               type: "text",
-              text: `Extract the following from this receipt image and return ONLY valid JSON (no markdown, no code blocks):
-{
-  "storeName": "store name",
-  "purchasedAt": "ISO 8601 date string (use today if unclear: ${new Date().toISOString()})",
-  "total": total amount as number,
-  "lineItems": [
-    { "name": "item name", "price": price per unit as number, "quantity": quantity as number }
-  ]
-}
-Normalize item names (title case, remove special chars). If quantity is not shown, use 1.`,
+              text: receiptPrompt(),
             },
             {
               type: "image_url",
               image_url: {
                 url: `data:image/jpeg;base64,${imageBase64}`,
+                detail: "high",
               },
             },
           ],
@@ -199,21 +217,13 @@ router.post("/parse-and-save", async (req, res): Promise<void> => {
           content: [
             {
               type: "text",
-              text: `Extract the following from this receipt image and return ONLY valid JSON (no markdown, no code blocks):
-{
-  "storeName": "store name",
-  "purchasedAt": "ISO 8601 date string (use today if unclear: ${new Date().toISOString()})",
-  "total": total amount as number,
-  "lineItems": [
-    { "name": "item name", "price": price per unit as number, "quantity": quantity as number }
-  ]
-}
-Normalize item names (title case, remove special chars). If quantity is not shown, use 1.`,
+              text: receiptPrompt(),
             },
             {
               type: "image_url",
               image_url: {
                 url: `data:image/jpeg;base64,${imageBase64}`,
+                detail: "high",
               },
             },
           ],
