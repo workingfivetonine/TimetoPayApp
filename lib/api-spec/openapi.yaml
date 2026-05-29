@@ -344,6 +344,21 @@ paths:
         "204":
           description: Deleted
 
+  /analytics/daily-spend:
+    get:
+      operationId: getDailySpend
+      tags: [analytics]
+      summary: Daily spend totals for calendar view
+      responses:
+        "200":
+          description: Daily spend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DaySpend"
+
   /analytics/spend:
     get:
       operationId: getSpendAnalytics
@@ -438,6 +453,25 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ParseReceiptInput"
+      responses:
+        "201":
+          description: Saved receipt with all data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptDetail"
+
+  /receipts/parse-pdf:
+    post:
+      operationId: parsePdfReceipt
+      tags: [receipts-ai]
+      summary: Parse a PDF receipt (online order confirmation) and save it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParsePdfInput"
       responses:
         "201":
           description: Saved receipt with all data
@@ -785,9 +819,28 @@ components:
           items:
             $ref: "#/components/schemas/ParsedReceiptLineItem"
 
+    DaySpend:
+      type: object
+      required: [date, total, receiptCount]
+      properties:
+        date:
+          type: string
+          description: ISO date string YYYY-MM-DD
+        total:
+          type: number
+        receiptCount:
+          type: integer
+
     ParseReceiptInput:
       type: object
       required: [imageBase64]
       properties:
         imageBase64:
+          type: string
+
+    ParsePdfInput:
+      type: object
+      required: [pdfBase64]
+      properties:
+        pdfBase64:
           type: string

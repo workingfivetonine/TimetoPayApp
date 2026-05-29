@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  DaySpend,
   HealthStatus,
   Item,
   ItemInput,
@@ -28,6 +29,7 @@ import type {
   LineItem,
   LineItemInput,
   LineItemUpdate,
+  ParsePdfInput,
   ParseReceiptInput,
   ParsedReceipt,
   Receipt,
@@ -1373,6 +1375,83 @@ export const useDeleteLineItem = <TError = ErrorType<unknown>,
       return useMutation(getDeleteLineItemMutationOptions(options));
     }
 
+export const getGetDailySpendUrl = () => {
+
+
+
+
+  return `/api/analytics/daily-spend`
+}
+
+/**
+ * @summary Daily spend totals for calendar view
+ */
+export const getDailySpend = async ( options?: RequestInit): Promise<DaySpend[]> => {
+
+  return customFetch<DaySpend[]>(getGetDailySpendUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDailySpendQueryKey = () => {
+    return [
+    `/api/analytics/daily-spend`
+    ] as const;
+    }
+
+
+export const getGetDailySpendQueryOptions = <TData = Awaited<ReturnType<typeof getDailySpend>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySpend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDailySpendQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailySpend>>> = ({ signal }) => getDailySpend({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDailySpend>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDailySpendQueryResult = NonNullable<Awaited<ReturnType<typeof getDailySpend>>>
+export type GetDailySpendQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Daily spend totals for calendar view
+ */
+
+export function useGetDailySpend<TData = Awaited<ReturnType<typeof getDailySpend>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailySpend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDailySpendQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetSpendAnalyticsUrl = () => {
 
 
@@ -1821,5 +1900,76 @@ export const useParseAndSaveReceipt = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getParseAndSaveReceiptMutationOptions(options));
+    }
+
+export const getParsePdfReceiptUrl = () => {
+
+
+
+
+  return `/api/receipts/parse-pdf`
+}
+
+/**
+ * @summary Parse a PDF receipt (online order confirmation) and save it
+ */
+export const parsePdfReceipt = async (parsePdfInput: ParsePdfInput, options?: RequestInit): Promise<ReceiptDetail> => {
+
+  return customFetch<ReceiptDetail>(getParsePdfReceiptUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      parsePdfInput,)
+  }
+);}
+
+
+
+
+export const getParsePdfReceiptMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof parsePdfReceipt>>, TError,{data: BodyType<ParsePdfInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof parsePdfReceipt>>, TError,{data: BodyType<ParsePdfInput>}, TContext> => {
+
+const mutationKey = ['parsePdfReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof parsePdfReceipt>>, {data: BodyType<ParsePdfInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  parsePdfReceipt(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ParsePdfReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof parsePdfReceipt>>>
+    export type ParsePdfReceiptMutationBody = BodyType<ParsePdfInput>
+    export type ParsePdfReceiptMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Parse a PDF receipt (online order confirmation) and save it
+ */
+export const useParsePdfReceipt = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof parsePdfReceipt>>, TError,{data: BodyType<ParsePdfInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof parsePdfReceipt>>,
+        TError,
+        {data: BodyType<ParsePdfInput>},
+        TContext
+      > => {
+      return useMutation(getParsePdfReceiptMutationOptions(options));
     }
 

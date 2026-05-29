@@ -8,6 +8,9 @@ import {
   UpdateLineItemBody,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+// Use lib directly to skip pdf-parse's test-file read on import
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require("pdf-parse/lib/pdf-parse.js");
 
 const router = Router();
 
@@ -280,4 +283,100 @@ Normalize item names (title case, remove special chars). If quantity is not show
   }
 });
 
+// Parse and save a PDF receipt (online order confirmation)
+router.post("/parse-pdf", async (req, res): Promise<void> => {
+  const { pdfBase64 } = req.body as { pdfBase64: string };
+  if (!pdfBase64) {
+    res.status(400).json({ error: "pdfBase64 is required" });
+    return;
+  }
+
+  try {
+    const buffer = Buffer.from(pdfBase64, "base64");
+    const pdfData = await pdfParse(buffer);
+    const extractedText = pdfData.text.slice(0, 8000); // cap tokens
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 2048,
+      messages: [
+        {
+          role: "user",
+          content: `Extract receipt data from the following text (from an online order confirmation PDF) and return ONLY valid JSON (no markdown, no code blocks):
+{
+  "storeName": "store or retailer name",
+  "purchasedAt": "ISO 8601 date string (use today if unclear: ${new Date().toISOString()})",
+  "total": total order amount as number,
+  "lineItems": [
+    { "name": "item name", "price": price per unit as number, "quantity": quantity as number }
+  ]
+}
+Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items, not subtotals, shipping, or tax lines.
+
+PDF text:
+${extractedText}`,
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content ?? "{}";
+    let parsed: { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number }[] };
+
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      res.status(500).json({ error: "Failed to parse AI response as JSON" });
+      return;
+    }
+
+    // Find or create store
+    let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
+    if (!store) {
+      [store] = await db.insert(storesTable).values({ name: parsed.storeName }).returning();
+    }
+
+    const [receipt] = await db
+      .insert(receiptsTable)
+      .values({
+        storeId: store.id,
+        purchasedAt: new Date(parsed.purchasedAt),
+        total: String(parsed.total),
+      })
+      .returning();
+
+    const savedLineItems = [];
+    for (const li of parsed.lineItems) {
+      let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
+      if (!item) {
+        [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
+      } else {
+        await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
+        item.purchaseCount += 1;
+      }
+
+      const [lineItem] = await db
+        .insert(lineItemsTable)
+        .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
+        .returning();
+
+      savedLineItems.push({
+        ...lineItem,
+        itemName: item.name,
+        price: Number(lineItem.price),
+        quantity: Number(lineItem.quantity),
+        createdAt: lineItem.createdAt.toISOString(),
+      });
+    }
+
+    res.status(201).json({
+      ...formatReceipt(receipt, store.name),
+      lineItems: savedLineItems,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to parse PDF receipt");
+    res.status(500).json({ error: "Failed to process PDF receipt" });
+  }
+});
+
 export default router;
+

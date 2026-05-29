@@ -128,6 +128,37 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
   });
 });
 
+// Daily spend for calendar view
+router.get("/daily-spend", async (req, res): Promise<void> => {
+  const receipts = await db
+    .select({ total: receiptsTable.total, purchasedAt: receiptsTable.purchasedAt })
+    .from(receiptsTable)
+    .orderBy(receiptsTable.purchasedAt);
+
+  const dayMap = new Map<string, { total: number; count: number }>();
+
+  for (const r of receipts) {
+    const key = new Date(r.purchasedAt).toISOString().split("T")[0];
+    const existing = dayMap.get(key);
+    if (existing) {
+      existing.total += Number(r.total);
+      existing.count += 1;
+    } else {
+      dayMap.set(key, { total: Number(r.total), count: 1 });
+    }
+  }
+
+  const days = Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({
+      date,
+      total: Math.round(v.total * 100) / 100,
+      receiptCount: v.count,
+    }));
+
+  res.json(days);
+});
+
 // Store summary
 router.get("/stores/:id/summary", async (req, res): Promise<void> => {
   const storeId = parseInt(req.params.id);

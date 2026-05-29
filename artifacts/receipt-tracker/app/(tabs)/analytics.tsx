@@ -15,12 +15,17 @@ import {
   getGetSpendAnalyticsQueryKey,
   useListItems,
   useGetItemPriceHistory,
+  useGetDailySpend,
+  getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { WeeklySpendBar } from "@/components/WeeklySpendBar";
 import { EmptyState } from "@/components/EmptyState";
+import { SpendCalendar } from "@/components/SpendCalendar";
 import { Feather } from "@expo/vector-icons";
+
+type Tab = "calendar" | "weekly" | "items";
 
 function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: string }) {
   const colors = useColors();
@@ -53,7 +58,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.spendHighText }]}>
+          <Text style={[styles.statValue, { color: "#dc2626" }]}>
             ${data.highestPrice.toFixed(2)}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Highest</Text>
@@ -68,9 +73,11 @@ export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("calendar");
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
 
   const { data: analytics, isLoading: analyticsLoading } = useGetSpendAnalytics();
+  const { data: dailySpend, isLoading: calendarLoading } = useGetDailySpend();
   const { data: items } = useListItems();
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
@@ -78,13 +85,17 @@ export default function AnalyticsScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() }),
+    ]);
     setRefreshing(false);
   };
 
   const maxTotal = Math.max(...(analytics?.weeks.map((w) => w.total) ?? [0]));
-
   const itemsWithHistory = items?.filter((i) => i.purchaseCount > 0) ?? [];
+  const hasData = (analytics?.weeks.length ?? 0) > 0;
+  const isLoading = analyticsLoading || calendarLoading;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -92,11 +103,41 @@ export default function AnalyticsScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Analytics</Text>
       </View>
 
-      {analyticsLoading ? (
+      {/* Tab Switcher */}
+      <View style={[styles.tabBar, { backgroundColor: colors.secondary, marginHorizontal: 16 }]}>
+        {(["calendar", "weekly", "items"] as Tab[]).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[
+              styles.tabBtn,
+              activeTab === tab && { backgroundColor: colors.card },
+            ]}
+            onPress={() => setActiveTab(tab)}
+            activeOpacity={0.7}
+          >
+            <Feather
+              name={tab === "calendar" ? "calendar" : tab === "weekly" ? "bar-chart-2" : "tag"}
+              size={14}
+              color={activeTab === tab ? colors.primary : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                { color: activeTab === tab ? colors.primary : colors.mutedForeground },
+                activeTab === tab && { fontFamily: "Inter_600SemiBold" },
+              ]}
+            >
+              {tab === "calendar" ? "Calendar" : tab === "weekly" ? "Weekly" : "Items"}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      ) : (analytics?.weeks.length ?? 0) === 0 ? (
+      ) : !hasData ? (
         <EmptyState
           icon="bar-chart-2"
           title="No data yet"
@@ -109,7 +150,7 @@ export default function AnalyticsScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
           }
         >
-          {/* Summary Cards */}
+          {/* Summary Cards — always visible */}
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.summaryValue, { color: colors.primary }]}>
@@ -125,52 +166,69 @@ export default function AnalyticsScreen() {
             </View>
           </View>
 
-          {/* Weekly Spend Bars */}
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>WEEKLY SPEND</Text>
-          {[...(analytics?.weeks ?? [])].reverse().map((week) => (
-            <WeeklySpendBar key={week.weekStart} week={week} maxTotal={maxTotal} />
-          ))}
-
-          {/* Item Price History */}
-          {itemsWithHistory.length > 0 && (
+          {/* Calendar tab */}
+          {activeTab === "calendar" && (
             <>
-              <Text style={[styles.sectionTitle, { color: colors.mutedForeground, marginTop: 24 }]}>
-                ITEM PRICES
-              </Text>
-              {itemsWithHistory.map((item) => (
-                <View key={item.id}>
-                  <TouchableOpacity
-                    style={[
-                      styles.itemRow,
-                      {
-                        backgroundColor: colors.card,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() =>
-                      setExpandedItemId(expandedItemId === item.id ? null : item.id)
-                    }
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.itemName, { color: colors.foreground }]} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <View style={styles.itemRowRight}>
-                      <Text style={[styles.purchaseCount, { color: colors.mutedForeground }]}>
-                        {item.purchaseCount}x
-                      </Text>
-                      <Feather
-                        name={expandedItemId === item.id ? "chevron-up" : "chevron-down"}
-                        size={16}
-                        color={colors.mutedForeground}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                  {expandedItemId === item.id && (
-                    <ItemPriceDetail itemId={item.id} itemName={item.name} />
-                  )}
-                </View>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>DAILY SPEND</Text>
+              <SpendCalendar data={dailySpend ?? []} />
+            </>
+          )}
+
+          {/* Weekly tab */}
+          {activeTab === "weekly" && (
+            <>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>WEEKLY SPEND</Text>
+              {[...(analytics?.weeks ?? [])].reverse().map((week) => (
+                <WeeklySpendBar key={week.weekStart} week={week} maxTotal={maxTotal} />
               ))}
+            </>
+          )}
+
+          {/* Items tab */}
+          {activeTab === "items" && (
+            <>
+              {itemsWithHistory.length === 0 ? (
+                <View style={styles.emptyItems}>
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                    No item price history yet
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>ITEM PRICES</Text>
+                  {itemsWithHistory.map((item) => (
+                    <View key={item.id}>
+                      <TouchableOpacity
+                        style={[
+                          styles.itemRow,
+                          { backgroundColor: colors.card, borderColor: colors.border },
+                        ]}
+                        onPress={() =>
+                          setExpandedItemId(expandedItemId === item.id ? null : item.id)
+                        }
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.itemName, { color: colors.foreground }]} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <View style={styles.itemRowRight}>
+                          <Text style={[styles.purchaseCount, { color: colors.mutedForeground }]}>
+                            {item.purchaseCount}×
+                          </Text>
+                          <Feather
+                            name={expandedItemId === item.id ? "chevron-up" : "chevron-down"}
+                            size={16}
+                            color={colors.mutedForeground}
+                          />
+                        </View>
+                      </TouchableOpacity>
+                      {expandedItemId === item.id && (
+                        <ItemPriceDetail itemId={item.id} itemName={item.name} />
+                      )}
+                    </View>
+                  ))}
+                </>
+              )}
             </>
           )}
         </ScrollView>
@@ -183,12 +241,31 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 8,
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  tabBar: {
+    flexDirection: "row",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 4,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingHorizontal: 16, paddingTop: 8 },
-  summaryRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  scroll: { paddingHorizontal: 16, paddingTop: 12 },
+  summaryRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   summaryCard: {
     flex: 1,
     borderRadius: 12,
@@ -230,5 +307,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
   statStore: { fontSize: 10, fontFamily: "Inter_400Regular", maxWidth: 70, textAlign: "center" },
   statDivider: { width: 1, height: 40, marginHorizontal: 4 },
-  spendHighText: {},
+  emptyItems: { alignItems: "center", paddingVertical: 32 },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });

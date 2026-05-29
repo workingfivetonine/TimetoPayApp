@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './daySpend';
 export * from './healthStatus';
 export * from './item';
 export * from './itemInput';
@@ -16,6 +17,7 @@ export * from './lineItemInput';
 export * from './lineItemUpdate';
 export * from './parsedReceipt';
 export * from './parsedReceiptLineItem';
+export * from './parsePdfInput';
 export * from './parseReceiptInput';
 export * from './pricePoint';
 export * from './receipt';

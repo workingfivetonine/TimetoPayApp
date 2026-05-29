@@ -272,6 +272,17 @@ export const DeleteLineItemParams = zod.object({
 
 
 /**
+ * @summary Daily spend totals for calendar view
+ */
+export const GetDailySpendResponseItem = zod.object({
+  "date": zod.string().describe('ISO date string YYYY-MM-DD'),
+  "total": zod.number(),
+  "receiptCount": zod.number()
+})
+export const GetDailySpendResponse = zod.array(GetDailySpendResponseItem)
+
+
+/**
  * @summary Weekly spend totals with trend info (high/low flags)
  */
 export const GetSpendAnalyticsResponse = zod.object({
@@ -384,6 +395,14 @@ export const ParseReceiptImageResponse = zod.object({
  */
 export const ParseAndSaveReceiptBody = zod.object({
   "imageBase64": zod.string()
+})
+
+
+/**
+ * @summary Parse a PDF receipt (online order confirmation) and save it
+ */
+export const ParsePdfReceiptBody = zod.object({
+  "pdfBase64": zod.string()
 })
 
 

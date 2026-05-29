@@ -202,7 +202,18 @@ export interface ParsedReceipt {
   lineItems: ParsedReceiptLineItem[];
 }
 
+export interface DaySpend {
+  /** ISO date string YYYY-MM-DD */
+  date: string;
+  total: number;
+  receiptCount: number;
+}
+
 export interface ParseReceiptInput {
   imageBase64: string;
+}
+
+export interface ParsePdfInput {
+  pdfBase64: string;
 }
 
