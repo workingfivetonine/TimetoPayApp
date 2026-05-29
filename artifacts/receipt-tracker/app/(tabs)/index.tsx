@@ -21,6 +21,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useDesktop } from "@/hooks/useDesktop";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { EmptyState } from "@/components/EmptyState";
 
@@ -61,8 +62,9 @@ export default function ReceiptsScreen() {
     ]);
   };
 
-  const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
-  const paddingBottom = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
+  const isDesktop = useDesktop();
+  const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
+  const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

@@ -21,6 +21,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useDesktop } from "@/hooks/useDesktop";
 import { WeeklySpendBar } from "@/components/WeeklySpendBar";
 import { EmptyState } from "@/components/EmptyState";
 import { SpendCalendar } from "@/components/SpendCalendar";
@@ -82,8 +83,9 @@ export default function AnalyticsScreen() {
   const { data: dailySpend, isLoading: calendarLoading } = useGetDailySpend();
   const { data: items } = useListItems();
 
-  const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
-  const paddingBottom = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
+  const isDesktop = useDesktop();
+  const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
+  const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
 
   const handleRefresh = async () => {
     setRefreshing(true);

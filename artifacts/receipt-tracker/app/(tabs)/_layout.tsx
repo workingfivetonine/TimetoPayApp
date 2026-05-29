@@ -7,6 +7,8 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useDesktop } from "@/hooks/useDesktop";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
 
 function NativeTabLayout() {
   return (
@@ -37,31 +39,36 @@ function ClassicTabLayout() {
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const isDesktop = useDesktop();
 
-  return (
+  const tabs = (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: isWeb ? 1 : StyleSheet.hairlineWidth,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-          ) : null,
+        tabBarStyle: isDesktop
+          ? { display: "none" }
+          : {
+              position: "absolute",
+              backgroundColor: isIOS ? "transparent" : colors.background,
+              borderTopWidth: isWeb ? 1 : StyleSheet.hairlineWidth,
+              borderTopColor: colors.border,
+              elevation: 0,
+              ...(isWeb ? { height: 84 } : {}),
+            },
+        tabBarBackground: isDesktop
+          ? undefined
+          : () =>
+              isIOS ? (
+                <BlurView
+                  intensity={100}
+                  tint={isDark ? "dark" : "light"}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : isWeb ? (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+              ) : null,
       }}
     >
       <Tabs.Screen
@@ -114,6 +121,19 @@ function ClassicTabLayout() {
       />
     </Tabs>
   );
+
+  if (isDesktop) {
+    return (
+      <View style={[styles.desktopRoot, { backgroundColor: colors.background }]}>
+        <DesktopSidebar />
+        <View style={styles.desktopContent}>
+          <View style={styles.desktopInner}>{tabs}</View>
+        </View>
+      </View>
+    );
+  }
+
+  return tabs;
 }
 
 export default function TabLayout() {
@@ -122,3 +142,19 @@ export default function TabLayout() {
   }
   return <ClassicTabLayout />;
 }
+
+const styles = StyleSheet.create({
+  desktopRoot: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  desktopContent: {
+    flex: 1,
+    alignItems: "center",
+  },
+  desktopInner: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 960,
+  },
+});
