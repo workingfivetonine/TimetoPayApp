@@ -10,6 +10,8 @@ import type { ItemHistoryEntry } from './itemHistoryEntry';
 export interface ItemHistoryReport {
   itemId: number;
   itemName: string;
+  /** @nullable */
+  icon?: string | null;
   purchaseCount: number;
   averagePrice: number;
   lowestPrice: number;

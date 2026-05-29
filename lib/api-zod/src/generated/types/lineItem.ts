@@ -11,6 +11,8 @@ export interface LineItem {
   receiptId: number;
   itemId: number;
   itemName: string;
+  /** @nullable */
+  icon?: string | null;
   price: number;
   quantity: number;
   createdAt: string;

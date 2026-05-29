@@ -42,6 +42,7 @@ router.get("/", async (req, res): Promise<void> => {
     result.push({
       itemId: item.id,
       itemName: item.name,
+      icon: item.icon ?? null,
       notes: item.notes ?? null,
       purchaseCount: item.purchaseCount,
       averagePrice: Math.round(avgPrice * 100) / 100,

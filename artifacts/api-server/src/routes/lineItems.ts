@@ -29,6 +29,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
   res.json({
     ...lineItem,
     itemName: item?.name ?? "Unknown",
+    icon: item?.icon ?? null,
     price: Number(lineItem.price),
     quantity: Number(lineItem.quantity),
     createdAt: lineItem.createdAt.toISOString(),

@@ -9,6 +9,11 @@
 export interface Item {
   id: number;
   name: string;
+  /**
+     * Emoji icon representing the item
+     * @nullable
+     */
+  icon?: string | null;
   /** @nullable */
   notes?: string | null;
   purchaseCount: number;

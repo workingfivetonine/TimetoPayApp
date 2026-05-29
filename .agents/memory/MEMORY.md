@@ -1,0 +1,1 @@
+- [Item emoji icons](item-icons.md) — per-item emoji: AI-assigned + keyword fallback, lazy backfill on re-encounter, manual override.

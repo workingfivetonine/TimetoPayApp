@@ -118,6 +118,7 @@ export default function ReviewReceiptScreen() {
             name: li.name,
             price: li.price,
             quantity: li.quantity,
+            icon: li.icon ?? undefined,
           })),
         }),
       });

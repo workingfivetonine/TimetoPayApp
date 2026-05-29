@@ -116,6 +116,7 @@ export const DeleteStoreParams = zod.object({
 export const ListItemsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "icon": zod.string().nullish().describe('Emoji icon representing the item'),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
   "createdAt": zod.string()
@@ -128,6 +129,7 @@ export const ListItemsResponse = zod.array(ListItemsResponseItem)
  */
 export const CreateItemBody = zod.object({
   "name": zod.string(),
+  "icon": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -155,6 +157,7 @@ export const GetItemParams = zod.object({
 export const GetItemResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "icon": zod.string().nullish().describe('Emoji icon representing the item'),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
   "createdAt": zod.string()
@@ -170,12 +173,14 @@ export const UpdateItemParams = zod.object({
 
 export const UpdateItemBody = zod.object({
   "name": zod.string().optional(),
+  "icon": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
 export const UpdateItemResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "icon": zod.string().nullish().describe('Emoji icon representing the item'),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
   "createdAt": zod.string()
@@ -240,6 +245,7 @@ export const GetReceiptResponse = zod.object({
   "receiptId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string(),
+  "icon": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
   "createdAt": zod.string()
@@ -287,6 +293,7 @@ export const UpdateLineItemResponse = zod.object({
   "receiptId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string(),
+  "icon": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
   "createdAt": zod.string()
@@ -340,6 +347,7 @@ export const GetItemPriceHistoryParams = zod.object({
 export const GetItemPriceHistoryResponse = zod.object({
   "itemId": zod.number(),
   "itemName": zod.string(),
+  "icon": zod.string().nullish(),
   "averagePrice": zod.number(),
   "lowestPrice": zod.number(),
   "highestPrice": zod.number(),
@@ -387,6 +395,7 @@ export const GetItemHistoryParams = zod.object({
 export const GetItemHistoryResponse = zod.object({
   "itemId": zod.number(),
   "itemName": zod.string(),
+  "icon": zod.string().nullish(),
   "purchaseCount": zod.number(),
   "averagePrice": zod.number(),
   "lowestPrice": zod.number(),
@@ -434,6 +443,7 @@ export const GetShoppingListResponse = zod.object({
   "recurring": zod.array(zod.object({
   "itemId": zod.number(),
   "itemName": zod.string(),
+  "icon": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
   "averagePrice": zod.number(),
@@ -447,6 +457,7 @@ export const GetShoppingListResponse = zod.object({
   "oneOff": zod.array(zod.object({
   "itemId": zod.number(),
   "itemName": zod.string(),
+  "icon": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
   "averagePrice": zod.number(),
@@ -476,6 +487,7 @@ export const ParseReceiptImageResponse = zod.object({
   "totalUncertain": zod.boolean().optional(),
   "lineItems": zod.array(zod.object({
   "name": zod.string(),
+  "icon": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
   "nameUncertain": zod.boolean().optional(),
@@ -504,6 +516,7 @@ export const SaveParsedReceiptBody = zod.object({
   "totalUncertain": zod.boolean().optional(),
   "lineItems": zod.array(zod.object({
   "name": zod.string(),
+  "icon": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
   "nameUncertain": zod.boolean().optional(),

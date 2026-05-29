@@ -39,6 +39,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - Numeric DB columns (price, total, deliveryFee) use `numeric`/string in Drizzle and are cast to `Number` in route responses
 - Receipt AI parse uses OpenAI vision (`gpt-5.2`) via the Replit-managed `@workspace/integrations-openai-ai-server` lib — no API key needed in app code
 - Stores and items are deduplicated by name (case-insensitive) during `parse-and-save`
+- Each item has an emoji `icon` (nullable text): AI assigns one per line item at scan time; `iconForItemName(name)` keyword→emoji map (fallback 🛒) sets it on new items and lazily backfills existing items with null icon when re-encountered. Users can override it manually via an emoji picker on the item detail screen.
 - Shopping list `isRecurring` flag = `purchaseCount >= 2` (tracked on itemsTable)
 - Camera is only available natively (iOS/Android); web falls back to image picker
 

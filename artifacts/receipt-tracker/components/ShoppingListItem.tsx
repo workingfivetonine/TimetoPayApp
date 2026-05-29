@@ -42,6 +42,9 @@ export function ShoppingListItemRow({
         onPress={onPress}
         activeOpacity={onPress ? 0.7 : 1}
       >
+        <View style={[styles.iconBadge, { backgroundColor: colors.accent }]}>
+          <Text style={styles.iconText}>{item.icon || "🛒"}</Text>
+        </View>
         <View style={styles.left}>
           <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
             {item.itemName}
@@ -137,6 +140,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingLeft: 16,
     paddingRight: 8,
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  iconText: {
+    fontSize: 19,
   },
   left: {
     flex: 1,

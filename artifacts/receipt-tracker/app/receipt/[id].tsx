@@ -158,6 +158,7 @@ export default function ReceiptDetailScreen() {
               ]}
             >
               <View style={styles.lineItemLeft}>
+                <Text style={styles.lineItemIcon}>{li.icon || "🛒"}</Text>
                 <Text style={[styles.lineItemName, { color: colors.foreground }]} numberOfLines={1}>
                   {li.itemName}
                 </Text>
@@ -289,6 +290,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   lineItemLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  lineItemIcon: { fontSize: 17 },
   lineItemName: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
   lineItemQty: { fontSize: 13, fontFamily: "Inter_400Regular" },
   lineItemRight: { flexDirection: "row", alignItems: "center", gap: 12 },

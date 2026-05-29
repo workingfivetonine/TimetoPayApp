@@ -679,6 +679,9 @@ components:
           type: integer
         name:
           type: string
+        icon:
+          type: ["string", "null"]
+          description: Emoji icon representing the item
         notes:
           type: ["string", "null"]
         purchaseCount:
@@ -692,6 +695,8 @@ components:
       properties:
         name:
           type: string
+        icon:
+          type: ["string", "null"]
         notes:
           type: ["string", "null"]
 
@@ -700,6 +705,8 @@ components:
       properties:
         name:
           type: string
+        icon:
+          type: ["string", "null"]
         notes:
           type: ["string", "null"]
 
@@ -753,6 +760,8 @@ components:
           type: integer
         itemName:
           type: string
+        icon:
+          type: ["string", "null"]
         price:
           type: number
         quantity:
@@ -905,6 +914,8 @@ components:
           type: integer
         itemName:
           type: string
+        icon:
+          type: ["string", "null"]
         purchaseCount:
           type: integer
         averagePrice:
@@ -988,6 +999,8 @@ components:
           type: integer
         itemName:
           type: string
+        icon:
+          type: ["string", "null"]
         averagePrice:
           type: number
         lowestPrice:
@@ -1038,6 +1051,8 @@ components:
           type: integer
         itemName:
           type: string
+        icon:
+          type: ["string", "null"]
         notes:
           type: ["string", "null"]
         purchaseCount:
@@ -1076,6 +1091,8 @@ components:
       properties:
         name:
           type: string
+        icon:
+          type: ["string", "null"]
         price:
           type: number
         quantity:

@@ -14,6 +14,7 @@ import {
   UpdateLineItemBody,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { iconForItemName } from "../lib/itemIcon.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require("pdf-parse/lib/pdf-parse.js");
@@ -66,11 +67,11 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
   "total": 10.23,
   "totalUncertain": false,
   "lineItems": [
-    { "name": "Whole Milk 2L",       "price": 1.35, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
-    { "name": "Free Range Eggs",     "price": 2.49, "quantity": 2, "nameUncertain": false, "priceUncertain": false },
-    { "name": "Sourdough Bread",     "price": 1.89, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
-    { "name": "Banana",              "price": 0.25, "quantity": 3, "nameUncertain": false, "priceUncertain": false },
-    { "name": "Chicken Breast 500g", "price": 3.75, "quantity": 1, "nameUncertain": false, "priceUncertain": false }
+    { "name": "Whole Milk 2L",       "icon": "🥛", "price": 1.35, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Free Range Eggs",     "icon": "🥚", "price": 2.49, "quantity": 2, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Sourdough Bread",     "icon": "🍞", "price": 1.89, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Banana",              "icon": "🍌", "price": 0.25, "quantity": 3, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Chicken Breast 500g", "icon": "🍗", "price": 3.75, "quantity": 1, "nameUncertain": false, "priceUncertain": false }
   ]
 }
 
@@ -86,6 +87,7 @@ Now extract data from the receipt image provided and return ONLY a single valid 
   "lineItems": [
     {
       "name": "Clean Title Case name",
+      "icon": "<a single emoji that best represents this product>",
       "price": <unit price>,
       "quantity": <integer>,
       "nameUncertain": <true if item name was blurry/illegible/guessed, false if clearly readable>,
@@ -96,6 +98,7 @@ Now extract data from the receipt image provided and return ONLY a single valid 
 
 Rules:
 - Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
+- icon must be exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots, 🍗 chicken, 🧻 paper towels). If unsure, use 🛒.
 - price is always the per-unit price; if only a line total is shown for qty > 1, divide to get the unit price.
 - Default quantity to 1 if not printed.
 - Expand abbreviations, strip PLU/SKU codes, use Title Case.
@@ -154,6 +157,7 @@ router.get("/:id", async (req, res): Promise<void> => {
       storeName: storesTable.name,
       lineItem: lineItemsTable,
       itemName: itemsTable.name,
+      itemIcon: itemsTable.icon,
     })
     .from(receiptsTable)
     .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
@@ -173,6 +177,7 @@ router.get("/:id", async (req, res): Promise<void> => {
     .map((r) => ({
       ...r.lineItem!,
       itemName: r.itemName ?? "Unknown",
+      icon: r.itemIcon ?? null,
       price: Number(r.lineItem!.price),
       quantity: Number(r.lineItem!.quantity),
       createdAt: r.lineItem!.createdAt.toISOString(),
@@ -219,6 +224,7 @@ router.post("/:id/line-items", async (req, res): Promise<void> => {
   res.status(201).json({
     ...lineItem,
     itemName: item?.name ?? "Unknown",
+    icon: item?.icon ?? null,
     price: Number(lineItem.price),
     quantity: Number(lineItem.quantity),
     createdAt: lineItem.createdAt.toISOString(),
@@ -331,7 +337,7 @@ async function persistParsedReceipt(parsed: {
   storeName: string;
   purchasedAt: string;
   total: number;
-  lineItems: { name: string; price: number; quantity: number }[];
+  lineItems: { name: string; price: number; quantity: number; icon?: string | null }[];
 }) {
   // Find or create store
   let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
@@ -354,10 +360,19 @@ async function persistParsedReceipt(parsed: {
   for (const li of parsed.lineItems) {
     let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
     if (!item) {
-      [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
+      const icon = li.icon || iconForItemName(li.name);
+      [item] = await db.insert(itemsTable).values({ name: li.name, icon, purchaseCount: 1 }).returning();
     } else {
-      await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
+      const backfillIcon = !item.icon ? li.icon || iconForItemName(li.name) : undefined;
+      await db
+        .update(itemsTable)
+        .set({
+          purchaseCount: sql`${itemsTable.purchaseCount} + 1`,
+          ...(backfillIcon ? { icon: backfillIcon } : {}),
+        })
+        .where(eq(itemsTable.id, item.id));
       item.purchaseCount += 1;
+      if (backfillIcon) item.icon = backfillIcon;
     }
 
     const [lineItem] = await db
@@ -368,6 +383,7 @@ async function persistParsedReceipt(parsed: {
     savedLineItems.push({
       ...lineItem,
       itemName: item.name,
+      icon: item.icon ?? null,
       price: Number(lineItem.price),
       quantity: Number(lineItem.quantity),
       createdAt: lineItem.createdAt.toISOString(),
@@ -401,7 +417,7 @@ router.post("/parse-and-save", async (req, res): Promise<void> => {
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
-    let parsed: { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number }[] };
+    let parsed: { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null }[] };
 
     try {
       parsed = JSON.parse(content);
@@ -420,7 +436,7 @@ router.post("/parse-and-save", async (req, res): Promise<void> => {
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number }[] };
+  const parsed = req.body as { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;
@@ -459,7 +475,7 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
       storeName: string;
       purchasedAt: string;
       total: number;
-      lineItems: { name: string; price: number; quantity: number }[];
+      lineItems: { name: string; price: number; quantity: number; icon?: string | null }[];
     };
     let parsed: ParsedReceipt;
     const today = new Date().toISOString();
@@ -468,10 +484,10 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
   "purchasedAt": "ISO 8601 date string (use today if unclear: ${today})",
   "total": total order amount as number,
   "lineItems": [
-    { "name": "item name", "price": price per unit as number, "quantity": quantity as number }
+    { "name": "item name", "icon": "a single emoji best representing the product", "price": price per unit as number, "quantity": quantity as number }
   ]
 }`;
-    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals.`;
+    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure.`;
 
     if (extractedText.length >= 50) {
       // Text-based PDF: send extracted text to language model
@@ -561,10 +577,19 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
     for (const li of parsed.lineItems) {
       let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
       if (!item) {
-        [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
+        const icon = li.icon || iconForItemName(li.name);
+        [item] = await db.insert(itemsTable).values({ name: li.name, icon, purchaseCount: 1 }).returning();
       } else {
-        await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
+        const backfillIcon = !item.icon ? li.icon || iconForItemName(li.name) : undefined;
+        await db
+          .update(itemsTable)
+          .set({
+            purchaseCount: sql`${itemsTable.purchaseCount} + 1`,
+            ...(backfillIcon ? { icon: backfillIcon } : {}),
+          })
+          .where(eq(itemsTable.id, item.id));
         item.purchaseCount += 1;
+        if (backfillIcon) item.icon = backfillIcon;
       }
 
       const [lineItem] = await db
@@ -575,6 +600,7 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
       savedLineItems.push({
         ...lineItem,
         itemName: item.name,
+        icon: item.icon ?? null,
         price: Number(lineItem.price),
         quantity: Number(lineItem.quantity),
         createdAt: lineItem.createdAt.toISOString(),
@@ -658,10 +684,18 @@ router.post("/manual-entry", async (req, res): Promise<void> => {
     for (const li of lineItems) {
       let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
       if (!item) {
-        [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
+        [item] = await db.insert(itemsTable).values({ name: li.name, icon: iconForItemName(li.name), purchaseCount: 1 }).returning();
       } else {
-        await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
+        const backfillIcon = !item.icon ? iconForItemName(li.name) : undefined;
+        await db
+          .update(itemsTable)
+          .set({
+            purchaseCount: sql`${itemsTable.purchaseCount} + 1`,
+            ...(backfillIcon ? { icon: backfillIcon } : {}),
+          })
+          .where(eq(itemsTable.id, item.id));
         item.purchaseCount += 1;
+        if (backfillIcon) item.icon = backfillIcon;
       }
 
       const [lineItem] = await db
@@ -672,6 +706,7 @@ router.post("/manual-entry", async (req, res): Promise<void> => {
       savedLineItems.push({
         ...lineItem,
         itemName: item.name,
+        icon: item.icon ?? null,
         price: Number(lineItem.price),
         quantity: Number(lineItem.quantity),
         createdAt: lineItem.createdAt.toISOString(),

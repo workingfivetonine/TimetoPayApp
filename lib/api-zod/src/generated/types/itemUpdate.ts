@@ -9,5 +9,7 @@
 export interface ItemUpdate {
   name?: string;
   /** @nullable */
+  icon?: string | null;
+  /** @nullable */
   notes?: string | null;
 }

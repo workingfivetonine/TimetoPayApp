@@ -10,6 +10,8 @@ import type { PricePoint } from './pricePoint';
 export interface ItemPriceHistory {
   itemId: number;
   itemName: string;
+  /** @nullable */
+  icon?: string | null;
   averagePrice: number;
   lowestPrice: number;
   highestPrice: number;

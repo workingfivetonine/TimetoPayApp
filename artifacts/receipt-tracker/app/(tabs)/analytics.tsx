@@ -212,6 +212,7 @@ export default function AnalyticsScreen() {
                         }
                         activeOpacity={0.7}
                       >
+                        <Text style={styles.itemRowIcon}>{item.icon || "🛒"}</Text>
                         <Text style={[styles.itemName, { color: colors.foreground }]} numberOfLines={1}>
                           {item.name}
                         </Text>
@@ -306,6 +307,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 6,
   },
+  itemRowIcon: { fontSize: 19, marginRight: 10 },
   itemName: { fontSize: 15, fontFamily: "Inter_500Medium", flex: 1 },
   itemRowRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   purchaseCount: { fontSize: 13, fontFamily: "Inter_400Regular" },

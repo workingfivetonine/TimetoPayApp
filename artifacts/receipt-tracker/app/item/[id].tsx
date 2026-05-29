@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Platform,
   Dimensions,
+  Modal,
+  TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -24,7 +26,12 @@ import Svg, {
 import {
   useGetItemHistory,
   useMarkRanOut,
+  useUpdateItem,
   getGetShoppingListQueryKey,
+  getGetItemHistoryQueryKey,
+  getGetItemPriceHistoryQueryKey,
+  getListItemsQueryKey,
+  getGetSpendAnalyticsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
@@ -166,6 +173,16 @@ function PriceTrendChart({
   );
 }
 
+const EMOJI_CHOICES = [
+  "🛒", "🍎", "🍌", "🍇", "🍓", "🍊", "🍋", "🍉", "🍐", "🍑",
+  "🥑", "🍅", "🥕", "🥬", "🥦", "🌽", "🥔", "🧅", "🧄", "🍄",
+  "🥖", "🍞", "🥐", "🥯", "🧇", "🥞", "🍚", "🍝", "🥫", "🥣",
+  "🥩", "🍗", "🍖", "🥓", "🌭", "🍔", "🍕", "🐟", "🦐", "🥚",
+  "🥛", "🧀", "🧈", "🍦", "🍫", "🍪", "🍩", "🍰", "🧁", "🍬",
+  "☕", "🍵", "🧃", "🥤", "🍷", "🍺", "🧴", "🧻", "🧼", "🧽",
+  "🪥", "🧂", "🍯", "🥜", "🌶️", "🫑", "🥒", "🍆", "🫒", "🥗",
+];
+
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ItemHistoryScreen() {
@@ -178,8 +195,36 @@ export default function ItemHistoryScreen() {
   const itemId = parseInt(id ?? "0");
   const { data, isLoading, refetch } = useGetItemHistory(itemId);
   const { mutateAsync: markRanOut, isPending: ranOutPending } = useMarkRanOut();
+  const { mutate: updateItem, isPending: iconSaving } = useUpdateItem();
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [customEmoji, setCustomEmoji] = useState("");
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
+
+  const handlePickIcon = (icon: string) => {
+    const trimmed = icon.trim();
+    if (!trimmed) return;
+    updateItem(
+      { id: itemId, data: { icon: trimmed } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetItemHistoryQueryKey(itemId) });
+          queryClient.invalidateQueries({ queryKey: getGetItemPriceHistoryQueryKey(itemId) });
+          queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+          queryClient.invalidateQueries({
+            predicate: (q) =>
+              typeof q.queryKey[0] === "string" &&
+              (q.queryKey[0] as string).startsWith("/api/receipts"),
+          });
+          setPickerOpen(false);
+          setCustomEmoji("");
+        },
+      }
+    );
+  };
 
   const handleRanOut = async () => {
     await markRanOut({ id: itemId });
@@ -224,6 +269,16 @@ export default function ItemHistoryScreen() {
       <View style={[styles.header, { paddingTop }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.headerIconBadge, { backgroundColor: colors.accent }]}
+          onPress={() => setPickerOpen(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.headerIconText}>{data.icon || "🛒"}</Text>
+          <View style={[styles.headerIconEdit, { backgroundColor: colors.primary, borderColor: colors.background }]}>
+            <Feather name="edit-2" size={9} color={colors.background} />
+          </View>
         </TouchableOpacity>
         <Text style={[styles.itemName, { color: colors.foreground }]} numberOfLines={2}>
           {data.itemName}
@@ -404,6 +459,59 @@ export default function ItemHistoryScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Emoji picker modal */}
+      <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={() => setPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={[styles.pickerSheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.pickerHeader}>
+              <Text style={[styles.pickerTitle, { color: colors.foreground }]}>Choose an icon</Text>
+              <TouchableOpacity onPress={() => setPickerOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.customRow}>
+              <TextInput
+                style={[styles.customInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+                value={customEmoji}
+                onChangeText={setCustomEmoji}
+                placeholder="Paste any emoji…"
+                placeholderTextColor={colors.mutedForeground}
+                maxLength={8}
+              />
+              <TouchableOpacity
+                style={[styles.customBtn, { backgroundColor: customEmoji.trim() ? colors.primary : colors.border }]}
+                onPress={() => handlePickIcon(customEmoji)}
+                disabled={!customEmoji.trim() || iconSaving}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.customBtnText, { color: colors.background }]}>Use</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.emojiGrid}>
+              {EMOJI_CHOICES.map((emoji) => {
+                const selected = data.icon === emoji;
+                return (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={[
+                      styles.emojiCell,
+                      { backgroundColor: colors.card, borderColor: selected ? colors.primary : colors.border },
+                    ]}
+                    onPress={() => handlePickIcon(emoji)}
+                    disabled={iconSaving}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.emojiCellText}>{emoji}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -419,6 +527,25 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backBtn: { padding: 4, paddingTop: 2 },
+  headerIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerIconText: { fontSize: 24 },
+  headerIconEdit: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   itemName: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1, lineHeight: 28 },
   scroll: { paddingHorizontal: 16, paddingTop: 4 },
   statsRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
@@ -515,4 +642,52 @@ const styles = StyleSheet.create({
   historyRight: { alignItems: "flex-end", gap: 2 },
   historyPrice: { fontSize: 16, fontFamily: "Inter_700Bold" },
   priceBadge: { fontSize: 10, fontFamily: "Inter_500Medium" },
+
+  // Emoji picker
+  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  pickerSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    maxHeight: "75%",
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  pickerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  customRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  customInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 18,
+  },
+  customBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  emojiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingBottom: 8,
+  },
+  emojiCell: {
+    width: 52,
+    height: 52,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emojiCellText: { fontSize: 26 },
 });

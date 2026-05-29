@@ -9,5 +9,7 @@
 export interface ItemInput {
   name: string;
   /** @nullable */
+  icon?: string | null;
+  /** @nullable */
   notes?: string | null;
 }

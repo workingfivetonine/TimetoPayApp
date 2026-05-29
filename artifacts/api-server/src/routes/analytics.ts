@@ -105,6 +105,7 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
     res.json({
       itemId,
       itemName: item.name,
+      icon: item.icon ?? null,
       averagePrice: 0,
       lowestPrice: 0,
       highestPrice: 0,
@@ -120,6 +121,7 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
   res.json({
     itemId,
     itemName: item.name,
+    icon: item.icon ?? null,
     averagePrice: Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100,
     lowestPrice: Math.min(...prices),
     highestPrice: Math.max(...prices),
@@ -301,6 +303,7 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
   res.json({
     itemId: item.id,
     itemName: item.name,
+    icon: item.icon ?? null,
     purchaseCount: item.purchaseCount,
     averagePrice: Math.round(avg * 100) / 100,
     lowestPrice: prices.length ? Math.min(...prices) : 0,

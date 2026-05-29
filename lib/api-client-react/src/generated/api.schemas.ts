@@ -65,6 +65,11 @@ export interface StoreUpdate {
 export interface Item {
   id: number;
   name: string;
+  /**
+     * Emoji icon representing the item
+     * @nullable
+     */
+  icon?: string | null;
   /** @nullable */
   notes?: string | null;
   purchaseCount: number;
@@ -74,11 +79,15 @@ export interface Item {
 export interface ItemInput {
   name: string;
   /** @nullable */
+  icon?: string | null;
+  /** @nullable */
   notes?: string | null;
 }
 
 export interface ItemUpdate {
   name?: string;
+  /** @nullable */
+  icon?: string | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -113,6 +122,8 @@ export interface LineItem {
   receiptId: number;
   itemId: number;
   itemName: string;
+  /** @nullable */
+  icon?: string | null;
   price: number;
   quantity: number;
   createdAt: string;
@@ -200,6 +211,8 @@ export interface ItemHistoryEntry {
 export interface ItemHistoryReport {
   itemId: number;
   itemName: string;
+  /** @nullable */
+  icon?: string | null;
   purchaseCount: number;
   averagePrice: number;
   lowestPrice: number;
@@ -246,6 +259,8 @@ export interface PricePoint {
 export interface ItemPriceHistory {
   itemId: number;
   itemName: string;
+  /** @nullable */
+  icon?: string | null;
   averagePrice: number;
   lowestPrice: number;
   highestPrice: number;
@@ -278,6 +293,8 @@ export interface ShoppingListItem {
   itemId: number;
   itemName: string;
   /** @nullable */
+  icon?: string | null;
+  /** @nullable */
   notes?: string | null;
   purchaseCount: number;
   averagePrice: number;
@@ -299,6 +316,8 @@ export interface ShoppingList {
 
 export interface ParsedReceiptLineItem {
   name: string;
+  /** @nullable */
+  icon?: string | null;
   price: number;
   quantity: number;
   nameUncertain?: boolean;

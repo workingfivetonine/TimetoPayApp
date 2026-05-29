@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const itemsTable = pgTable("items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  icon: text("icon"),
   notes: text("notes"),
   purchaseCount: integer("purchase_count").notNull().default(0),
   ranOutAt: timestamp("ran_out_at", { withTimezone: true }),

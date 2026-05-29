@@ -10,6 +10,8 @@ export interface ShoppingListItem {
   itemId: number;
   itemName: string;
   /** @nullable */
+  icon?: string | null;
+  /** @nullable */
   notes?: string | null;
   purchaseCount: number;
   averagePrice: number;
