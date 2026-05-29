@@ -209,17 +209,33 @@ export default function ScanScreen() {
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        <TouchableOpacity
-          style={styles.manualBtn}
-          onPress={() => router.push("/manual-entry")}
-          disabled={scanning}
-          activeOpacity={0.7}
-        >
-          <Feather name="edit-3" size={16} color={colors.mutedForeground} />
-          <Text style={[styles.manualBtnText, { color: colors.mutedForeground }]}>
-            Enter Manually
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.manualRow}>
+          <TouchableOpacity
+            style={styles.manualBtn}
+            onPress={() => router.push("/manual-entry")}
+            disabled={scanning}
+            activeOpacity={0.7}
+          >
+            <Feather name="edit-3" size={15} color={colors.mutedForeground} />
+            <Text style={[styles.manualBtnText, { color: colors.mutedForeground }]}>
+              Enter Manually
+            </Text>
+          </TouchableOpacity>
+
+          <View style={[styles.manualDot, { backgroundColor: colors.border }]} />
+
+          <TouchableOpacity
+            style={styles.manualBtn}
+            onPress={() => router.push("/quick-add")}
+            disabled={scanning}
+            activeOpacity={0.7}
+          >
+            <Feather name="list" size={15} color={colors.mutedForeground} />
+            <Text style={[styles.manualBtnText, { color: colors.mutedForeground }]}>
+              Log Items
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Scanning overlay */}
@@ -338,16 +354,27 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 4,
   },
+  manualRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   manualBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
     paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   manualBtnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Inter_500Medium",
+  },
+  manualDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
