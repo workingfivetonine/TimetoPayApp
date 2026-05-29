@@ -18,24 +18,70 @@ function receiptPrompt(): string {
 
 The image may be a photo of a crumpled, faded, or skewed paper receipt taken with a phone camera. Do your absolute best to read all text, even if parts are blurry, cut off, or at an angle.
 
-Extract the receipt data and return ONLY a single valid JSON object (no markdown, no code fences, no explanation):
+────────────────────────────────────────
+TYPICAL RECEIPT LAYOUT — use this as a reference map when reading the image:
+
+  ┌─────────────────────────────────────┐
+  │         STORE NAME / LOGO           │  ← storeName
+  │      123 High Street, City          │  (address — ignore)
+  │      Tel: 01234 567890              │  (phone — ignore)
+  │                                     │
+  │  Date: 14/03/2024   Time: 11:42     │  ← purchasedAt
+  │  Receipt #: 00042                   │  (ref — ignore)
+  │─────────────────────────────────────│
+  │  ITEM NAME              QTY  PRICE  │  ← line items start here
+  │─────────────────────────────────────│
+  │  Whole Milk 2L           1   1.35   │  ← name / qty / unit price
+  │  Free Range Eggs x6      2   2.49   │  ← qty=2, unit price=2.49
+  │  Sourdough Bread         1   1.89   │
+  │  PLU#4011 Banana         3   0.25   │  ← strip PLU codes from name
+  │  CHKN BRST 500G          1   3.75   │  ← expand abbrev → "Chicken Breast 500g"
+  │─────────────────────────────────────│
+  │  Subtotal:                   9.73   │  ← IGNORE (not a line item)
+  │  Loyalty discount:          -0.50   │  ← IGNORE
+  │  VAT (20%):                  1.62   │  ← IGNORE
+  │  Delivery fee:               1.99   │  ← IGNORE
+  │  Tip:                        1.00   │  ← IGNORE
+  │─────────────────────────────────────│
+  │  TOTAL:                     10.23   │  ← total (the final amount paid)
+  │─────────────────────────────────────│
+  │  Paid by card: Visa ****1234        │  (payment — ignore)
+  │  Thank you for shopping with us!    │  (footer — ignore)
+  └─────────────────────────────────────┘
+
+────────────────────────────────────────
+WORKED EXAMPLE — given the receipt above, the correct output is:
+{
+  "storeName": "Store Name",
+  "purchasedAt": "2024-03-14T11:42:00.000Z",
+  "total": 10.23,
+  "lineItems": [
+    { "name": "Whole Milk 2L",       "price": 1.35, "quantity": 1 },
+    { "name": "Free Range Eggs",     "price": 2.49, "quantity": 2 },
+    { "name": "Sourdough Bread",     "price": 1.89, "quantity": 1 },
+    { "name": "Banana",              "price": 0.25, "quantity": 3 },
+    { "name": "Chicken Breast 500g", "price": 3.75, "quantity": 1 }
+  ]
+}
+
+────────────────────────────────────────
+Now extract data from the receipt image provided and return ONLY a single valid JSON object in the same format (no markdown, no code fences, no explanation):
 {
   "storeName": "Name of the store or retailer",
-  "purchasedAt": "ISO 8601 date-time string — read the date printed on the receipt; if unreadable use today: ${today}",
-  "total": <the final total paid as a number, excluding delivery/service fees>,
+  "purchasedAt": "ISO 8601 date-time — read the date on the receipt; if unreadable use today: ${today}",
+  "total": <final total paid as a number>,
   "lineItems": [
-    { "name": "Clean item name in Title Case", "price": <unit price as number>, "quantity": <quantity as integer> }
+    { "name": "Clean Title Case name", "price": <unit price>, "quantity": <integer> }
   ]
 }
 
 Rules:
-- lineItems must contain ONLY purchased products/items — exclude subtotals, taxes, discounts, delivery fees, tips, and loyalty points lines.
-- price is the per-unit price. If only a line total is shown for qty > 1, divide to get the unit price.
-- If quantity is not printed, default to 1.
-- Normalise item names: Title Case, expand obvious abbreviations (e.g. "CHKN" → "Chicken"), remove SKU codes or PLU numbers.
-- If the store name is ambiguous, use the most prominent text at the top of the receipt.
+- Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
+- price is always the per-unit price; if only a line total is shown for qty > 1, divide to get the unit price.
+- Default quantity to 1 if not printed.
+- Expand abbreviations, strip PLU/SKU codes, use Title Case.
 - If you cannot confidently read a field, make a reasonable inference rather than omitting it.
-- Never return markdown or prose — only the raw JSON object.`;
+- Return raw JSON only — no markdown, no prose.`;
 }
 
 const router = Router();
