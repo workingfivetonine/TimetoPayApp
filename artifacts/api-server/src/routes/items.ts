@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { itemsTable } from "@workspace/db";
+import { itemsTable, lineItemsTable, receiptsTable } from "@workspace/db";
 import { CreateItemBody, UpdateItemBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -54,6 +54,31 @@ router.delete("/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   await db.delete(itemsTable).where(eq(itemsTable.id, id));
   res.status(204).send();
+});
+
+router.post("/:id/ran-out", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const ranOutAt = new Date();
+  const [item] = await db
+    .update(itemsTable)
+    .set({ ranOutAt })
+    .where(eq(itemsTable.id, id))
+    .returning();
+  if (!item) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+  const [lastRow] = await db
+    .select({ purchasedAt: receiptsTable.purchasedAt })
+    .from(lineItemsTable)
+    .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+    .where(eq(lineItemsTable.itemId, id))
+    .orderBy(sql`${receiptsTable.purchasedAt} DESC`)
+    .limit(1);
+  const daysSinceLastPurchase = lastRow
+    ? Math.floor((Date.now() - lastRow.purchasedAt.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  res.json({ ranOutAt: ranOutAt.toISOString(), daysSinceLastPurchase });
 });
 
 export default router;

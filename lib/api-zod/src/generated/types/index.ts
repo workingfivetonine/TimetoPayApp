@@ -24,6 +24,7 @@ export * from './parsedReceiptLineItem';
 export * from './parsePdfInput';
 export * from './parseReceiptInput';
 export * from './pricePoint';
+export * from './ranOutResponse';
 export * from './receipt';
 export * from './receiptBounds';
 export * from './receiptDetail';

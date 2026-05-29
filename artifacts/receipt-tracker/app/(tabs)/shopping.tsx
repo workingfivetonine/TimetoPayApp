@@ -9,7 +9,11 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGetShoppingList, getGetShoppingListQueryKey } from "@workspace/api-client-react";
+import {
+  useGetShoppingList,
+  getGetShoppingListQueryKey,
+  useMarkRanOut,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { ShoppingListItemRow } from "@/components/ShoppingListItem";
@@ -24,8 +28,10 @@ export default function ShoppingScreen() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
 
   const { data: list, isLoading } = useGetShoppingList();
+  const { mutateAsync: markRanOut } = useMarkRanOut();
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
   const paddingBottom = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
@@ -34,6 +40,16 @@ export default function ShoppingScreen() {
     setRefreshing(true);
     await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
     setRefreshing(false);
+  };
+
+  const handleRanOut = async (itemId: number) => {
+    setLoadingItemId(itemId);
+    try {
+      await markRanOut({ id: itemId });
+      await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+    } finally {
+      setLoadingItemId(null);
+    }
   };
 
   const sections: { title: string; subtitle: string; data: ShoppingListItem[] }[] = [
@@ -88,6 +104,8 @@ export default function ShoppingScreen() {
               <ShoppingListItemRow
                 item={item}
                 onPress={() => router.push(`/item/${item.itemId}`)}
+                onRanOut={() => handleRanOut(item.itemId)}
+                ranOutLoading={loadingItemId === item.itemId}
               />
             </View>
           )}

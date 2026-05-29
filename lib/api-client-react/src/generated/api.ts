@@ -34,6 +34,7 @@ import type {
   ParsePdfInput,
   ParseReceiptInput,
   ParsedReceipt,
+  RanOutResponse,
   Receipt,
   ReceiptBounds,
   ReceiptDetail,
@@ -649,6 +650,76 @@ export const useCreateItem = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateItemMutationOptions(options));
+    }
+
+export const getMarkRanOutUrl = (id: number,) => {
+
+
+
+
+  return `/api/items/${id}/ran-out`
+}
+
+/**
+ * @summary Mark an item as ran out, recording the current timestamp
+ */
+export const markRanOut = async (id: number, options?: RequestInit): Promise<RanOutResponse> => {
+
+  return customFetch<RanOutResponse>(getMarkRanOutUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getMarkRanOutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markRanOut>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markRanOut>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['markRanOut'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markRanOut>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  markRanOut(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkRanOutMutationResult = NonNullable<Awaited<ReturnType<typeof markRanOut>>>
+
+    export type MarkRanOutMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark an item as ran out, recording the current timestamp
+ */
+export const useMarkRanOut = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markRanOut>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markRanOut>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getMarkRanOutMutationOptions(options));
     }
 
 export const getGetItemUrl = (id: number,) => {

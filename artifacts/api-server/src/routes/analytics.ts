@@ -293,6 +293,11 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
   const prices = history.map((h) => h.price);
   const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
 
+  const lastPurchasedAt = rows[0]?.purchasedAt ?? null;
+  const daysSinceLastPurchase = lastPurchasedAt
+    ? Math.floor((Date.now() - lastPurchasedAt.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+
   res.json({
     itemId: item.id,
     itemName: item.name,
@@ -300,6 +305,9 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
     averagePrice: Math.round(avg * 100) / 100,
     lowestPrice: prices.length ? Math.min(...prices) : 0,
     highestPrice: prices.length ? Math.max(...prices) : 0,
+    daysSinceLastPurchase,
+    lastPurchasedAt: lastPurchasedAt ? lastPurchasedAt.toISOString() : null,
+    ranOutAt: item.ranOutAt ? item.ranOutAt.toISOString() : null,
     history,
   });
 });

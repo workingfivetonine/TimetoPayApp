@@ -21,7 +21,12 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
-import { useGetItemHistory } from "@workspace/api-client-react";
+import {
+  useGetItemHistory,
+  useMarkRanOut,
+  getGetShoppingListQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import type { ItemHistoryEntry } from "@workspace/api-client-react";
 
@@ -30,12 +35,23 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function shortDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// ─── Chart ────────────────────────────────────────────────────────────────────
+// ─── Price Trend Chart ────────────────────────────────────────────────────────
 
 const CHART_H = 160;
 const PAD = { left: 52, right: 16, top: 18, bottom: 30 };
@@ -63,7 +79,6 @@ function PriceTrendChart({
   const svgW = screenW - 32;
   const svgH = CHART_H;
 
-  // Chronological order: oldest → newest (API returns newest first)
   const pts = [...history].reverse();
   if (pts.length === 0) return null;
 
@@ -81,28 +96,20 @@ function PriceTrendChart({
 
   const toX = (i: number) =>
     pts.length === 1 ? (cLeft + cRight) / 2 : cLeft + (i / (pts.length - 1)) * cW;
-
   const toY = (price: number) =>
     cBottom - ((price - paddedMin) / paddedRange) * cH;
 
-  // SVG line path
   const linePath = pts
     .map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(p.price).toFixed(1)}`)
     .join(" ");
-
-  // Closed fill area
   const fillPath =
     pts.length > 1
       ? `${linePath} L ${toX(pts.length - 1).toFixed(1)} ${cBottom} L ${toX(0).toFixed(1)} ${cBottom} Z`
       : "";
 
-  // Y-axis tick values
   const yTicks = [lowestPrice, highestPrice];
-  if (priceRange > 0.02) {
-    yTicks.push((lowestPrice + highestPrice) / 2);
-  }
+  if (priceRange > 0.02) yTicks.push((lowestPrice + highestPrice) / 2);
 
-  // X-axis labels: first + last (+ midpoint if 6+ purchases)
   const xLabels: { label: string; x: number; anchor: "start" | "end" | "middle" }[] = [
     { label: shortDate(pts[0].purchasedAt), x: toX(0), anchor: "start" },
   ];
@@ -126,73 +133,32 @@ function PriceTrendChart({
           <Stop offset="100%" stopColor={trendColor} stopOpacity="0" />
         </LinearGradient>
       </Defs>
-
-      {/* Horizontal grid lines */}
       {yTicks.map((tick, i) => (
         <SvgLine
           key={i}
-          x1={cLeft}
-          y1={toY(tick)}
-          x2={cRight}
-          y2={toY(tick)}
-          stroke={borderColor}
-          strokeWidth={0.6}
-          strokeDasharray="3 4"
+          x1={cLeft} y1={toY(tick)} x2={cRight} y2={toY(tick)}
+          stroke={borderColor} strokeWidth={0.6} strokeDasharray="3 4"
         />
       ))}
-
-      {/* Y-axis price labels */}
       {yTicks.map((tick, i) => (
-        <SvgText
-          key={i}
-          x={cLeft - 5}
-          y={toY(tick) + 4}
-          textAnchor="end"
-          fontSize={9.5}
-          fill={mutedColor}
-        >
+        <SvgText key={i} x={cLeft - 5} y={toY(tick) + 4} textAnchor="end" fontSize={9.5} fill={mutedColor}>
           ${tick.toFixed(2)}
         </SvgText>
       ))}
-
-      {/* Gradient fill */}
       {fillPath ? <Path d={fillPath} fill="url(#fillGrad)" /> : null}
-
-      {/* Trend line */}
       {pts.length > 1 && (
-        <Path
-          d={linePath}
-          stroke={trendColor}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
+        <Path d={linePath} stroke={trendColor} strokeWidth={2.5}
+          strokeLinecap="round" strokeLinejoin="round" fill="none" />
       )}
-
-      {/* Data point dots */}
       {pts.map((p, i) => (
         <Circle
-          key={i}
-          cx={toX(i)}
-          cy={toY(p.price)}
+          key={i} cx={toX(i)} cy={toY(p.price)}
           r={pts.length === 1 ? 6 : pts.length <= 8 ? 4 : 3}
-          fill={trendColor}
-          stroke={cardColor}
-          strokeWidth={2}
+          fill={trendColor} stroke={cardColor} strokeWidth={2}
         />
       ))}
-
-      {/* X-axis date labels */}
       {xLabels.map((xl, i) => (
-        <SvgText
-          key={i}
-          x={xl.x}
-          y={svgH - 6}
-          textAnchor={xl.anchor}
-          fontSize={9.5}
-          fill={mutedColor}
-        >
+        <SvgText key={i} x={xl.x} y={svgH - 6} textAnchor={xl.anchor} fontSize={9.5} fill={mutedColor}>
           {xl.label}
         </SvgText>
       ))}
@@ -207,11 +173,21 @@ export default function ItemHistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const itemId = parseInt(id ?? "0");
-  const { data, isLoading } = useGetItemHistory(itemId);
+  const { data, isLoading, refetch } = useGetItemHistory(itemId);
+  const { mutateAsync: markRanOut, isPending: ranOutPending } = useMarkRanOut();
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
+
+  const handleRanOut = async () => {
+    await markRanOut({ id: itemId });
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() }),
+    ]);
+  };
 
   if (isLoading) {
     return (
@@ -223,7 +199,7 @@ export default function ItemHistoryScreen() {
 
   if (!data) return null;
 
-  // Trend: compare most recent purchase to first (history is newest-first)
+  // Trend direction
   const chronoPts = [...data.history].reverse();
   const firstPrice = chronoPts[0]?.price ?? 0;
   const lastPrice = chronoPts[chronoPts.length - 1]?.price ?? 0;
@@ -232,6 +208,15 @@ export default function ItemHistoryScreen() {
     trendDelta < -0.005 ? "#16a34a" : trendDelta > 0.005 ? "#dc2626" : colors.primary;
   const trendIcon: "trending-down" | "trending-up" | "minus" =
     trendDelta < -0.005 ? "trending-down" : trendDelta > 0.005 ? "trending-up" : "minus";
+
+  const days = data.daysSinceLastPurchase;
+  const daysLabel =
+    days == null ? null : days === 0 ? "Purchased today" : days === 1 ? "1 day ago" : `${days} days ago`;
+
+  const ranOutAt = data.ranOutAt;
+  const ranOutDaysAgo = ranOutAt
+    ? Math.floor((Date.now() - new Date(ranOutAt).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -249,28 +234,84 @@ export default function ItemHistoryScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: "#16a34a" }]}>
-              ${data.lowestPrice.toFixed(2)}
-            </Text>
+            <Text style={[styles.statValue, { color: "#16a34a" }]}>${data.lowestPrice.toFixed(2)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Lowest</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: colors.primary }]}>
-              ${data.averagePrice.toFixed(2)}
-            </Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>${data.averagePrice.toFixed(2)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Average</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: "#dc2626" }]}>
-              ${data.highestPrice.toFixed(2)}
-            </Text>
+            <Text style={[styles.statValue, { color: "#dc2626" }]}>${data.highestPrice.toFixed(2)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Highest</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: colors.foreground }]}>
-              {data.purchaseCount}
-            </Text>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{data.purchaseCount}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Purchases</Text>
+          </View>
+        </View>
+
+        {/* Ran-out card */}
+        <View style={[styles.ranOutCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Left: last purchased info */}
+          <View style={styles.ranOutLeft}>
+            <View style={styles.ranOutLabelRow}>
+              <Feather name="clock" size={13} color={colors.mutedForeground} />
+              <Text style={[styles.ranOutMetaLabel, { color: colors.mutedForeground }]}>
+                Last purchased
+              </Text>
+            </View>
+            <Text style={[styles.ranOutMetaValue, { color: colors.foreground }]}>
+              {daysLabel ?? "—"}
+            </Text>
+            {data.lastPurchasedAt && (
+              <Text style={[styles.ranOutMetaDate, { color: colors.mutedForeground }]}>
+                {formatDate(data.lastPurchasedAt)}
+              </Text>
+            )}
+          </View>
+
+          {/* Divider */}
+          <View style={[styles.ranOutDivider, { backgroundColor: colors.border }]} />
+
+          {/* Right: ran-out status + button */}
+          <View style={styles.ranOutRight}>
+            {ranOutAt ? (
+              <>
+                <View style={styles.ranOutLabelRow}>
+                  <Feather name="alert-circle" size={13} color="#dc2626" />
+                  <Text style={[styles.ranOutMetaLabel, { color: "#dc2626" }]}>Ran out</Text>
+                </View>
+                <Text style={[styles.ranOutMetaValue, { color: colors.foreground }]}>
+                  {ranOutDaysAgo === 0
+                    ? "Today"
+                    : ranOutDaysAgo === 1
+                    ? "Yesterday"
+                    : `${ranOutDaysAgo}d ago`}
+                </Text>
+                <Text style={[styles.ranOutMetaDate, { color: colors.mutedForeground }]}>
+                  {formatDateTime(ranOutAt)}
+                </Text>
+              </>
+            ) : (
+              <TouchableOpacity
+                style={[styles.ranOutBtn, { backgroundColor: colors.accent, borderColor: colors.primary }]}
+                onPress={handleRanOut}
+                activeOpacity={0.7}
+                disabled={ranOutPending}
+              >
+                {ranOutPending ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Feather name="x-circle" size={15} color={colors.primary} />
+                    <Text style={[styles.ranOutBtnText, { color: colors.primary }]}>
+                      Mark Ran Out
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -278,9 +319,7 @@ export default function ItemHistoryScreen() {
         {data.history.length >= 1 && (
           <>
             <View style={styles.chartSectionHeader}>
-              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-                PRICE TREND
-              </Text>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PRICE TREND</Text>
               {data.history.length >= 2 && (
                 <View style={styles.trendPill}>
                   <Feather name={trendIcon} size={12} color={trendColor} />
@@ -292,9 +331,7 @@ export default function ItemHistoryScreen() {
                 </View>
               )}
             </View>
-            <View
-              style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
+            <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <PriceTrendChart
                 history={data.history}
                 lowestPrice={data.lowestPrice}
@@ -315,9 +352,7 @@ export default function ItemHistoryScreen() {
 
         {data.history.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              No purchase history yet
-            </Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No purchase history yet</Text>
           </View>
         ) : (
           <View style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -330,10 +365,7 @@ export default function ItemHistoryScreen() {
                   key={`${entry.receiptId}-${idx}`}
                   style={[
                     styles.historyRow,
-                    !isLast && {
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: colors.border,
-                    },
+                    !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
                   ]}
                   onPress={() => router.push(`/receipt/${entry.receiptId}`)}
                   activeOpacity={0.7}
@@ -344,28 +376,18 @@ export default function ItemHistoryScreen() {
                     </Text>
                     <View style={styles.storeRow}>
                       <Feather name="shopping-bag" size={11} color={colors.mutedForeground} />
-                      <Text
-                        style={[styles.historyStore, { color: colors.mutedForeground }]}
-                        numberOfLines={1}
-                      >
+                      <Text style={[styles.historyStore, { color: colors.mutedForeground }]} numberOfLines={1}>
                         {entry.storeName}
                       </Text>
                       {entry.quantity > 1 && (
-                        <Text style={[styles.historyQty, { color: colors.mutedForeground }]}>
-                          ×{entry.quantity}
-                        </Text>
+                        <Text style={[styles.historyQty, { color: colors.mutedForeground }]}>×{entry.quantity}</Text>
                       )}
                     </View>
                   </View>
                   <View style={styles.historyRight}>
-                    <Text
-                      style={[
-                        styles.historyPrice,
-                        {
-                          color: isLowest ? "#16a34a" : isHighest ? "#dc2626" : colors.foreground,
-                        },
-                      ]}
-                    >
+                    <Text style={[styles.historyPrice, {
+                      color: isLowest ? "#16a34a" : isHighest ? "#dc2626" : colors.foreground,
+                    }]}>
                       ${entry.price.toFixed(2)}
                     </Text>
                     {isLowest && data.history.length > 1 && (
@@ -375,12 +397,7 @@ export default function ItemHistoryScreen() {
                       <Text style={[styles.priceBadge, { color: "#dc2626" }]}>highest</Text>
                     )}
                   </View>
-                  <Feather
-                    name="chevron-right"
-                    size={14}
-                    color={colors.border}
-                    style={{ marginLeft: 6 }}
-                  />
+                  <Feather name="chevron-right" size={14} color={colors.border} style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               );
             })}
@@ -406,15 +423,68 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingTop: 4 },
   statsRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
   statCard: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 10,
-    gap: 2,
-    alignItems: "center",
+    flex: 1, borderRadius: 12, borderWidth: 1, padding: 10, gap: 2, alignItems: "center",
   },
   statValue: { fontSize: 15, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 10, fontFamily: "Inter_400Regular", textAlign: "center" },
+
+  // Ran-out card
+  ranOutCard: {
+    flexDirection: "row",
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  ranOutLeft: {
+    flex: 1,
+    padding: 14,
+    gap: 3,
+  },
+  ranOutDivider: {
+    width: StyleSheet.hairlineWidth,
+    marginVertical: 12,
+  },
+  ranOutRight: {
+    flex: 1,
+    padding: 14,
+    gap: 3,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  ranOutLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  ranOutMetaLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+  ranOutMetaValue: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+  },
+  ranOutMetaDate: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+  },
+  ranOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 2,
+  },
+  ranOutBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+
+  // Chart
   chartSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -426,41 +496,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     letterSpacing: 0.6,
   },
-  trendPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  trendText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
+  trendPill: { flexDirection: "row", alignItems: "center", gap: 4 },
+  trendText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   chartCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: 20,
-    paddingVertical: 8,
+    borderRadius: 12, borderWidth: 1, overflow: "hidden", marginBottom: 20, paddingVertical: 8,
   },
-  emptyCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 24,
-    alignItems: "center",
-  },
+
+  // History list
+  emptyCard: { borderRadius: 12, borderWidth: 1, padding: 24, alignItems: "center" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  historyCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
+  historyCard: { borderRadius: 12, borderWidth: 1, overflow: "hidden", marginBottom: 8 },
+  historyRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12 },
   historyLeft: { flex: 1, gap: 3 },
   historyDate: { fontSize: 14, fontFamily: "Inter_500Medium" },
   storeRow: { flexDirection: "row", alignItems: "center", gap: 4 },

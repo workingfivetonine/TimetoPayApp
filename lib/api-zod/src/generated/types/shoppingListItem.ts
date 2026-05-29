@@ -16,4 +16,10 @@ export interface ShoppingListItem {
   lowestPrice: number;
   lowestPriceStoreName: string;
   isRecurring: boolean;
+  /** @nullable */
+  daysSinceLastPurchase?: number | null;
+  /** @nullable */
+  lastPurchasedAt?: string | null;
+  /** @nullable */
+  ranOutAt?: string | null;
 }

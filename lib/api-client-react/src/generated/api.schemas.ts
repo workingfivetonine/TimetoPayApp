@@ -204,7 +204,19 @@ export interface ItemHistoryReport {
   averagePrice: number;
   lowestPrice: number;
   highestPrice: number;
+  /** @nullable */
+  daysSinceLastPurchase?: number | null;
+  /** @nullable */
+  lastPurchasedAt?: string | null;
+  /** @nullable */
+  ranOutAt?: string | null;
   history: ItemHistoryEntry[];
+}
+
+export interface RanOutResponse {
+  ranOutAt: string;
+  /** @nullable */
+  daysSinceLastPurchase?: number | null;
 }
 
 export interface WeeklySpend {
@@ -272,6 +284,12 @@ export interface ShoppingListItem {
   lowestPrice: number;
   lowestPriceStoreName: string;
   isRecurring: boolean;
+  /** @nullable */
+  daysSinceLastPurchase?: number | null;
+  /** @nullable */
+  lastPurchasedAt?: string | null;
+  /** @nullable */
+  ranOutAt?: string | null;
 }
 
 export interface ShoppingList {

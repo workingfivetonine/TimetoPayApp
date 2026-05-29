@@ -7,6 +7,7 @@ export const itemsTable = pgTable("items", {
   name: text("name").notNull(),
   notes: text("notes"),
   purchaseCount: integer("purchase_count").notNull().default(0),
+  ranOutAt: timestamp("ran_out_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

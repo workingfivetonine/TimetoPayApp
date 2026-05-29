@@ -158,6 +158,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Item"
 
+  /items/{id}/ran-out:
+    post:
+      operationId: markRanOut
+      tags: [items]
+      summary: Mark an item as ran out, recording the current timestamp
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ran-out recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RanOutResponse"
+        "404":
+          description: Item not found
+
   /items/{id}:
     get:
       operationId: getItem
@@ -873,10 +894,25 @@ components:
           type: number
         highestPrice:
           type: number
+        daysSinceLastPurchase:
+          type: ["integer", "null"]
+        lastPurchasedAt:
+          type: ["string", "null"]
+        ranOutAt:
+          type: ["string", "null"]
         history:
           type: array
           items:
             $ref: "#/components/schemas/ItemHistoryEntry"
+
+    RanOutResponse:
+      type: object
+      required: [ranOutAt]
+      properties:
+        ranOutAt:
+          type: string
+        daysSinceLastPurchase:
+          type: ["integer", "null"]
 
     WeeklySpend:
       type: object
@@ -995,6 +1031,12 @@ components:
           type: string
         isRecurring:
           type: boolean
+        daysSinceLastPurchase:
+          type: ["integer", "null"]
+        lastPurchasedAt:
+          type: ["string", "null"]
+        ranOutAt:
+          type: ["string", "null"]
 
     ShoppingList:
       type: object

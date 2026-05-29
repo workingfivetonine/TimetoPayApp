@@ -5,6 +5,10 @@ import { lineItemsTable, receiptsTable, storesTable, itemsTable } from "@workspa
 
 const router = Router();
 
+function daysSince(date: Date): number {
+  return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 router.get("/", async (req, res): Promise<void> => {
   const items = await db.select().from(itemsTable).orderBy(itemsTable.name);
 
@@ -16,6 +20,7 @@ router.get("/", async (req, res): Promise<void> => {
         price: lineItemsTable.price,
         storeId: storesTable.id,
         storeName: storesTable.name,
+        purchasedAt: receiptsTable.purchasedAt,
       })
       .from(lineItemsTable)
       .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
@@ -29,6 +34,11 @@ router.get("/", async (req, res): Promise<void> => {
     const lowestPrice = Math.min(...prices);
     const lowestRow = rows[prices.indexOf(lowestPrice)];
 
+    const lastPurchasedAt = rows.reduce<Date>(
+      (max, r) => (r.purchasedAt > max ? r.purchasedAt : max),
+      rows[0].purchasedAt
+    );
+
     result.push({
       itemId: item.id,
       itemName: item.name,
@@ -38,6 +48,9 @@ router.get("/", async (req, res): Promise<void> => {
       lowestPrice,
       lowestPriceStoreName: lowestRow.storeName,
       isRecurring: item.purchaseCount >= 2,
+      lastPurchasedAt: lastPurchasedAt.toISOString(),
+      daysSinceLastPurchase: daysSince(lastPurchasedAt),
+      ranOutAt: item.ranOutAt ? item.ranOutAt.toISOString() : null,
     });
   }
 

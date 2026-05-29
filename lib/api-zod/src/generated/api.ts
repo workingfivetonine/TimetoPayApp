@@ -133,6 +133,19 @@ export const CreateItemBody = zod.object({
 
 
 /**
+ * @summary Mark an item as ran out, recording the current timestamp
+ */
+export const MarkRanOutParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkRanOutResponse = zod.object({
+  "ranOutAt": zod.string(),
+  "daysSinceLastPurchase": zod.number().nullish()
+})
+
+
+/**
  * @summary Get an item by ID
  */
 export const GetItemParams = zod.object({
@@ -378,6 +391,9 @@ export const GetItemHistoryResponse = zod.object({
   "averagePrice": zod.number(),
   "lowestPrice": zod.number(),
   "highestPrice": zod.number(),
+  "daysSinceLastPurchase": zod.number().nullish(),
+  "lastPurchasedAt": zod.string().nullish(),
+  "ranOutAt": zod.string().nullish(),
   "history": zod.array(zod.object({
   "receiptId": zod.number(),
   "purchasedAt": zod.string(),
@@ -423,7 +439,10 @@ export const GetShoppingListResponse = zod.object({
   "averagePrice": zod.number(),
   "lowestPrice": zod.number(),
   "lowestPriceStoreName": zod.string(),
-  "isRecurring": zod.boolean()
+  "isRecurring": zod.boolean(),
+  "daysSinceLastPurchase": zod.number().nullish(),
+  "lastPurchasedAt": zod.string().nullish(),
+  "ranOutAt": zod.string().nullish()
 })),
   "oneOff": zod.array(zod.object({
   "itemId": zod.number(),
@@ -433,7 +452,10 @@ export const GetShoppingListResponse = zod.object({
   "averagePrice": zod.number(),
   "lowestPrice": zod.number(),
   "lowestPriceStoreName": zod.string(),
-  "isRecurring": zod.boolean()
+  "isRecurring": zod.boolean(),
+  "daysSinceLastPurchase": zod.number().nullish(),
+  "lastPurchasedAt": zod.string().nullish(),
+  "ranOutAt": zod.string().nullish()
 }))
 })
 

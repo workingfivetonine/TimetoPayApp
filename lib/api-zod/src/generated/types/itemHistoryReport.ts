@@ -14,5 +14,11 @@ export interface ItemHistoryReport {
   averagePrice: number;
   lowestPrice: number;
   highestPrice: number;
+  /** @nullable */
+  daysSinceLastPurchase?: number | null;
+  /** @nullable */
+  lastPurchasedAt?: string | null;
+  /** @nullable */
+  ranOutAt?: string | null;
   history: ItemHistoryEntry[];
 }
