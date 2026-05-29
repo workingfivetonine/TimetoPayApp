@@ -207,6 +207,12 @@ export interface ItemPriceHistory {
 export interface StoreSummary {
   storeId: number;
   storeName: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  openTimes?: string | null;
   receiptCount: number;
   totalSpend: number;
   averageReceiptTotal: number;

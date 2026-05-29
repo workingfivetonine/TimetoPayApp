@@ -7,9 +7,10 @@ import type { Store } from "@workspace/api-client-react";
 interface Props {
   store: Store;
   onPress: () => void;
+  onEdit?: () => void;
 }
 
-export function StoreCard({ store, onPress }: Props) {
+export function StoreCard({ store, onPress, onEdit }: Props) {
   const colors = useColors();
 
   return (
@@ -26,20 +27,38 @@ export function StoreCard({ store, onPress }: Props) {
           <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
             {store.name}
           </Text>
-          {store.deliveryAvailable ? (
-            <View style={styles.deliveryRow}>
+          {store.address ? (
+            <View style={styles.metaRow}>
+              <Feather name="map-pin" size={11} color={colors.mutedForeground} />
+              <Text style={[styles.metaText, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {store.address}
+              </Text>
+            </View>
+          ) : store.deliveryAvailable ? (
+            <View style={styles.metaRow}>
               <Feather name="truck" size={11} color={colors.primary} />
               <Text style={[styles.deliveryText, { color: colors.primary }]}>
-                Delivery
-                {store.deliveryFee != null ? ` · $${Number(store.deliveryFee).toFixed(2)}` : ""}
+                Delivery{store.deliveryFee != null ? ` · $${Number(store.deliveryFee).toFixed(2)}` : ""}
               </Text>
             </View>
           ) : (
-            <Text style={[styles.noDelivery, { color: colors.mutedForeground }]}>In-store only</Text>
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>In-store only</Text>
           )}
         </View>
       </View>
-      <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+
+      <View style={styles.right}>
+        {onEdit && (
+          <TouchableOpacity
+            style={[styles.editBtn, { backgroundColor: colors.secondary }]}
+            onPress={onEdit}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="edit-2" size={14} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -74,19 +93,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
   },
-  deliveryRow: {
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     marginTop: 3,
   },
+  metaText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+  },
   deliveryText: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
   },
-  noDelivery: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: 3,
+  right: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  editBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

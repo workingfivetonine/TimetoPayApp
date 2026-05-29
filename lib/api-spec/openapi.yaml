@@ -839,6 +839,12 @@ components:
           type: integer
         storeName:
           type: string
+        address:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        openTimes:
+          type: ["string", "null"]
         receiptCount:
           type: integer
         totalSpend:

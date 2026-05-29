@@ -197,6 +197,9 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
   res.json({
     storeId: store.id,
     storeName: store.name,
+    address: store.address ?? null,
+    phone: store.phone ?? null,
+    openTimes: store.openTimes ?? null,
     receiptCount: receipts.length,
     totalSpend: Math.round(totalSpend * 100) / 100,
     averageReceiptTotal: Math.round(avgReceipt * 100) / 100,

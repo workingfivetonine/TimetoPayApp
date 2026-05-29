@@ -351,6 +351,9 @@ export const GetStoreSummaryParams = zod.object({
 export const GetStoreSummaryResponse = zod.object({
   "storeId": zod.number(),
   "storeName": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
   "receiptCount": zod.number(),
   "totalSpend": zod.number(),
   "averageReceiptTotal": zod.number(),

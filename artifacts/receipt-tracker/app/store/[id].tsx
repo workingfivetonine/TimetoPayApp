@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -34,6 +35,8 @@ export default function StoreDetailScreen() {
   }
 
   if (!summary) return null;
+
+  const hasContactInfo = summary.address || summary.phone || summary.openTimes;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -67,7 +70,50 @@ export default function StoreDetailScreen() {
           </View>
         </View>
 
-        {/* Delivery Section */}
+        {/* Contact / Info Card */}
+        {hasContactInfo && (
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.cardHeaderRow}>
+              <Feather name="info" size={16} color={colors.primary} />
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Store Info</Text>
+            </View>
+
+            {summary.address && (
+              <TouchableOpacity
+                style={[styles.infoRow, { borderTopColor: colors.border }]}
+                onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(summary.address!)}`)}
+                activeOpacity={0.6}
+              >
+                <Feather name="map-pin" size={15} color={colors.mutedForeground} />
+                <Text style={[styles.infoText, { color: colors.foreground }]} numberOfLines={2}>
+                  {summary.address}
+                </Text>
+                <Feather name="external-link" size={13} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+
+            {summary.phone && (
+              <TouchableOpacity
+                style={[styles.infoRow, { borderTopColor: colors.border }]}
+                onPress={() => Linking.openURL(`tel:${summary.phone}`)}
+                activeOpacity={0.6}
+              >
+                <Feather name="phone" size={15} color={colors.mutedForeground} />
+                <Text style={[styles.infoText, { color: colors.foreground }]}>{summary.phone}</Text>
+                <Feather name="external-link" size={13} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+
+            {summary.openTimes && (
+              <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
+                <Feather name="clock" size={15} color={colors.mutedForeground} />
+                <Text style={[styles.infoText, { color: colors.foreground }]}>{summary.openTimes}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Delivery Card */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.deliveryHeader}>
             <Feather
@@ -168,13 +214,33 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     overflow: "hidden",
   },
-  deliveryHeader: {
+  cardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     padding: 16,
   },
   cardTitle: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+  },
+  deliveryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 16,
+  },
   deliveryBadge: {
     borderRadius: 8,
     paddingHorizontal: 10,

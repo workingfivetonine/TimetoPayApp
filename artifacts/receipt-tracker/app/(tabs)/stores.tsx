@@ -33,6 +33,9 @@ import { useRouter } from "expo-router";
 
 interface StoreFormData {
   name: string;
+  address: string;
+  phone: string;
+  openTimes: string;
   deliveryAvailable: boolean;
   deliveryFee: string;
   minimumOrderAmount: string;
@@ -41,6 +44,9 @@ interface StoreFormData {
 
 const defaultForm: StoreFormData = {
   name: "",
+  address: "",
+  phone: "",
+  openTimes: "",
   deliveryAvailable: false,
   deliveryFee: "",
   minimumOrderAmount: "",
@@ -81,6 +87,9 @@ export default function StoresScreen() {
     setEditingStore(store);
     setForm({
       name: store.name,
+      address: store.address ?? "",
+      phone: store.phone ?? "",
+      openTimes: store.openTimes ?? "",
       deliveryAvailable: store.deliveryAvailable,
       deliveryFee: store.deliveryFee != null ? String(store.deliveryFee) : "",
       minimumOrderAmount: store.minimumOrderAmount != null ? String(store.minimumOrderAmount) : "",
@@ -94,6 +103,9 @@ export default function StoresScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const data = {
       name: form.name.trim(),
+      address: form.address.trim() || null,
+      phone: form.phone.trim() || null,
+      openTimes: form.openTimes.trim() || null,
       deliveryAvailable: form.deliveryAvailable,
       deliveryFee: form.deliveryFee ? Number(form.deliveryFee) : null,
       minimumOrderAmount: form.minimumOrderAmount ? Number(form.minimumOrderAmount) : null,
@@ -132,6 +144,8 @@ export default function StoresScreen() {
     );
   };
 
+  void handleDelete;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
@@ -169,6 +183,7 @@ export default function StoresScreen() {
             <StoreCard
               store={item}
               onPress={() => router.push(`/store/${item.id}`)}
+              onEdit={() => openEdit(item)}
             />
           )}
         />
@@ -190,8 +205,12 @@ export default function StoresScreen() {
               <Text style={[styles.modalSave, { color: colors.primary }]}>Save</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalContent}>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>STORE NAME</Text>
+
+          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+            {/* ── Basic Info ─────────────────────────────── */}
+            <SectionDivider label="STORE INFO" colors={colors} />
+
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>STORE NAME *</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
               value={form.name}
@@ -199,7 +218,47 @@ export default function StoresScreen() {
               placeholder="e.g. Whole Foods"
               placeholderTextColor={colors.mutedForeground}
               autoFocus
+              returnKeyType="next"
             />
+
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>ADDRESS</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+              value={form.address}
+              onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
+              placeholder="123 Main St, City, State"
+              placeholderTextColor={colors.mutedForeground}
+              returnKeyType="next"
+            />
+
+            <View style={styles.twoCol}>
+              <View style={styles.colItem}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>PHONE</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+                  value={form.phone}
+                  onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
+                  placeholder="555-0100"
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="phone-pad"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={styles.colItem}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>OPEN TIMES</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+                  value={form.openTimes}
+                  onChangeText={(v) => setForm((f) => ({ ...f, openTimes: v }))}
+                  placeholder="Mon–Fri 9am–9pm"
+                  placeholderTextColor={colors.mutedForeground}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* ── Delivery ───────────────────────────────── */}
+            <SectionDivider label="DELIVERY" colors={colors} />
 
             <View style={[styles.switchRow, { borderColor: colors.border }]}>
               <View>
@@ -226,6 +285,7 @@ export default function StoresScreen() {
                   placeholder="e.g. 4.99"
                   placeholderTextColor={colors.mutedForeground}
                   keyboardType="decimal-pad"
+                  returnKeyType="next"
                 />
 
                 <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>MINIMUM ORDER ($)</Text>
@@ -236,11 +296,14 @@ export default function StoresScreen() {
                   placeholder="e.g. 35.00"
                   placeholderTextColor={colors.mutedForeground}
                   keyboardType="decimal-pad"
+                  returnKeyType="next"
                 />
               </>
             )}
 
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>NOTES (OPTIONAL)</Text>
+            {/* ── Notes ─────────────────────────────────── */}
+            <SectionDivider label="NOTES" colors={colors} />
+
             <TextInput
               style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
               value={form.notes}
@@ -250,12 +313,29 @@ export default function StoresScreen() {
               multiline
               numberOfLines={3}
             />
+
+            <View style={{ height: 32 }} />
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
+
+function SectionDivider({ label, colors }: { label: string; colors: ReturnType<typeof useColors> }) {
+  return (
+    <View style={divStyles.row}>
+      <Text style={[divStyles.text, { color: colors.mutedForeground }]}>{label}</Text>
+      <View style={[divStyles.line, { backgroundColor: colors.border }]} />
+    </View>
+  );
+}
+
+const divStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 20, marginBottom: 2 },
+  text: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.6 },
+  line: { flex: 1, height: 1 },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -288,13 +368,15 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
   modalCancel: { fontSize: 16, fontFamily: "Inter_400Regular" },
   modalSave: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  modalContent: { padding: 20 },
+  modalContent: { paddingHorizontal: 20 },
+  twoCol: { flexDirection: "row", gap: 12 },
+  colItem: { flex: 1 },
   fieldLabel: {
     fontSize: 11,
     fontFamily: "Inter_700Bold",
     letterSpacing: 0.6,
     marginBottom: 8,
-    marginTop: 16,
+    marginTop: 14,
   },
   input: {
     borderWidth: 1,
@@ -306,6 +388,7 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
     textAlignVertical: "top",
+    marginTop: 8,
   },
   switchRow: {
     flexDirection: "row",
@@ -314,7 +397,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 14,
-    marginTop: 16,
+    marginTop: 10,
   },
   switchLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   switchSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
