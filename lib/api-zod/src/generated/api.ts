@@ -399,6 +399,21 @@ export const ParseAndSaveReceiptBody = zod.object({
 
 
 /**
+ * @summary Use AI to detect the bounding box of a receipt in a photo
+ */
+export const DetectReceiptBoundsBody = zod.object({
+  "imageBase64": zod.string()
+})
+
+export const DetectReceiptBoundsResponse = zod.object({
+  "x": zod.number().describe('Left edge as fraction of image width (0–1)'),
+  "y": zod.number().describe('Top edge as fraction of image height (0–1)'),
+  "width": zod.number().describe('Width as fraction of image width (0–1)'),
+  "height": zod.number().describe('Height as fraction of image height (0–1)')
+})
+
+
+/**
  * @summary Parse a PDF receipt (online order confirmation) and save it
  */
 export const ParsePdfReceiptBody = zod.object({

@@ -461,6 +461,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReceiptDetail"
 
+  /receipts/detect-bounds:
+    post:
+      operationId: detectReceiptBounds
+      tags: [receipts-ai]
+      summary: Use AI to detect the bounding box of a receipt in a photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseReceiptInput"
+      responses:
+        "200":
+          description: Bounding box as fractions (0–1) of the image dimensions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptBounds"
+
   /receipts/parse-pdf:
     post:
       operationId: parsePdfReceipt
@@ -844,3 +863,20 @@ components:
       properties:
         pdfBase64:
           type: string
+
+    ReceiptBounds:
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x:
+          type: number
+          description: Left edge as fraction of image width (0–1)
+        y:
+          type: number
+          description: Top edge as fraction of image height (0–1)
+        width:
+          type: number
+          description: Width as fraction of image width (0–1)
+        height:
+          type: number
+          description: Height as fraction of image height (0–1)

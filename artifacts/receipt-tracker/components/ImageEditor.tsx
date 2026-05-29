@@ -12,8 +12,10 @@ import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  withTiming,
 } from "react-native-reanimated";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { fetch as expoFetch } from "expo/fetch";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
@@ -264,6 +266,44 @@ export default function ImageEditor({
     sharedDH.value = newDH;
   };
 
+  const [autoFraming, setAutoFraming] = useState(false);
+
+  const handleAutoFrame = async () => {
+    setAutoFraming(true);
+    try {
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const response = await expoFetch(
+        `https://${domain}/api/receipts/detect-bounds`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: imgRef.current.uri.startsWith("data:")
+            ? imgRef.current.uri.split(",")[1]
+            : await uriToBase64(imgRef.current.uri)
+          }),
+        }
+      );
+      if (!response.ok) throw new Error("detect-bounds failed");
+      const bounds = (await response.json()) as {
+        x: number; y: number; width: number; height: number;
+      };
+
+      const dW = sharedDW.value;
+      const dH = sharedDH.value;
+
+      // Animate crop rectangle to detected receipt bounds
+      const TIMING = { duration: 350 };
+      cropL.value = withTiming(bounds.x * dW, TIMING);
+      cropT.value = withTiming(bounds.y * dH, TIMING);
+      cropR.value = withTiming((bounds.x + bounds.width) * dW, TIMING);
+      cropB.value = withTiming((bounds.y + bounds.height) * dH, TIMING);
+    } catch {
+      // Silently ignore — user can crop manually
+    } finally {
+      setAutoFraming(false);
+    }
+  };
+
   const handleRotate = async (degrees: number) => {
     setLoading(true);
     try {
@@ -435,23 +475,51 @@ export default function ImageEditor({
           { paddingBottom: insets.bottom + 16, backgroundColor: "#000" },
         ]}
       >
-        <TouchableOpacity
-          style={styles.rotateBtn}
-          onPress={() => handleRotate(-90)}
-          disabled={loading}
-        >
-          <Feather name="rotate-ccw" size={24} color="#fff" />
-          <Text style={styles.rotateBtnLabel}>Rotate Left</Text>
-        </TouchableOpacity>
+        {/* Row 1: rotate + auto-frame */}
+        <View style={styles.toolRow}>
+          <TouchableOpacity
+            style={styles.toolBtn}
+            onPress={() => handleRotate(-90)}
+            disabled={loading || autoFraming}
+          >
+            <Feather name="rotate-ccw" size={22} color="#fff" />
+            <Text style={styles.toolBtnLabel}>Rotate Left</Text>
+          </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[styles.autoFrameBtn, autoFraming && { opacity: 0.7 }]}
+            onPress={handleAutoFrame}
+            disabled={loading || autoFraming}
+          >
+            {autoFraming ? (
+              <ActivityIndicator color={colors.primary} size="small" />
+            ) : (
+              <Feather name="crop" size={22} color={colors.primary} />
+            )}
+            <Text style={[styles.toolBtnLabel, { color: colors.primary }]}>
+              {autoFraming ? "Detecting…" : "Auto Frame"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolBtn}
+            onPress={() => handleRotate(90)}
+            disabled={loading || autoFraming}
+          >
+            <Feather name="rotate-cw" size={22} color="#fff" />
+            <Text style={styles.toolBtnLabel}>Rotate Right</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 2: confirm */}
         <TouchableOpacity
           style={[
             styles.confirmBtn,
             { backgroundColor: colors.primary },
-            loading && { opacity: 0.7 },
+            (loading || autoFraming) && { opacity: 0.7 },
           ]}
           onPress={handleConfirm}
-          disabled={loading}
+          disabled={loading || autoFraming}
         >
           {loading ? (
             <ActivityIndicator color="#fff" size="small" />
@@ -462,18 +530,22 @@ export default function ImageEditor({
             </>
           )}
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.rotateBtn}
-          onPress={() => handleRotate(90)}
-          disabled={loading}
-        >
-          <Feather name="rotate-cw" size={24} color="#fff" />
-          <Text style={styles.rotateBtnLabel}>Rotate Right</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
+}
+
+// Convert a file URI to a base64 string (without data URL prefix)
+async function uriToBase64(uri: string): Promise<string> {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve(((reader.result as string) ?? "").split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("FileReader error"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 // L-shaped corner marks (3px thick, 14px arms)
@@ -534,25 +606,32 @@ const styles = StyleSheet.create({
     // position set by animated style
   },
   toolbar: {
+    flexDirection: "column",
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 10,
+  },
+  toolRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    gap: 12,
   },
-  rotateBtn: {
+  toolBtn: {
     alignItems: "center",
     gap: 4,
-    minWidth: 64,
+    minWidth: 72,
   },
-  rotateBtnLabel: {
+  toolBtnLabel: {
     fontSize: 11,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.7)",
   },
+  autoFrameBtn: {
+    alignItems: "center",
+    gap: 4,
+    minWidth: 80,
+  },
   confirmBtn: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

@@ -33,6 +33,7 @@ import type {
   ParseReceiptInput,
   ParsedReceipt,
   Receipt,
+  ReceiptBounds,
   ReceiptDetail,
   ReceiptInput,
   ShoppingList,
@@ -1900,6 +1901,77 @@ export const useParseAndSaveReceipt = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getParseAndSaveReceiptMutationOptions(options));
+    }
+
+export const getDetectReceiptBoundsUrl = () => {
+
+
+
+
+  return `/api/receipts/detect-bounds`
+}
+
+/**
+ * @summary Use AI to detect the bounding box of a receipt in a photo
+ */
+export const detectReceiptBounds = async (parseReceiptInput: ParseReceiptInput, options?: RequestInit): Promise<ReceiptBounds> => {
+
+  return customFetch<ReceiptBounds>(getDetectReceiptBoundsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      parseReceiptInput,)
+  }
+);}
+
+
+
+
+export const getDetectReceiptBoundsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof detectReceiptBounds>>, TError,{data: BodyType<ParseReceiptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof detectReceiptBounds>>, TError,{data: BodyType<ParseReceiptInput>}, TContext> => {
+
+const mutationKey = ['detectReceiptBounds'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof detectReceiptBounds>>, {data: BodyType<ParseReceiptInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  detectReceiptBounds(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DetectReceiptBoundsMutationResult = NonNullable<Awaited<ReturnType<typeof detectReceiptBounds>>>
+    export type DetectReceiptBoundsMutationBody = BodyType<ParseReceiptInput>
+    export type DetectReceiptBoundsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Use AI to detect the bounding box of a receipt in a photo
+ */
+export const useDetectReceiptBounds = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof detectReceiptBounds>>, TError,{data: BodyType<ParseReceiptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof detectReceiptBounds>>,
+        TError,
+        {data: BodyType<ParseReceiptInput>},
+        TContext
+      > => {
+      return useMutation(getDetectReceiptBoundsMutationOptions(options));
     }
 
 export const getParsePdfReceiptUrl = () => {

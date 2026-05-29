@@ -204,6 +204,66 @@ router.post("/:id/line-items", async (req, res): Promise<void> => {
   });
 });
 
+// Detect receipt bounding box in a photo using AI
+router.post("/detect-bounds", async (req, res): Promise<void> => {
+  const { imageBase64 } = req.body as { imageBase64: string };
+  if (!imageBase64) {
+    res.status(400).json({ error: "imageBase64 is required" });
+    return;
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 256,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Look at this photo and find the rectangular boundary of the receipt or document in it.
+
+Return ONLY a single JSON object with the bounding box as fractions (0.0 to 1.0) of the full image dimensions:
+{"x": <left edge>, "y": <top edge>, "width": <width>, "height": <height>}
+
+Rules:
+- x=0, y=0 is the top-left corner of the image.
+- Include a small amount of padding (2-3%) around the receipt edges.
+- If the receipt fills most of the image already, return {"x":0,"y":0,"width":1,"height":1}.
+- If you cannot detect a clear receipt, return {"x":0,"y":0,"width":1,"height":1}.
+- Return ONLY the raw JSON — no markdown, no explanation.`,
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${imageBase64}`,
+                detail: "low",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content ?? "{}";
+    const bounds = JSON.parse(content) as { x: number; y: number; width: number; height: number };
+
+    // Clamp all values to [0, 1]
+    const clamp = (v: number) => Math.max(0, Math.min(1, v));
+    res.json({
+      x: clamp(bounds.x ?? 0),
+      y: clamp(bounds.y ?? 0),
+      width: clamp(bounds.width ?? 1),
+      height: clamp(bounds.height ?? 1),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to detect receipt bounds");
+    // Fallback: return full image
+    res.json({ x: 0, y: 0, width: 1, height: 1 });
+  }
+});
+
 // Parse receipt image with AI
 router.post("/parse", async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };

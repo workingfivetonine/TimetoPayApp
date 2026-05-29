@@ -217,3 +217,14 @@ export interface ParsePdfInput {
   pdfBase64: string;
 }
 
+export interface ReceiptBounds {
+  /** Left edge as fraction of image width (0–1) */
+  x: number;
+  /** Top edge as fraction of image height (0–1) */
+  y: number;
+  /** Width as fraction of image width (0–1) */
+  width: number;
+  /** Height as fraction of image height (0–1) */
+  height: number;
+}
+

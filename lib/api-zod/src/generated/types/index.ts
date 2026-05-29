@@ -21,6 +21,7 @@ export * from './parsePdfInput';
 export * from './parseReceiptInput';
 export * from './pricePoint';
 export * from './receipt';
+export * from './receiptBounds';
 export * from './receiptDetail';
 export * from './receiptInput';
 export * from './shoppingList';
