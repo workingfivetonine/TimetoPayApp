@@ -170,6 +170,43 @@ export interface ManualEntryInput {
   lineItems: ManualEntryInputLineItemsItem[];
 }
 
+export interface StoreVisitItem {
+  itemName: string;
+  price: number;
+  quantity: number;
+}
+
+export interface StoreVisit {
+  receiptId: number;
+  purchasedAt: string;
+  items: StoreVisitItem[];
+}
+
+export interface StoreVisitsReport {
+  storeId: number;
+  storeName: string;
+  visits: StoreVisit[];
+  uniqueItems: string[];
+}
+
+export interface ItemHistoryEntry {
+  receiptId: number;
+  purchasedAt: string;
+  storeName: string;
+  price: number;
+  quantity: number;
+}
+
+export interface ItemHistoryReport {
+  itemId: number;
+  itemName: string;
+  purchaseCount: number;
+  averagePrice: number;
+  lowestPrice: number;
+  highestPrice: number;
+  history: ItemHistoryEntry[];
+}
+
 export interface WeeklySpend {
   weekStart: string;
   weekEnd: string;

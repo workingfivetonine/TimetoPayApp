@@ -391,6 +391,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/ItemPriceHistory"
 
+  /analytics/stores/{id}/visits:
+    get:
+      operationId: getStoreVisits
+      tags: [analytics]
+      summary: All visits to a store with items purchased per visit, plus unique items list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Store visits report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreVisitsReport"
+
+  /analytics/items/{id}/history:
+    get:
+      operationId: getItemHistory
+      tags: [analytics]
+      summary: Full purchase history for a single item across all stores and dates
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Item purchase history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemHistoryReport"
+
   /analytics/stores/{id}/summary:
     get:
       operationId: getStoreSummary
@@ -762,6 +800,83 @@ components:
                 type: number
               quantity:
                 type: number
+
+    StoreVisitItem:
+      type: object
+      required: [itemName, price, quantity]
+      properties:
+        itemName:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+
+    StoreVisit:
+      type: object
+      required: [receiptId, purchasedAt, items]
+      properties:
+        receiptId:
+          type: integer
+        purchasedAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StoreVisitItem"
+
+    StoreVisitsReport:
+      type: object
+      required: [storeId, storeName, visits, uniqueItems]
+      properties:
+        storeId:
+          type: integer
+        storeName:
+          type: string
+        visits:
+          type: array
+          items:
+            $ref: "#/components/schemas/StoreVisit"
+        uniqueItems:
+          type: array
+          items:
+            type: string
+
+    ItemHistoryEntry:
+      type: object
+      required: [receiptId, purchasedAt, storeName, price, quantity]
+      properties:
+        receiptId:
+          type: integer
+        purchasedAt:
+          type: string
+        storeName:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+
+    ItemHistoryReport:
+      type: object
+      required: [itemId, itemName, purchaseCount, averagePrice, lowestPrice, highestPrice, history]
+      properties:
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        purchaseCount:
+          type: integer
+        averagePrice:
+          type: number
+        lowestPrice:
+          type: number
+        highestPrice:
+          type: number
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemHistoryEntry"
 
     WeeklySpend:
       type: object

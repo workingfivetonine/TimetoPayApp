@@ -9,6 +9,8 @@
 export * from './daySpend';
 export * from './healthStatus';
 export * from './item';
+export * from './itemHistoryEntry';
+export * from './itemHistoryReport';
 export * from './itemInput';
 export * from './itemPriceHistory';
 export * from './itemUpdate';
@@ -33,4 +35,7 @@ export * from './store';
 export * from './storeInput';
 export * from './storeSummary';
 export * from './storeUpdate';
+export * from './storeVisit';
+export * from './storeVisitItem';
+export * from './storeVisitsReport';
 export * from './weeklySpend';

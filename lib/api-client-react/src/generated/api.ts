@@ -23,6 +23,7 @@ import type {
   DaySpend,
   HealthStatus,
   Item,
+  ItemHistoryReport,
   ItemInput,
   ItemPriceHistory,
   ItemUpdate,
@@ -42,7 +43,8 @@ import type {
   Store,
   StoreInput,
   StoreSummary,
-  StoreUpdate
+  StoreUpdate,
+  StoreVisitsReport
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1596,6 +1598,160 @@ export function useGetItemPriceHistory<TData = Awaited<ReturnType<typeof getItem
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetItemPriceHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetStoreVisitsUrl = (id: number,) => {
+
+
+
+
+  return `/api/analytics/stores/${id}/visits`
+}
+
+/**
+ * @summary All visits to a store with items purchased per visit, plus unique items list
+ */
+export const getStoreVisits = async (id: number, options?: RequestInit): Promise<StoreVisitsReport> => {
+
+  return customFetch<StoreVisitsReport>(getGetStoreVisitsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStoreVisitsQueryKey = (id: number,) => {
+    return [
+    `/api/analytics/stores/${id}/visits`
+    ] as const;
+    }
+
+
+export const getGetStoreVisitsQueryOptions = <TData = Awaited<ReturnType<typeof getStoreVisits>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStoreVisits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStoreVisitsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStoreVisits>>> = ({ signal }) => getStoreVisits(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStoreVisits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStoreVisitsQueryResult = NonNullable<Awaited<ReturnType<typeof getStoreVisits>>>
+export type GetStoreVisitsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All visits to a store with items purchased per visit, plus unique items list
+ */
+
+export function useGetStoreVisits<TData = Awaited<ReturnType<typeof getStoreVisits>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStoreVisits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStoreVisitsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetItemHistoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/analytics/items/${id}/history`
+}
+
+/**
+ * @summary Full purchase history for a single item across all stores and dates
+ */
+export const getItemHistory = async (id: number, options?: RequestInit): Promise<ItemHistoryReport> => {
+
+  return customFetch<ItemHistoryReport>(getGetItemHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetItemHistoryQueryKey = (id: number,) => {
+    return [
+    `/api/analytics/items/${id}/history`
+    ] as const;
+    }
+
+
+export const getGetItemHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getItemHistory>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getItemHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetItemHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getItemHistory>>> = ({ signal }) => getItemHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getItemHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetItemHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getItemHistory>>>
+export type GetItemHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Full purchase history for a single item across all stores and dates
+ */
+
+export function useGetItemHistory<TData = Awaited<ReturnType<typeof getItemHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getItemHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetItemHistoryQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

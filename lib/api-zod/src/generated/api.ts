@@ -342,6 +342,53 @@ export const GetItemPriceHistoryResponse = zod.object({
 
 
 /**
+ * @summary All visits to a store with items purchased per visit, plus unique items list
+ */
+export const GetStoreVisitsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetStoreVisitsResponse = zod.object({
+  "storeId": zod.number(),
+  "storeName": zod.string(),
+  "visits": zod.array(zod.object({
+  "receiptId": zod.number(),
+  "purchasedAt": zod.string(),
+  "items": zod.array(zod.object({
+  "itemName": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number()
+}))
+})),
+  "uniqueItems": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Full purchase history for a single item across all stores and dates
+ */
+export const GetItemHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetItemHistoryResponse = zod.object({
+  "itemId": zod.number(),
+  "itemName": zod.string(),
+  "purchaseCount": zod.number(),
+  "averagePrice": zod.number(),
+  "lowestPrice": zod.number(),
+  "highestPrice": zod.number(),
+  "history": zod.array(zod.object({
+  "receiptId": zod.number(),
+  "purchasedAt": zod.string(),
+  "storeName": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number()
+}))
+})
+
+
+/**
  * @summary Summary stats for a store including avg spend, top items
  */
 export const GetStoreSummaryParams = zod.object({

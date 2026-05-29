@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   useGetSpendAnalytics,
   getGetSpendAnalyticsQueryKey,
@@ -72,6 +73,7 @@ export default function AnalyticsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("calendar");
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
@@ -223,7 +225,19 @@ export default function AnalyticsScreen() {
                         </View>
                       </TouchableOpacity>
                       {expandedItemId === item.id && (
-                        <ItemPriceDetail itemId={item.id} itemName={item.name} />
+                        <>
+                          <ItemPriceDetail itemId={item.id} itemName={item.name} />
+                          <TouchableOpacity
+                            style={[styles.historyLink, { borderColor: colors.border }]}
+                            onPress={() => router.push(`/item/${item.id}`)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.historyLinkText, { color: colors.primary }]}>
+                              View full purchase history
+                            </Text>
+                            <Feather name="arrow-right" size={14} color={colors.primary} />
+                          </TouchableOpacity>
+                        </>
                       )}
                     </View>
                   ))}
@@ -309,4 +323,16 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 40, marginHorizontal: 4 },
   emptyItems: { alignItems: "center", paddingVertical: 32 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  historyLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 6,
+    marginTop: -4,
+  },
+  historyLinkText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

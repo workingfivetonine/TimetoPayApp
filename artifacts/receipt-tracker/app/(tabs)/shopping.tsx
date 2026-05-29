@@ -16,11 +16,13 @@ import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useState } from "react";
+import { useRouter } from "expo-router";
 
 export default function ShoppingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: list, isLoading } = useGetShoppingList();
@@ -83,7 +85,10 @@ export default function ShoppingScreen() {
           )}
           renderItem={({ item }) => (
             <View style={{ backgroundColor: colors.card }}>
-              <ShoppingListItemRow item={item} />
+              <ShoppingListItemRow
+                item={item}
+                onPress={() => router.push(`/item/${item.itemId}`)}
+              />
             </View>
           )}
           SectionSeparatorComponent={() => <View style={{ height: 8 }} />}

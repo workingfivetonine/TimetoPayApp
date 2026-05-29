@@ -210,4 +210,98 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
   });
 });
 
+// Store visits report — all receipts with line items, plus unique items list
+router.get("/stores/:id/visits", async (req, res): Promise<void> => {
+  const storeId = parseInt(req.params.id);
+  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, storeId));
+  if (!store) {
+    res.status(404).json({ error: "Store not found" });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      receiptId: receiptsTable.id,
+      purchasedAt: receiptsTable.purchasedAt,
+      itemName: itemsTable.name,
+      price: lineItemsTable.price,
+      quantity: lineItemsTable.quantity,
+    })
+    .from(receiptsTable)
+    .innerJoin(lineItemsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+    .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
+    .where(eq(receiptsTable.storeId, storeId))
+    .orderBy(sql`${receiptsTable.purchasedAt} DESC, ${receiptsTable.id}, ${itemsTable.name}`);
+
+  // Group rows into visits by receipt id (order preserved by DESC date)
+  const visitMap = new Map<number, { purchasedAt: Date; items: { itemName: string; price: number; quantity: number }[] }>();
+  for (const row of rows) {
+    if (!visitMap.has(row.receiptId)) {
+      visitMap.set(row.receiptId, { purchasedAt: row.purchasedAt, items: [] });
+    }
+    visitMap.get(row.receiptId)!.items.push({
+      itemName: row.itemName,
+      price: Number(row.price),
+      quantity: Number(row.quantity),
+    });
+  }
+
+  const visits = Array.from(visitMap.entries())
+    .sort(([, a], [, b]) => b.purchasedAt.getTime() - a.purchasedAt.getTime())
+    .map(([receiptId, v]) => ({
+      receiptId,
+      purchasedAt: v.purchasedAt.toISOString(),
+      items: v.items,
+    }));
+
+  const uniqueItems = [...new Set(rows.map((r) => r.itemName))].sort();
+
+  res.json({ storeId: store.id, storeName: store.name, visits, uniqueItems });
+});
+
+// Item history report — purchase history across all stores and dates
+router.get("/items/:id/history", async (req, res): Promise<void> => {
+  const itemId = parseInt(req.params.id);
+  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+  if (!item) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      receiptId: receiptsTable.id,
+      purchasedAt: receiptsTable.purchasedAt,
+      storeName: storesTable.name,
+      price: lineItemsTable.price,
+      quantity: lineItemsTable.quantity,
+    })
+    .from(lineItemsTable)
+    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+    .innerJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
+    .where(eq(lineItemsTable.itemId, itemId))
+    .orderBy(sql`${receiptsTable.purchasedAt} DESC`);
+
+  const history = rows.map((r) => ({
+    receiptId: r.receiptId,
+    purchasedAt: r.purchasedAt.toISOString(),
+    storeName: r.storeName,
+    price: Number(r.price),
+    quantity: Number(r.quantity),
+  }));
+
+  const prices = history.map((h) => h.price);
+  const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+
+  res.json({
+    itemId: item.id,
+    itemName: item.name,
+    purchaseCount: item.purchaseCount,
+    averagePrice: Math.round(avg * 100) / 100,
+    lowestPrice: prices.length ? Math.min(...prices) : 0,
+    highestPrice: prices.length ? Math.max(...prices) : 0,
+    history,
+  });
+});
+
 export default router;

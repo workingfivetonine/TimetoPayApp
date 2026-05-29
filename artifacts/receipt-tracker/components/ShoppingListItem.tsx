@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import type { ShoppingListItem as SLItem } from "@workspace/api-client-react";
@@ -7,15 +7,20 @@ import type { ShoppingListItem as SLItem } from "@workspace/api-client-react";
 interface Props {
   item: SLItem;
   showBestStore?: boolean;
+  onPress?: () => void;
 }
 
-export function ShoppingListItemRow({ item, showBestStore = true }: Props) {
+export function ShoppingListItemRow({ item, showBestStore = true, onPress }: Props) {
   const colors = useColors();
 
   const savingsVsAvg = item.averagePrice - item.lowestPrice;
 
   return (
-    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+    <TouchableOpacity
+      style={[styles.row, { borderBottomColor: colors.border }]}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+    >
       <View style={styles.left}>
         <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
           {item.itemName}
@@ -47,7 +52,10 @@ export function ShoppingListItemRow({ item, showBestStore = true }: Props) {
           avg ${item.averagePrice.toFixed(2)}
         </Text>
       </View>
-    </View>
+      {onPress && (
+        <Feather name="chevron-right" size={14} color={colors.border} style={{ marginLeft: 6 }} />
+      )}
+    </TouchableOpacity>
   );
 }
 
