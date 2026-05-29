@@ -1,8 +1,5 @@
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
@@ -10,30 +7,7 @@ import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Receipts</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="stores">
-        <Icon sf={{ default: "storefront", selected: "storefront.fill" }} />
-        <Label>Stores</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="shopping">
-        <Icon sf={{ default: "cart", selected: "cart.fill" }} />
-        <Label>List</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="analytics">
-        <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
-        <Label>Analytics</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
+export default function TabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -75,48 +49,28 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Receipts",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="doc.text" tintColor={color} size={22} />
-            ) : (
-              <Feather name="file-text" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <Feather name="file-text" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="stores"
         options={{
           title: "Stores",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="cart" tintColor={color} size={22} />
-            ) : (
-              <Feather name="shopping-bag" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="shopping"
         options={{
           title: "List",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="checklist" tintColor={color} size={22} />
-            ) : (
-              <Feather name="check-square" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="analytics"
         options={{
           title: "Analytics",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="chart.bar" tintColor={color} size={22} />
-            ) : (
-              <Feather name="bar-chart-2" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} />,
         }}
       />
     </Tabs>
@@ -134,13 +88,6 @@ function ClassicTabLayout() {
   }
 
   return tabs;
-}
-
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
 }
 
 const styles = StyleSheet.create({
