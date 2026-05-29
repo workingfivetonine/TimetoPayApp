@@ -12,6 +12,12 @@ export interface HealthStatus {
 export interface Store {
   id: number;
   name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  openTimes?: string | null;
   deliveryAvailable: boolean;
   /** @nullable */
   deliveryFee?: number | null;
@@ -24,6 +30,12 @@ export interface Store {
 
 export interface StoreInput {
   name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  openTimes?: string | null;
   deliveryAvailable?: boolean;
   /** @nullable */
   deliveryFee?: number | null;
@@ -35,6 +47,12 @@ export interface StoreInput {
 
 export interface StoreUpdate {
   name?: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  openTimes?: string | null;
   deliveryAvailable?: boolean;
   /** @nullable */
   deliveryFee?: number | null;
@@ -71,6 +89,8 @@ export interface Receipt {
   storeName: string;
   purchasedAt: string;
   total: number;
+  /** @nullable */
+  totalBeforeTax?: number | null;
   /** @nullable */
   imageUri?: string | null;
   /** @nullable */
@@ -116,11 +136,38 @@ export interface ReceiptDetail {
   purchasedAt: string;
   total: number;
   /** @nullable */
+  totalBeforeTax?: number | null;
+  /** @nullable */
   imageUri?: string | null;
   /** @nullable */
   notes?: string | null;
   lineItems: LineItem[];
   createdAt: string;
+}
+
+export type ManualEntryInputLineItemsItem = {
+  name: string;
+  price: number;
+  quantity: number;
+};
+
+export interface ManualEntryInput {
+  storeName: string;
+  /** @nullable */
+  storeAddress?: string | null;
+  /** @nullable */
+  storePhone?: string | null;
+  /** @nullable */
+  storeOpenTimes?: string | null;
+  /** ISO 8601 date-time string */
+  purchasedAt: string;
+  /** Total after tax */
+  total: number;
+  /** @nullable */
+  totalBeforeTax?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  lineItems: ManualEntryInputLineItemsItem[];
 }
 
 export interface WeeklySpend {

@@ -22,6 +22,9 @@ export const HealthCheckResponse = zod.object({
 export const ListStoresResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
   "deliveryAvailable": zod.boolean(),
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
@@ -36,6 +39,9 @@ export const ListStoresResponse = zod.array(ListStoresResponseItem)
  */
 export const CreateStoreBody = zod.object({
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
   "deliveryAvailable": zod.boolean().optional(),
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
@@ -53,6 +59,9 @@ export const GetStoreParams = zod.object({
 export const GetStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
   "deliveryAvailable": zod.boolean(),
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
@@ -70,6 +79,9 @@ export const UpdateStoreParams = zod.object({
 
 export const UpdateStoreBody = zod.object({
   "name": zod.string().optional(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
   "deliveryAvailable": zod.boolean().optional(),
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
@@ -79,6 +91,9 @@ export const UpdateStoreBody = zod.object({
 export const UpdateStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
   "deliveryAvailable": zod.boolean(),
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
@@ -171,6 +186,7 @@ export const ListReceiptsResponseItem = zod.object({
   "storeName": zod.string(),
   "purchasedAt": zod.string(),
   "total": zod.number(),
+  "totalBeforeTax": zod.number().nullish(),
   "imageUri": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
@@ -203,6 +219,7 @@ export const GetReceiptResponse = zod.object({
   "storeName": zod.string(),
   "purchasedAt": zod.string(),
   "total": zod.number(),
+  "totalBeforeTax": zod.number().nullish(),
   "imageUri": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "lineItems": zod.array(zod.object({
@@ -395,6 +412,26 @@ export const ParseReceiptImageResponse = zod.object({
  */
 export const ParseAndSaveReceiptBody = zod.object({
   "imageBase64": zod.string()
+})
+
+
+/**
+ * @summary Manually enter a receipt with store info and line items
+ */
+export const ManualEntryReceiptBody = zod.object({
+  "storeName": zod.string(),
+  "storeAddress": zod.string().nullish(),
+  "storePhone": zod.string().nullish(),
+  "storeOpenTimes": zod.string().nullish(),
+  "purchasedAt": zod.string().describe('ISO 8601 date-time string'),
+  "total": zod.number().describe('Total after tax'),
+  "totalBeforeTax": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number()
+}))
 })
 
 

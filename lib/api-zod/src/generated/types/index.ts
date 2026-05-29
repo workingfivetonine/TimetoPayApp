@@ -15,6 +15,8 @@ export * from './itemUpdate';
 export * from './lineItem';
 export * from './lineItemInput';
 export * from './lineItemUpdate';
+export * from './manualEntryInput';
+export * from './manualEntryInputLineItemsItem';
 export * from './parsedReceipt';
 export * from './parsedReceiptLineItem';
 export * from './parsePdfInput';

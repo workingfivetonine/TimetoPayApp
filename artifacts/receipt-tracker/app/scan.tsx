@@ -206,6 +206,20 @@ export default function ScanScreen() {
         <Text style={[styles.hint, { color: colors.mutedForeground }]}>
           PDFs work best for online order confirmations
         </Text>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <TouchableOpacity
+          style={styles.manualBtn}
+          onPress={() => router.push("/manual-entry")}
+          disabled={scanning}
+          activeOpacity={0.7}
+        >
+          <Feather name="edit-3" size={16} color={colors.mutedForeground} />
+          <Text style={[styles.manualBtnText, { color: colors.mutedForeground }]}>
+            Enter Manually
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Scanning overlay */}
@@ -317,6 +331,23 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     marginTop: 4,
+  },
+  divider: {
+    height: 1,
+    width: "100%",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  manualBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  manualBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

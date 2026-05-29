@@ -91,6 +91,7 @@ function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) 
     ...r,
     storeName,
     total: Number(r.total),
+    totalBeforeTax: r.totalBeforeTax != null ? Number(r.totalBeforeTax) : null,
     purchasedAt: r.purchasedAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
   };
@@ -491,6 +492,104 @@ ${extractedText}`,
   } catch (err) {
     req.log.error({ err }, "Failed to parse PDF receipt");
     res.status(500).json({ error: "Failed to process PDF receipt" });
+  }
+});
+
+// Manually enter a receipt with store info and line items
+router.post("/manual-entry", async (req, res): Promise<void> => {
+  const {
+    storeName,
+    storeAddress,
+    storePhone,
+    storeOpenTimes,
+    purchasedAt,
+    total,
+    totalBeforeTax,
+    notes,
+    lineItems,
+  } = req.body as {
+    storeName: string;
+    storeAddress?: string | null;
+    storePhone?: string | null;
+    storeOpenTimes?: string | null;
+    purchasedAt: string;
+    total: number;
+    totalBeforeTax?: number | null;
+    notes?: string | null;
+    lineItems: { name: string; price: number; quantity: number }[];
+  };
+
+  if (!storeName || total == null || !purchasedAt || !Array.isArray(lineItems)) {
+    res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
+    return;
+  }
+
+  try {
+    // Find or create store
+    let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${storeName})`))[0];
+    if (!store) {
+      [store] = await db
+        .insert(storesTable)
+        .values({
+          name: storeName,
+          address: storeAddress ?? null,
+          phone: storePhone ?? null,
+          openTimes: storeOpenTimes ?? null,
+        })
+        .returning();
+    } else if (storeAddress || storePhone || storeOpenTimes) {
+      // Update optional store fields if provided
+      const updates: Partial<typeof storesTable.$inferInsert> = {};
+      if (storeAddress) updates.address = storeAddress;
+      if (storePhone) updates.phone = storePhone;
+      if (storeOpenTimes) updates.openTimes = storeOpenTimes;
+      [store] = await db.update(storesTable).set(updates).where(eq(storesTable.id, store.id)).returning();
+    }
+
+    // Create receipt
+    const [receipt] = await db
+      .insert(receiptsTable)
+      .values({
+        storeId: store.id,
+        purchasedAt: new Date(purchasedAt),
+        total: String(total),
+        totalBeforeTax: totalBeforeTax != null ? String(totalBeforeTax) : null,
+        notes: notes ?? null,
+      })
+      .returning();
+
+    // Create line items
+    const savedLineItems = [];
+    for (const li of lineItems) {
+      let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
+      if (!item) {
+        [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
+      } else {
+        await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
+        item.purchaseCount += 1;
+      }
+
+      const [lineItem] = await db
+        .insert(lineItemsTable)
+        .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
+        .returning();
+
+      savedLineItems.push({
+        ...lineItem,
+        itemName: item.name,
+        price: Number(lineItem.price),
+        quantity: Number(lineItem.quantity),
+        createdAt: lineItem.createdAt.toISOString(),
+      });
+    }
+
+    res.status(201).json({
+      ...formatReceipt(receipt, store.name),
+      lineItems: savedLineItems,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to save manual receipt entry");
+    res.status(500).json({ error: "Failed to save receipt" });
   }
 });
 

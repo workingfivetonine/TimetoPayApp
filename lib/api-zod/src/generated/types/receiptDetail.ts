@@ -14,6 +14,8 @@ export interface ReceiptDetail {
   purchasedAt: string;
   total: number;
   /** @nullable */
+  totalBeforeTax?: number | null;
+  /** @nullable */
   imageUri?: string | null;
   /** @nullable */
   notes?: string | null;

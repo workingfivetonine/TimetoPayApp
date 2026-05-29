@@ -5,6 +5,9 @@ import { z } from "zod/v4";
 export const storesTable = pgTable("stores", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  address: text("address"),
+  phone: text("phone"),
+  openTimes: text("open_times"),
   deliveryAvailable: boolean("delivery_available").notNull().default(false),
   deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }),
   minimumOrderAmount: numeric("minimum_order_amount", { precision: 10, scale: 2 }),

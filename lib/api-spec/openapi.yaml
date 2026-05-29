@@ -461,6 +461,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReceiptDetail"
 
+  /receipts/manual-entry:
+    post:
+      operationId: manualEntryReceipt
+      tags: [receipts-ai]
+      summary: Manually enter a receipt with store info and line items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualEntryInput"
+      responses:
+        "201":
+          description: Saved receipt with all data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptDetail"
+
   /receipts/detect-bounds:
     post:
       operationId: detectReceiptBounds
@@ -516,6 +535,12 @@ components:
           type: integer
         name:
           type: string
+        address:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        openTimes:
+          type: ["string", "null"]
         deliveryAvailable:
           type: boolean
         deliveryFee:
@@ -533,6 +558,12 @@ components:
       properties:
         name:
           type: string
+        address:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        openTimes:
+          type: ["string", "null"]
         deliveryAvailable:
           type: boolean
         deliveryFee:
@@ -547,6 +578,12 @@ components:
       properties:
         name:
           type: string
+        address:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        openTimes:
+          type: ["string", "null"]
         deliveryAvailable:
           type: boolean
         deliveryFee:
@@ -602,6 +639,8 @@ components:
           type: string
         total:
           type: number
+        totalBeforeTax:
+          type: ["number", "null"]
         imageUri:
           type: ["string", "null"]
         notes:
@@ -676,6 +715,8 @@ components:
           type: string
         total:
           type: number
+        totalBeforeTax:
+          type: ["number", "null"]
         imageUri:
           type: ["string", "null"]
         notes:
@@ -686,6 +727,41 @@ components:
             $ref: "#/components/schemas/LineItem"
         createdAt:
           type: string
+
+    ManualEntryInput:
+      type: object
+      required: [storeName, purchasedAt, total, lineItems]
+      properties:
+        storeName:
+          type: string
+        storeAddress:
+          type: ["string", "null"]
+        storePhone:
+          type: ["string", "null"]
+        storeOpenTimes:
+          type: ["string", "null"]
+        purchasedAt:
+          type: string
+          description: ISO 8601 date-time string
+        total:
+          type: number
+          description: Total after tax
+        totalBeforeTax:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        lineItems:
+          type: array
+          items:
+            type: object
+            required: [name, price, quantity]
+            properties:
+              name:
+                type: string
+              price:
+                type: number
+              quantity:
+                type: number
 
     WeeklySpend:
       type: object

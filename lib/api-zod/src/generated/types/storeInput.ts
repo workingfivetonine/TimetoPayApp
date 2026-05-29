@@ -8,6 +8,12 @@
 
 export interface StoreInput {
   name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  openTimes?: string | null;
   deliveryAvailable?: boolean;
   /** @nullable */
   deliveryFee?: number | null;

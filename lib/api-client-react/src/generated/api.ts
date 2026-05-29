@@ -29,6 +29,7 @@ import type {
   LineItem,
   LineItemInput,
   LineItemUpdate,
+  ManualEntryInput,
   ParsePdfInput,
   ParseReceiptInput,
   ParsedReceipt,
@@ -1901,6 +1902,77 @@ export const useParseAndSaveReceipt = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getParseAndSaveReceiptMutationOptions(options));
+    }
+
+export const getManualEntryReceiptUrl = () => {
+
+
+
+
+  return `/api/receipts/manual-entry`
+}
+
+/**
+ * @summary Manually enter a receipt with store info and line items
+ */
+export const manualEntryReceipt = async (manualEntryInput: ManualEntryInput, options?: RequestInit): Promise<ReceiptDetail> => {
+
+  return customFetch<ReceiptDetail>(getManualEntryReceiptUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      manualEntryInput,)
+  }
+);}
+
+
+
+
+export const getManualEntryReceiptMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manualEntryReceipt>>, TError,{data: BodyType<ManualEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof manualEntryReceipt>>, TError,{data: BodyType<ManualEntryInput>}, TContext> => {
+
+const mutationKey = ['manualEntryReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof manualEntryReceipt>>, {data: BodyType<ManualEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  manualEntryReceipt(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ManualEntryReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof manualEntryReceipt>>>
+    export type ManualEntryReceiptMutationBody = BodyType<ManualEntryInput>
+    export type ManualEntryReceiptMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Manually enter a receipt with store info and line items
+ */
+export const useManualEntryReceipt = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manualEntryReceipt>>, TError,{data: BodyType<ManualEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof manualEntryReceipt>>,
+        TError,
+        {data: BodyType<ManualEntryInput>},
+        TContext
+      > => {
+      return useMutation(getManualEntryReceiptMutationOptions(options));
     }
 
 export const getDetectReceiptBoundsUrl = () => {
