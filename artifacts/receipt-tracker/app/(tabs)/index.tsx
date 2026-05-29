@@ -1,28 +1,161 @@
-import { StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import {
+  useListReceipts,
+  useDeleteReceipt,
+  getListReceiptsQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useColors } from "@/hooks/useColors";
+import { ReceiptCard } from "@/components/ReceiptCard";
+import { EmptyState } from "@/components/EmptyState";
 
-export default function TabOneScreen() {
+export default function ReceiptsScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const { data: receipts, isLoading } = useListReceipts();
+  const deleteMutation = useDeleteReceipt();
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+    setRefreshing(false);
+  };
+
+  const handleDelete = (id: number) => {
+    Alert.alert("Delete Receipt", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          deleteMutation.mutate(
+            { id },
+            {
+              onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+              },
+            }
+          );
+        },
+      },
+    ]);
+  };
+
+  const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
+  const paddingBottom = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Replit Agent is building...</Text>
-      <Text style={styles.text}>Your app will appear here once it's ready.</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Receipts</Text>
+        <TouchableOpacity
+          style={[styles.scanBtn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push("/scan")}
+          activeOpacity={0.8}
+        >
+          <Feather name="camera" size={18} color="#fff" />
+          <Text style={styles.scanBtnText}>Scan</Text>
+        </TouchableOpacity>
+      </View>
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={receipts ?? []}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom },
+            (!receipts || receipts.length === 0) && styles.emptyList,
+          ]}
+          scrollEnabled={!!(receipts && receipts.length > 0)}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="file-text"
+              title="No receipts yet"
+              subtitle="Tap Scan to photograph a receipt and track your spending"
+            />
+          }
+          renderItem={({ item }) => (
+            <ReceiptCard
+              receipt={item}
+              onPress={() => router.push(`/receipt/${item.id}`)}
+              onDelete={() => handleDelete(item.id)}
+            />
+          )}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+  },
+  scanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+  },
+  scanBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
+  list: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  text: {
-    fontSize: 16,
-    textAlign: "center",
-    paddingHorizontal: 20,
+  emptyList: {
+    flex: 1,
   },
 });

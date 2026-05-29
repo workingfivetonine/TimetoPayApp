@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Receipt Tracker API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: stores
+    description: Store management
+  - name: items
+    description: Item management
+  - name: receipts
+    description: Receipt management
+  - name: analytics
+    description: Analytics and insights
+  - name: shopping-list
+    description: Shopping list generation
+  - name: receipts-ai
+    description: AI receipt parsing
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +36,758 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /stores:
+    get:
+      operationId: listStores
+      tags: [stores]
+      summary: List all stores
+      responses:
+        "200":
+          description: List of stores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Store"
+    post:
+      operationId: createStore
+      tags: [stores]
+      summary: Create a store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreInput"
+      responses:
+        "201":
+          description: Created store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+
+  /stores/{id}:
+    get:
+      operationId: getStore
+      tags: [stores]
+      summary: Get a store by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateStore
+      tags: [stores]
+      summary: Update a store
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreUpdate"
+      responses:
+        "200":
+          description: Updated store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+    delete:
+      operationId: deleteStore
+      tags: [stores]
+      summary: Delete a store
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List all items
+      responses:
+        "200":
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemInput"
+      responses:
+        "201":
+          description: Created item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{id}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Get an item by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateItem
+      tags: [items]
+      summary: Update an item (name, notes)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemUpdate"
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      summary: Delete an item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /receipts:
+    get:
+      operationId: listReceipts
+      tags: [receipts]
+      summary: List all receipts
+      responses:
+        "200":
+          description: List of receipts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Receipt"
+    post:
+      operationId: createReceipt
+      tags: [receipts]
+      summary: Create a receipt manually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptInput"
+      responses:
+        "201":
+          description: Created receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+
+  /receipts/{id}:
+    get:
+      operationId: getReceipt
+      tags: [receipts]
+      summary: Get a receipt by ID with line items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Receipt with line items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptDetail"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteReceipt
+      tags: [receipts]
+      summary: Delete a receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /receipts/{id}/line-items:
+    post:
+      operationId: addLineItem
+      tags: [receipts]
+      summary: Add a line item to a receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LineItemInput"
+      responses:
+        "201":
+          description: Created line item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineItem"
+
+  /line-items/{id}:
+    patch:
+      operationId: updateLineItem
+      tags: [receipts]
+      summary: Update a line item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LineItemUpdate"
+      responses:
+        "200":
+          description: Updated line item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineItem"
+    delete:
+      operationId: deleteLineItem
+      tags: [receipts]
+      summary: Delete a line item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /analytics/spend:
+    get:
+      operationId: getSpendAnalytics
+      tags: [analytics]
+      summary: Weekly spend totals with trend info (high/low flags)
+      responses:
+        "200":
+          description: Weekly spend data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpendAnalytics"
+
+  /analytics/items/{id}/price-history:
+    get:
+      operationId: getItemPriceHistory
+      tags: [analytics]
+      summary: Price history for an item across stores and time
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Price history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemPriceHistory"
+
+  /analytics/stores/{id}/summary:
+    get:
+      operationId: getStoreSummary
+      tags: [analytics]
+      summary: Summary stats for a store including avg spend, top items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Store summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreSummary"
+
+  /shopping-list:
+    get:
+      operationId: getShoppingList
+      tags: [shopping-list]
+      summary: Get auto-generated shopping list from purchase history
+      responses:
+        "200":
+          description: Shopping list with recurring and one-off items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingList"
+
+  /receipts/parse:
+    post:
+      operationId: parseReceiptImage
+      tags: [receipts-ai]
+      summary: Parse a receipt image using AI and return extracted data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseReceiptInput"
+      responses:
+        "200":
+          description: Parsed receipt data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParsedReceipt"
+
+  /receipts/parse-and-save:
+    post:
+      operationId: parseAndSaveReceipt
+      tags: [receipts-ai]
+      summary: Parse a receipt image and save it (store + items + line items)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseReceiptInput"
+      responses:
+        "201":
+          description: Saved receipt with all data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptDetail"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Store:
+      type: object
+      required: [id, name, deliveryAvailable, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        deliveryAvailable:
+          type: boolean
+        deliveryFee:
+          type: ["number", "null"]
+        minimumOrderAmount:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    StoreInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        deliveryAvailable:
+          type: boolean
+        deliveryFee:
+          type: ["number", "null"]
+        minimumOrderAmount:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+
+    StoreUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        deliveryAvailable:
+          type: boolean
+        deliveryFee:
+          type: ["number", "null"]
+        minimumOrderAmount:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+
+    Item:
+      type: object
+      required: [id, name, purchaseCount, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        notes:
+          type: ["string", "null"]
+        purchaseCount:
+          type: integer
+        createdAt:
+          type: string
+
+    ItemInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        notes:
+          type: ["string", "null"]
+
+    ItemUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        notes:
+          type: ["string", "null"]
+
+    Receipt:
+      type: object
+      required: [id, storeId, storeName, purchasedAt, total, createdAt]
+      properties:
+        id:
+          type: integer
+        storeId:
+          type: integer
+        storeName:
+          type: string
+        purchasedAt:
+          type: string
+        total:
+          type: number
+        imageUri:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ReceiptInput:
+      type: object
+      required: [storeId, purchasedAt, total]
+      properties:
+        storeId:
+          type: integer
+        purchasedAt:
+          type: string
+        total:
+          type: number
+        imageUri:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    LineItem:
+      type: object
+      required: [id, receiptId, itemId, itemName, price, quantity, createdAt]
+      properties:
+        id:
+          type: integer
+        receiptId:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+        createdAt:
+          type: string
+
+    LineItemInput:
+      type: object
+      required: [itemId, price, quantity]
+      properties:
+        itemId:
+          type: integer
+        price:
+          type: number
+        quantity:
+          type: number
+
+    LineItemUpdate:
+      type: object
+      properties:
+        price:
+          type: number
+        quantity:
+          type: number
+
+    ReceiptDetail:
+      type: object
+      required: [id, storeId, storeName, purchasedAt, total, lineItems, createdAt]
+      properties:
+        id:
+          type: integer
+        storeId:
+          type: integer
+        storeName:
+          type: string
+        purchasedAt:
+          type: string
+        total:
+          type: number
+        imageUri:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineItem"
+        createdAt:
+          type: string
+
+    WeeklySpend:
+      type: object
+      required: [weekStart, weekEnd, total, isHigh, isLow]
+      properties:
+        weekStart:
+          type: string
+        weekEnd:
+          type: string
+        total:
+          type: number
+        isHigh:
+          type: boolean
+        isLow:
+          type: boolean
+        receiptCount:
+          type: integer
+
+    SpendAnalytics:
+      type: object
+      required: [weeks, average, totalSpend, weeklyAverage]
+      properties:
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklySpend"
+        average:
+          type: number
+        totalSpend:
+          type: number
+        weeklyAverage:
+          type: number
+
+    PricePoint:
+      type: object
+      required: [date, price, storeId, storeName, receiptId]
+      properties:
+        date:
+          type: string
+        price:
+          type: number
+        storeId:
+          type: integer
+        storeName:
+          type: string
+        receiptId:
+          type: integer
+
+    ItemPriceHistory:
+      type: object
+      required: [itemId, itemName, averagePrice, lowestPrice, highestPrice, lowestPriceStoreName, pricePoints]
+      properties:
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        averagePrice:
+          type: number
+        lowestPrice:
+          type: number
+        highestPrice:
+          type: number
+        lowestPriceStoreName:
+          type: string
+        pricePoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricePoint"
+
+    StoreSummary:
+      type: object
+      required: [storeId, storeName, receiptCount, totalSpend, averageReceiptTotal, deliveryAvailable]
+      properties:
+        storeId:
+          type: integer
+        storeName:
+          type: string
+        receiptCount:
+          type: integer
+        totalSpend:
+          type: number
+        averageReceiptTotal:
+          type: number
+        deliveryAvailable:
+          type: boolean
+        deliveryFee:
+          type: ["number", "null"]
+        minimumOrderAmount:
+          type: ["number", "null"]
+        deliveryCostBenefitNote:
+          type: ["string", "null"]
+
+    ShoppingListItem:
+      type: object
+      required: [itemId, itemName, purchaseCount, averagePrice, lowestPrice, lowestPriceStoreName, isRecurring]
+      properties:
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        notes:
+          type: ["string", "null"]
+        purchaseCount:
+          type: integer
+        averagePrice:
+          type: number
+        lowestPrice:
+          type: number
+        lowestPriceStoreName:
+          type: string
+        isRecurring:
+          type: boolean
+
+    ShoppingList:
+      type: object
+      required: [recurring, oneOff]
+      properties:
+        recurring:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShoppingListItem"
+        oneOff:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShoppingListItem"
+
+    ParsedReceiptLineItem:
+      type: object
+      required: [name, price, quantity]
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+
+    ParsedReceipt:
+      type: object
+      required: [storeName, purchasedAt, total, lineItems]
+      properties:
+        storeName:
+          type: string
+        purchasedAt:
+          type: string
+        total:
+          type: number
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParsedReceiptLineItem"
+
+    ParseReceiptInput:
+      type: object
+      required: [imageBase64]
+      properties:
+        imageBase64:
+          type: string
