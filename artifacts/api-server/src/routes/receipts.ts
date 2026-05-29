@@ -1,5 +1,11 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { tmpdir } from "os";
+import { join } from "path";
+import { writeFile, readFile, unlink, readdir } from "fs/promises";
+import { randomUUID } from "crypto";
 import { db } from "@workspace/db";
 import { receiptsTable, storesTable, lineItemsTable, itemsTable } from "@workspace/db";
 import {
@@ -11,6 +17,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require("pdf-parse/lib/pdf-parse.js");
+const execFileAsync = promisify(execFile);
 
 function receiptPrompt(): string {
   const today = new Date().toISOString();
@@ -428,7 +435,7 @@ router.post("/save-parsed", async (req, res): Promise<void> => {
   }
 });
 
-// Parse and save a PDF receipt (online order confirmation)
+// Parse and save a PDF receipt — handles text-based and image-based (scanned) PDFs
 router.post("/parse-pdf", async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
@@ -436,45 +443,110 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
     return;
   }
 
+  const id = randomUUID();
+  const pdfPath = join(tmpdir(), `receipt-${id}.pdf`);
+  const imgPrefix = join(tmpdir(), `receipt-${id}`);
+  const tempFiles: string[] = [pdfPath];
+
   try {
     const buffer = Buffer.from(pdfBase64, "base64");
-    const pdfData = await pdfParse(buffer);
-    const extractedText = pdfData.text.slice(0, 8000); // cap tokens
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      max_completion_tokens: 2048,
-      messages: [
-        {
-          role: "user",
-          content: `Extract receipt data from the following text (from an online order confirmation PDF) and return ONLY valid JSON (no markdown, no code blocks):
-{
+    // Try text extraction first (works for text-based PDFs)
+    const pdfData = await pdfParse(buffer);
+    const extractedText = pdfData.text.trim();
+
+    type ParsedReceipt = {
+      storeName: string;
+      purchasedAt: string;
+      total: number;
+      lineItems: { name: string; price: number; quantity: number }[];
+    };
+    let parsed: ParsedReceipt;
+    const today = new Date().toISOString();
+    const jsonSchema = `{
   "storeName": "store or retailer name",
-  "purchasedAt": "ISO 8601 date string (use today if unclear: ${new Date().toISOString()})",
+  "purchasedAt": "ISO 8601 date string (use today if unclear: ${today})",
   "total": total order amount as number,
   "lineItems": [
     { "name": "item name", "price": price per unit as number, "quantity": quantity as number }
   ]
-}
-Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items, not subtotals, shipping, or tax lines.
+}`;
+    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals.`;
 
-PDF text:
-${extractedText}`,
-        },
-      ],
-    });
+    if (extractedText.length >= 50) {
+      // Text-based PDF: send extracted text to language model
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        max_completion_tokens: 2048,
+        messages: [{
+          role: "user",
+          content: `Extract receipt data from the following text (from an online order confirmation PDF) and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}\n\nPDF text:\n${extractedText.slice(0, 8000)}`,
+        }],
+      });
+      const content = response.choices[0]?.message?.content ?? "{}";
+      try {
+        parsed = JSON.parse(content) as ParsedReceipt;
+      } catch {
+        res.status(500).json({ error: "Failed to parse AI response as JSON" });
+        return;
+      }
+    } else {
+      // Image-based PDF: render pages with pdftoppm then use Vision
+      await writeFile(pdfPath, buffer);
+      await execFileAsync("pdftoppm", ["-jpeg", "-r", "150", pdfPath, imgPrefix]);
 
-    const content = response.choices[0]?.message?.content ?? "{}";
-    let parsed: { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number }[] };
+      // Collect generated JPEG files (pdftoppm names them prefix-1.jpg, prefix-01.jpg, etc.)
+      const allFiles = await readdir(tmpdir());
+      const pageFiles = allFiles
+        .filter((f) => f.startsWith(`receipt-${id}`) && f.endsWith(".jpg"))
+        .sort()
+        .slice(0, 4); // cap at 4 pages to limit tokens
 
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      res.status(500).json({ error: "Failed to parse AI response as JSON" });
-      return;
+      for (const f of pageFiles) tempFiles.push(join(tmpdir(), f));
+
+      if (pageFiles.length === 0) {
+        res.status(422).json({ error: "Could not render PDF pages — the file may be corrupted." });
+        return;
+      }
+
+      const imageContents = await Promise.all(
+        pageFiles.map(async (f) => {
+          const imgBuf = await readFile(join(tmpdir(), f));
+          return {
+            type: "image_url" as const,
+            image_url: {
+              url: `data:image/jpeg;base64,${imgBuf.toString("base64")}`,
+              detail: "high" as const,
+            },
+          };
+        })
+      );
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        max_completion_tokens: 2048,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `These are pages from a receipt or order confirmation PDF. Extract the receipt data and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}`,
+            },
+            ...imageContents,
+          ],
+        }],
+      });
+
+      const content = response.choices[0]?.message?.content ?? "{}";
+      try {
+        parsed = JSON.parse(content) as ParsedReceipt;
+      } catch {
+        res.status(500).json({ error: "Failed to parse AI response as JSON" });
+        return;
+      }
     }
 
-    // Find or create store
+    // Persist receipt and line items
     let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
     if (!store) {
       [store] = await db.insert(storesTable).values({ name: parsed.storeName }).returning();
@@ -482,11 +554,7 @@ ${extractedText}`,
 
     const [receipt] = await db
       .insert(receiptsTable)
-      .values({
-        storeId: store.id,
-        purchasedAt: new Date(parsed.purchasedAt),
-        total: String(parsed.total),
-      })
+      .values({ storeId: store.id, purchasedAt: new Date(parsed.purchasedAt), total: String(parsed.total) })
       .returning();
 
     const savedLineItems = [];
@@ -513,13 +581,12 @@ ${extractedText}`,
       });
     }
 
-    res.status(201).json({
-      ...formatReceipt(receipt, store.name),
-      lineItems: savedLineItems,
-    });
+    res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
   } catch (err) {
     req.log.error({ err }, "Failed to parse PDF receipt");
     res.status(500).json({ error: "Failed to process PDF receipt" });
+  } finally {
+    await Promise.all(tempFiles.map((f) => unlink(f).catch(() => {})));
   }
 });
 
