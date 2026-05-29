@@ -58,6 +58,8 @@
   "dependencies": {
     "expo-camera": "^16.0.18",
     "expo-document-picker": "^56.0.4",
-    "expo-image-manipulator": "^56.0.15"
+    "expo-image-manipulator": "^56.0.15",
+    "expo-print": "~15.0.8",
+    "expo-sharing": "~14.0.8"
   }
 }

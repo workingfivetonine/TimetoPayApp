@@ -48,7 +48,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - **Receipts tab**: list of all receipts, tap to see line items, edit item names/notes, delete items
 - **Scan**: camera viewfinder with AI extraction — point at receipt, tap capture; also supports gallery upload
 - **Stores tab**: add/edit stores with delivery fee and minimum order tracking; tap for cost-benefit analysis
-- **Shopping List tab**: auto-populated from scanned receipts; split into Regulars (2+ purchases) and One-offs; shows lowest price and best store
+- **Shopping List tab**: auto-populated from scanned receipts; split into Regulars (2+ purchases) and One-offs; shows lowest price and best store. Header download button exports a printable PDF (via `expo-print` + `expo-sharing`) grouped by store, each with Regulars/One-offs subsections, checkboxes per item, and ran-out items italicized/tagged
 - **Analytics tab**: weekly spend bars with HIGH/LOW flags at ±1 std dev; per-item price history (lowest/avg/highest)
 
 ## Gotchas

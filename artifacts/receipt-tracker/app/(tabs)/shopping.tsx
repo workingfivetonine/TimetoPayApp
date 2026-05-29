@@ -7,8 +7,11 @@ import {
   ActivityIndicator,
   Platform,
   RefreshControl,
+  TouchableOpacity,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import {
   useGetShoppingList,
   getGetShoppingListQueryKey,
@@ -19,6 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
+import { downloadShoppingListPdf } from "@/lib/shoppingListPdf";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useRouter } from "expo-router";
@@ -30,6 +34,7 @@ export default function ShoppingScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const { data: list, isLoading } = useGetShoppingList();
   const { mutateAsync: markRanOut } = useMarkRanOut();
@@ -54,6 +59,22 @@ export default function ShoppingScreen() {
     }
   };
 
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadShoppingListPdf(list?.recurring ?? [], list?.oneOff ?? []);
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not generate the PDF. Please try again.";
+      Alert.alert("Download failed", message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const sections: { title: string; subtitle: string; data: ShoppingListItem[] }[] = [
     {
       title: "Regulars",
@@ -73,6 +94,20 @@ export default function ShoppingScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Shopping List</Text>
+        {hasItems && (
+          <TouchableOpacity
+            style={[styles.downloadButton, { backgroundColor: colors.accent }]}
+            onPress={handleDownload}
+            disabled={downloading}
+            accessibilityLabel="Download shopping list as PDF"
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color={colors.accentForeground} />
+            ) : (
+              <Feather name="download" size={18} color={colors.accentForeground} />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {isLoading ? (
@@ -124,8 +159,18 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  downloadButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   sectionHeader: {
     paddingHorizontal: 16,

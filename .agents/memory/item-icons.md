@@ -15,3 +15,7 @@ Each item carries a nullable `icon` (emoji string).
 **How to apply:**
 - Any new ingest route that dedups items must replicate the null-icon backfill, and any response shape carrying item data must include `icon` (keep the OpenAPI schemas in sync).
 - When changing an item's icon on the client, invalidate every cache that surfaces item data — including receipt detail, whose keys are per-id (invalidate by string-prefix predicate, not a single key).
+
+## Shopping list PDF export
+The shopping list has a printable PDF export (`lib/shoppingListPdf.ts`). It is purely client-side — the existing `GET /api/shopping-list` response already carries `lowestPriceStoreName`, `isRecurring`, `ranOutAt`, `averagePrice`, and `icon`, so the PDF regroups by store (not the in-app Regulars/One-offs split) with Regulars/One-offs subsections per store.
+**Gotchas:** escape ALL user-derived strings inserted into the HTML (including `icon`, not just name/store). On web use `Print.printAsync` (opens print dialog); on native use `Print.printToFileAsync` + `Sharing.shareAsync`, and throw (surface to user) when `Sharing.isAvailableAsync()` is false rather than silently returning. `expo-print`/`expo-sharing` must be added with `expo install` for SDK-compatible versions.
