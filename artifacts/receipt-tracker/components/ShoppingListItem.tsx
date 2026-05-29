@@ -94,17 +94,18 @@ export function ShoppingListItemRow({
           {
             backgroundColor: hasRanOut ? colors.secondary : colors.accent,
             borderColor: hasRanOut ? colors.border : colors.primary,
+            opacity: hasRanOut ? 0.45 : 1,
           },
         ]}
         onPress={onRanOut}
         activeOpacity={0.7}
-        disabled={ranOutLoading}
+        disabled={hasRanOut || ranOutLoading}
       >
         {ranOutLoading ? (
           <Feather name="loader" size={13} color={colors.mutedForeground} />
         ) : hasRanOut ? (
           <>
-            <Feather name="alert-circle" size={12} color={colors.mutedForeground} />
+            <Feather name="check" size={12} color={colors.mutedForeground} />
             <Text style={[styles.ranOutBtnLabel, { color: colors.mutedForeground }]}>
               Out
             </Text>
