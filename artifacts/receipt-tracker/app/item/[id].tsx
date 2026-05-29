@@ -7,17 +7,200 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Dimensions,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, {
+  Path,
+  Circle,
+  Line as SvgLine,
+  Text as SvgText,
+  Defs,
+  LinearGradient,
+  Stop,
+} from "react-native-svg";
 import { useGetItemHistory } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import type { ItemHistoryEntry } from "@workspace/api-client-react";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+
+const CHART_H = 160;
+const PAD = { left: 52, right: 16, top: 18, bottom: 30 };
+
+interface ChartProps {
+  history: ItemHistoryEntry[];
+  lowestPrice: number;
+  highestPrice: number;
+  trendColor: string;
+  borderColor: string;
+  mutedColor: string;
+  cardColor: string;
+}
+
+function PriceTrendChart({
+  history,
+  lowestPrice,
+  highestPrice,
+  trendColor,
+  borderColor,
+  mutedColor,
+  cardColor,
+}: ChartProps) {
+  const screenW = Dimensions.get("window").width;
+  const svgW = screenW - 32;
+  const svgH = CHART_H;
+
+  // Chronological order: oldest → newest (API returns newest first)
+  const pts = [...history].reverse();
+  if (pts.length === 0) return null;
+
+  const cLeft = PAD.left;
+  const cRight = svgW - PAD.right;
+  const cTop = PAD.top;
+  const cBottom = svgH - PAD.bottom;
+  const cW = cRight - cLeft;
+  const cH = cBottom - cTop;
+
+  const priceRange = highestPrice - lowestPrice || 1;
+  const paddedMin = lowestPrice - priceRange * 0.18;
+  const paddedMax = highestPrice + priceRange * 0.18;
+  const paddedRange = paddedMax - paddedMin;
+
+  const toX = (i: number) =>
+    pts.length === 1 ? (cLeft + cRight) / 2 : cLeft + (i / (pts.length - 1)) * cW;
+
+  const toY = (price: number) =>
+    cBottom - ((price - paddedMin) / paddedRange) * cH;
+
+  // SVG line path
+  const linePath = pts
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(p.price).toFixed(1)}`)
+    .join(" ");
+
+  // Closed fill area
+  const fillPath =
+    pts.length > 1
+      ? `${linePath} L ${toX(pts.length - 1).toFixed(1)} ${cBottom} L ${toX(0).toFixed(1)} ${cBottom} Z`
+      : "";
+
+  // Y-axis tick values
+  const yTicks = [lowestPrice, highestPrice];
+  if (priceRange > 0.02) {
+    yTicks.push((lowestPrice + highestPrice) / 2);
+  }
+
+  // X-axis labels: first + last (+ midpoint if 6+ purchases)
+  const xLabels: { label: string; x: number; anchor: "start" | "end" | "middle" }[] = [
+    { label: shortDate(pts[0].purchasedAt), x: toX(0), anchor: "start" },
+  ];
+  if (pts.length > 1) {
+    xLabels.push({
+      label: shortDate(pts[pts.length - 1].purchasedAt),
+      x: toX(pts.length - 1),
+      anchor: "end",
+    });
+  }
+  if (pts.length >= 6) {
+    const mid = Math.floor(pts.length / 2);
+    xLabels.push({ label: shortDate(pts[mid].purchasedAt), x: toX(mid), anchor: "middle" });
+  }
+
+  return (
+    <Svg width={svgW} height={svgH}>
+      <Defs>
+        <LinearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0%" stopColor={trendColor} stopOpacity="0.22" />
+          <Stop offset="100%" stopColor={trendColor} stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+
+      {/* Horizontal grid lines */}
+      {yTicks.map((tick, i) => (
+        <SvgLine
+          key={i}
+          x1={cLeft}
+          y1={toY(tick)}
+          x2={cRight}
+          y2={toY(tick)}
+          stroke={borderColor}
+          strokeWidth={0.6}
+          strokeDasharray="3 4"
+        />
+      ))}
+
+      {/* Y-axis price labels */}
+      {yTicks.map((tick, i) => (
+        <SvgText
+          key={i}
+          x={cLeft - 5}
+          y={toY(tick) + 4}
+          textAnchor="end"
+          fontSize={9.5}
+          fill={mutedColor}
+        >
+          ${tick.toFixed(2)}
+        </SvgText>
+      ))}
+
+      {/* Gradient fill */}
+      {fillPath ? <Path d={fillPath} fill="url(#fillGrad)" /> : null}
+
+      {/* Trend line */}
+      {pts.length > 1 && (
+        <Path
+          d={linePath}
+          stroke={trendColor}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      )}
+
+      {/* Data point dots */}
+      {pts.map((p, i) => (
+        <Circle
+          key={i}
+          cx={toX(i)}
+          cy={toY(p.price)}
+          r={pts.length === 1 ? 6 : pts.length <= 8 ? 4 : 3}
+          fill={trendColor}
+          stroke={cardColor}
+          strokeWidth={2}
+        />
+      ))}
+
+      {/* X-axis date labels */}
+      {xLabels.map((xl, i) => (
+        <SvgText
+          key={i}
+          x={xl.x}
+          y={svgH - 6}
+          textAnchor={xl.anchor}
+          fontSize={9.5}
+          fill={mutedColor}
+        >
+          {xl.label}
+        </SvgText>
+      ))}
+    </Svg>
+  );
+}
+
+// ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ItemHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,7 +223,15 @@ export default function ItemHistoryScreen() {
 
   if (!data) return null;
 
-  const priceSpread = data.history.length > 1 ? data.highestPrice - data.lowestPrice : 0;
+  // Trend: compare most recent purchase to first (history is newest-first)
+  const chronoPts = [...data.history].reverse();
+  const firstPrice = chronoPts[0]?.price ?? 0;
+  const lastPrice = chronoPts[chronoPts.length - 1]?.price ?? 0;
+  const trendDelta = data.history.length >= 2 ? lastPrice - firstPrice : 0;
+  const trendColor =
+    trendDelta < -0.005 ? "#16a34a" : trendDelta > 0.005 ? "#dc2626" : colors.primary;
+  const trendIcon: "trending-down" | "trending-up" | "minus" =
+    trendDelta < -0.005 ? "trending-down" : trendDelta > 0.005 ? "trending-up" : "minus";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -83,28 +274,50 @@ export default function ItemHistoryScreen() {
           </View>
         </View>
 
-        {/* Price spread indicator */}
-        {priceSpread > 0.01 && (
-          <View style={[styles.spreadBanner, { backgroundColor: colors.accent, borderColor: colors.border }]}>
-            <Feather name="trending-up" size={14} color={colors.primary} />
-            <Text style={[styles.spreadText, { color: colors.foreground }]}>
-              Price varies by{" "}
-              <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
-                ${priceSpread.toFixed(2)}
-              </Text>{" "}
-              across purchases
-            </Text>
-          </View>
+        {/* Price Trend Chart */}
+        {data.history.length >= 1 && (
+          <>
+            <View style={styles.chartSectionHeader}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                PRICE TREND
+              </Text>
+              {data.history.length >= 2 && (
+                <View style={styles.trendPill}>
+                  <Feather name={trendIcon} size={12} color={trendColor} />
+                  <Text style={[styles.trendText, { color: trendColor }]}>
+                    {trendDelta === 0
+                      ? "Stable"
+                      : `${trendDelta > 0 ? "+" : ""}$${Math.abs(trendDelta).toFixed(2)} since first`}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View
+              style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <PriceTrendChart
+                history={data.history}
+                lowestPrice={data.lowestPrice}
+                highestPrice={data.highestPrice}
+                trendColor={trendColor}
+                borderColor={colors.border}
+                mutedColor={colors.mutedForeground}
+                cardColor={colors.card}
+              />
+            </View>
+          </>
         )}
 
-        {/* Purchase history */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+        {/* Purchase History */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 8 }]}>
           PURCHASE HISTORY
         </Text>
 
         {data.history.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No purchase history yet</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              No purchase history yet
+            </Text>
           </View>
         ) : (
           <View style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -117,7 +330,10 @@ export default function ItemHistoryScreen() {
                   key={`${entry.receiptId}-${idx}`}
                   style={[
                     styles.historyRow,
-                    !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                    !isLast && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.border,
+                    },
                   ]}
                   onPress={() => router.push(`/receipt/${entry.receiptId}`)}
                   activeOpacity={0.7}
@@ -128,7 +344,10 @@ export default function ItemHistoryScreen() {
                     </Text>
                     <View style={styles.storeRow}>
                       <Feather name="shopping-bag" size={11} color={colors.mutedForeground} />
-                      <Text style={[styles.historyStore, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.historyStore, { color: colors.mutedForeground }]}
+                        numberOfLines={1}
+                      >
                         {entry.storeName}
                       </Text>
                       {entry.quantity > 1 && (
@@ -156,7 +375,12 @@ export default function ItemHistoryScreen() {
                       <Text style={[styles.priceBadge, { color: "#dc2626" }]}>highest</Text>
                     )}
                   </View>
-                  <Feather name="chevron-right" size={14} color={colors.border} style={{ marginLeft: 6 }} />
+                  <Feather
+                    name="chevron-right"
+                    size={14}
+                    color={colors.border}
+                    style={{ marginLeft: 6 }}
+                  />
                 </TouchableOpacity>
               );
             })}
@@ -191,21 +415,32 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 15, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 10, fontFamily: "Inter_400Regular", textAlign: "center" },
-  spreadBanner: {
+  chartSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 16,
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  spreadText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_700Bold",
     letterSpacing: 0.6,
-    marginBottom: 8,
+  },
+  trendPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  trendText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
+  chartCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 20,
+    paddingVertical: 8,
   },
   emptyCard: {
     borderRadius: 12,
@@ -218,6 +453,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     overflow: "hidden",
+    marginBottom: 8,
   },
   historyRow: {
     flexDirection: "row",
