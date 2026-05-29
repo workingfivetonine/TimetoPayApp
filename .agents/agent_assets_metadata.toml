@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "CjY1iJXIBWLF8NW_jU036"
+uri = "file://artifacts/receipt-tracker/assets/images/icon.png"
+type = "image"
+title = "generated_image"
