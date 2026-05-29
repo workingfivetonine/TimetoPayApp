@@ -23,6 +23,14 @@ import {
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import ImageEditor from "@/components/ImageEditor";
+
+interface PendingImage {
+  uri: string;
+  base64: string;
+  width: number;
+  height: number;
+}
 
 export default function ScanScreen() {
   const colors = useColors();
@@ -31,6 +39,7 @@ export default function ScanScreen() {
   const queryClient = useQueryClient();
   const [scanning, setScanning] = useState(false);
   const [scanningLabel, setScanningLabel] = useState("");
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
@@ -56,17 +65,27 @@ export default function ScanScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       base64: true,
-      quality: 1.0, // max quality — receipt text needs every pixel
+      quality: 1.0,
     });
     if (result.canceled || !result.assets[0]?.base64) return;
+    const asset = result.assets[0];
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPendingImage({
+      uri: asset.uri,
+      base64: asset.base64!,
+      width: asset.width,
+      height: asset.height,
+    });
+  };
 
+  const handleEditorConfirm = async (editedBase64: string) => {
+    setPendingImage(null);
     setScanning(true);
     setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     try {
       const receipt = await callApi("parse-and-save", {
-        imageBase64: result.assets[0].base64,
+        imageBase64: editedBase64,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       invalidateAll();
@@ -77,6 +96,8 @@ export default function ScanScreen() {
       setScanning(false);
     }
   };
+
+  const handleEditorCancel = () => setPendingImage(null);
 
   const handlePickPdf = async () => {
     let result;
@@ -197,6 +218,17 @@ export default function ScanScreen() {
             </Text>
           </View>
         </View>
+      )}
+
+      {/* Image editor — shown after picking a photo, before sending to AI */}
+      {pendingImage && (
+        <ImageEditor
+          uri={pendingImage.uri}
+          imageWidth={pendingImage.width}
+          imageHeight={pendingImage.height}
+          onConfirm={handleEditorConfirm}
+          onCancel={handleEditorCancel}
+        />
       )}
     </View>
   );

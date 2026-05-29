@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "expo-camera": "^16.0.18",
-    "expo-document-picker": "^56.0.4"
+    "expo-document-picker": "^56.0.4",
+    "expo-image-manipulator": "^56.0.15"
   }
 }
