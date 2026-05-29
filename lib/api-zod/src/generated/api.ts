@@ -469,12 +469,17 @@ export const ParseReceiptImageBody = zod.object({
 
 export const ParseReceiptImageResponse = zod.object({
   "storeName": zod.string(),
+  "storeNameUncertain": zod.boolean().optional(),
   "purchasedAt": zod.string(),
+  "dateUncertain": zod.boolean().optional(),
   "total": zod.number(),
+  "totalUncertain": zod.boolean().optional(),
   "lineItems": zod.array(zod.object({
   "name": zod.string(),
   "price": zod.number(),
-  "quantity": zod.number()
+  "quantity": zod.number(),
+  "nameUncertain": zod.boolean().optional(),
+  "priceUncertain": zod.boolean().optional()
 }))
 })
 
@@ -484,6 +489,26 @@ export const ParseReceiptImageResponse = zod.object({
  */
 export const ParseAndSaveReceiptBody = zod.object({
   "imageBase64": zod.string()
+})
+
+
+/**
+ * @summary Save an already-parsed (and user-corrected) receipt to the database
+ */
+export const SaveParsedReceiptBody = zod.object({
+  "storeName": zod.string(),
+  "storeNameUncertain": zod.boolean().optional(),
+  "purchasedAt": zod.string(),
+  "dateUncertain": zod.boolean().optional(),
+  "total": zod.number(),
+  "totalUncertain": zod.boolean().optional(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "nameUncertain": zod.boolean().optional(),
+  "priceUncertain": zod.boolean().optional()
+}))
 })
 
 

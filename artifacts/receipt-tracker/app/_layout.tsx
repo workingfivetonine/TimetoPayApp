@@ -32,6 +32,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: "fullScreenModal" }} />
+      <Stack.Screen name="review-receipt" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="store/[id]" options={{ headerShown: false }} />
     </Stack>

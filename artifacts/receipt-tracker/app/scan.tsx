@@ -24,6 +24,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
+import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 
 interface PendingImage {
   uri: string;
@@ -84,12 +85,17 @@ export default function ScanScreen() {
     setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const receipt = await callApi("parse-and-save", {
-        imageBase64: editedBase64,
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const url = `https://${domain}/api/receipts/parse`;
+      const response = await expoFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: editedBase64 }),
       });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      invalidateAll();
-      router.replace(`/receipt/${receipt.id}`);
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const parsed = (await response.json()) as ParsedReceiptData;
+      setPendingReceipt(parsed, editedBase64);
+      router.push("/review-receipt");
     } catch {
       Alert.alert("Error", "Could not read this receipt image. Please try again.");
     } finally {

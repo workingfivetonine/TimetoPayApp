@@ -9,7 +9,10 @@ import type { ParsedReceiptLineItem } from './parsedReceiptLineItem';
 
 export interface ParsedReceipt {
   storeName: string;
+  storeNameUncertain?: boolean;
   purchasedAt: string;
+  dateUncertain?: boolean;
   total: number;
+  totalUncertain?: boolean;
   lineItems: ParsedReceiptLineItem[];
 }

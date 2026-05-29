@@ -10,4 +10,6 @@ export interface ParsedReceiptLineItem {
   name: string;
   price: number;
   quantity: number;
+  nameUncertain?: boolean;
+  priceUncertain?: boolean;
 }

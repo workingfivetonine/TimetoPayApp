@@ -53,14 +53,17 @@ TYPICAL RECEIPT LAYOUT — use this as a reference map when reading the image:
 WORKED EXAMPLE — given the receipt above, the correct output is:
 {
   "storeName": "Store Name",
+  "storeNameUncertain": false,
   "purchasedAt": "2024-03-14T11:42:00.000Z",
+  "dateUncertain": false,
   "total": 10.23,
+  "totalUncertain": false,
   "lineItems": [
-    { "name": "Whole Milk 2L",       "price": 1.35, "quantity": 1 },
-    { "name": "Free Range Eggs",     "price": 2.49, "quantity": 2 },
-    { "name": "Sourdough Bread",     "price": 1.89, "quantity": 1 },
-    { "name": "Banana",              "price": 0.25, "quantity": 3 },
-    { "name": "Chicken Breast 500g", "price": 3.75, "quantity": 1 }
+    { "name": "Whole Milk 2L",       "price": 1.35, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Free Range Eggs",     "price": 2.49, "quantity": 2, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Sourdough Bread",     "price": 1.89, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Banana",              "price": 0.25, "quantity": 3, "nameUncertain": false, "priceUncertain": false },
+    { "name": "Chicken Breast 500g", "price": 3.75, "quantity": 1, "nameUncertain": false, "priceUncertain": false }
   ]
 }
 
@@ -68,10 +71,19 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
 Now extract data from the receipt image provided and return ONLY a single valid JSON object in the same format (no markdown, no code fences, no explanation):
 {
   "storeName": "Name of the store or retailer",
+  "storeNameUncertain": <true if store name was blurry/missing/guessed, false if clearly readable>,
   "purchasedAt": "ISO 8601 date-time — read the date on the receipt; if unreadable use today: ${today}",
+  "dateUncertain": <true if date was blurry/missing/guessed, false if clearly readable>,
   "total": <final total paid as a number>,
+  "totalUncertain": <true if total was blurry/missing/guessed, false if clearly readable>,
   "lineItems": [
-    { "name": "Clean Title Case name", "price": <unit price>, "quantity": <integer> }
+    {
+      "name": "Clean Title Case name",
+      "price": <unit price>,
+      "quantity": <integer>,
+      "nameUncertain": <true if item name was blurry/illegible/guessed, false if clearly readable>,
+      "priceUncertain": <true if price was blurry/illegible/guessed, false if clearly readable>
+    }
   ]
 }
 
@@ -80,7 +92,8 @@ Rules:
 - price is always the per-unit price; if only a line total is shown for qty > 1, divide to get the unit price.
 - Default quantity to 1 if not printed.
 - Expand abbreviations, strip PLU/SKU codes, use Title Case.
-- If you cannot confidently read a field, make a reasonable inference rather than omitting it.
+- Set *Uncertain fields to true only when that specific value was smudged, cut off, blurry, or is genuinely a guess. Set to false when you can read it clearly.
+- Even if uncertain, always provide a best-guess value — never omit a field.
 - Return raw JSON only — no markdown, no prose.`;
 }
 
@@ -306,6 +319,57 @@ router.post("/parse", async (req, res): Promise<void> => {
   }
 });
 
+// Shared helper: persist a parsed receipt (store, receipt, line items) to the DB
+async function persistParsedReceipt(parsed: {
+  storeName: string;
+  purchasedAt: string;
+  total: number;
+  lineItems: { name: string; price: number; quantity: number }[];
+}) {
+  // Find or create store
+  let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
+  if (!store) {
+    [store] = await db.insert(storesTable).values({ name: parsed.storeName }).returning();
+  }
+
+  // Create receipt
+  const [receipt] = await db
+    .insert(receiptsTable)
+    .values({
+      storeId: store.id,
+      purchasedAt: new Date(parsed.purchasedAt),
+      total: String(parsed.total),
+    })
+    .returning();
+
+  // Create line items
+  const savedLineItems = [];
+  for (const li of parsed.lineItems) {
+    let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
+    if (!item) {
+      [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
+    } else {
+      await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
+      item.purchaseCount += 1;
+    }
+
+    const [lineItem] = await db
+      .insert(lineItemsTable)
+      .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
+      .returning();
+
+    savedLineItems.push({
+      ...lineItem,
+      itemName: item.name,
+      price: Number(lineItem.price),
+      quantity: Number(lineItem.quantity),
+      createdAt: lineItem.createdAt.toISOString(),
+    });
+  }
+
+  return { receipt, store, savedLineItems };
+}
+
 // Parse and save receipt
 router.post("/parse-and-save", async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
@@ -322,17 +386,8 @@ router.post("/parse-and-save", async (req, res): Promise<void> => {
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: receiptPrompt(),
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: "high",
-              },
-            },
+            { type: "text", text: receiptPrompt() },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" } },
           ],
         },
       ],
@@ -348,55 +403,28 @@ router.post("/parse-and-save", async (req, res): Promise<void> => {
       return;
     }
 
-    // Find or create store
-    let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
-    if (!store) {
-      [store] = await db.insert(storesTable).values({ name: parsed.storeName }).returning();
-    }
-
-    // Create receipt
-    const [receipt] = await db
-      .insert(receiptsTable)
-      .values({
-        storeId: store.id,
-        purchasedAt: new Date(parsed.purchasedAt),
-        total: String(parsed.total),
-      })
-      .returning();
-
-    // Create line items
-    const savedLineItems = [];
-    for (const li of parsed.lineItems) {
-      // Find or create item by name (case-insensitive)
-      let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
-      if (!item) {
-        [item] = await db.insert(itemsTable).values({ name: li.name, purchaseCount: 1 }).returning();
-      } else {
-        await db.update(itemsTable).set({ purchaseCount: sql`${itemsTable.purchaseCount} + 1` }).where(eq(itemsTable.id, item.id));
-        item.purchaseCount += 1;
-      }
-
-      const [lineItem] = await db
-        .insert(lineItemsTable)
-        .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
-        .returning();
-
-      savedLineItems.push({
-        ...lineItem,
-        itemName: item.name,
-        price: Number(lineItem.price),
-        quantity: Number(lineItem.quantity),
-        createdAt: lineItem.createdAt.toISOString(),
-      });
-    }
-
-    res.status(201).json({
-      ...formatReceipt(receipt, store.name),
-      lineItems: savedLineItems,
-    });
+    const { receipt, store, savedLineItems } = await persistParsedReceipt(parsed);
+    res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
   } catch (err) {
     req.log.error({ err }, "Failed to parse-and-save receipt");
     res.status(500).json({ error: "Failed to process receipt" });
+  }
+});
+
+// Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
+router.post("/save-parsed", async (req, res): Promise<void> => {
+  const parsed = req.body as { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number }[] };
+  if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
+    res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
+    return;
+  }
+
+  try {
+    const { receipt, store, savedLineItems } = await persistParsedReceipt(parsed);
+    res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
+  } catch (err) {
+    req.log.error({ err }, "Failed to save parsed receipt");
+    res.status(500).json({ error: "Failed to save receipt" });
   }
 });
 

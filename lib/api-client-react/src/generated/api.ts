@@ -2131,6 +2131,77 @@ export const useParseAndSaveReceipt = <TError = ErrorType<unknown>,
       return useMutation(getParseAndSaveReceiptMutationOptions(options));
     }
 
+export const getSaveParsedReceiptUrl = () => {
+
+
+
+
+  return `/api/receipts/save-parsed`
+}
+
+/**
+ * @summary Save an already-parsed (and user-corrected) receipt to the database
+ */
+export const saveParsedReceipt = async (parsedReceipt: ParsedReceipt, options?: RequestInit): Promise<ReceiptDetail> => {
+
+  return customFetch<ReceiptDetail>(getSaveParsedReceiptUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      parsedReceipt,)
+  }
+);}
+
+
+
+
+export const getSaveParsedReceiptMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveParsedReceipt>>, TError,{data: BodyType<ParsedReceipt>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveParsedReceipt>>, TError,{data: BodyType<ParsedReceipt>}, TContext> => {
+
+const mutationKey = ['saveParsedReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveParsedReceipt>>, {data: BodyType<ParsedReceipt>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveParsedReceipt(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveParsedReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof saveParsedReceipt>>>
+    export type SaveParsedReceiptMutationBody = BodyType<ParsedReceipt>
+    export type SaveParsedReceiptMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save an already-parsed (and user-corrected) receipt to the database
+ */
+export const useSaveParsedReceipt = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveParsedReceipt>>, TError,{data: BodyType<ParsedReceipt>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveParsedReceipt>>,
+        TError,
+        {data: BodyType<ParsedReceipt>},
+        TContext
+      > => {
+      return useMutation(getSaveParsedReceiptMutationOptions(options));
+    }
+
 export const getManualEntryReceiptUrl = () => {
 
 

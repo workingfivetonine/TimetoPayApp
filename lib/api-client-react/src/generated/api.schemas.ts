@@ -301,12 +301,17 @@ export interface ParsedReceiptLineItem {
   name: string;
   price: number;
   quantity: number;
+  nameUncertain?: boolean;
+  priceUncertain?: boolean;
 }
 
 export interface ParsedReceipt {
   storeName: string;
+  storeNameUncertain?: boolean;
   purchasedAt: string;
+  dateUncertain?: boolean;
   total: number;
+  totalUncertain?: boolean;
   lineItems: ParsedReceiptLineItem[];
 }
 
