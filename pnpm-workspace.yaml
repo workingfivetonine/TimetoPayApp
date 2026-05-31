@@ -47,8 +47,12 @@ catalog:
   '@tailwindcss/vite': ^4.1.14
   '@tanstack/react-query': ^5.90.21
   '@types/node': ^25.3.3
-  '@types/react': ^19.2.0
-  '@types/react-dom': ^19.2.0
+  # Pinned to 19.1.x: Expo SDK 54 / react-native 0.81 require @types/react ~19.1.
+  # 19.2.x breaks react-native-svg / expo-blur with "cannot be used as a JSX
+  # component" errors. Web artifacts work fine on 19.1, so a single 19.1 version
+  # satisfies the whole workspace (see @types/react override note below).
+  '@types/react': ~19.1.10
+  '@types/react-dom': ~19.1.7
   '@vitejs/plugin-react': ^5.0.4
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
@@ -76,11 +80,11 @@ onlyBuiltDependencies:
 
 overrides:
   # Force a single @types/react / @types/react-dom across the whole workspace.
-  # Web artifacts (mockup-sandbox) want ^19.2 while the Expo app pins ~19.1, which
-  # left two @types/react versions in the store. Packages like lucide-react that
-  # don't declare an @types/react peer then resolved react's types via the hoisted
-  # copy (19.1.17), clashing with the artifact's own 19.2 types ("two different
-  # VoidOrUndefinedOnly" / ref errors). Pinning one version eliminates the clash.
+  # Two @types/react versions in the store let packages like lucide-react that
+  # don't declare an @types/react peer resolve react's types via the hoisted copy,
+  # clashing with an artifact's own types ("two different VoidOrUndefinedOnly" /
+  # ref errors). Pinning one version eliminates the clash. We pin to 19.1.x (via
+  # the catalog) because Expo SDK 54 requires it; web artifacts are happy on 19.1.
   "@types/react": "catalog:"
   "@types/react-dom": "catalog:"
   # replit uses linux-x64 only, we can exclude all other platforms
