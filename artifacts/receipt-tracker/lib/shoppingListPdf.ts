@@ -146,7 +146,7 @@ export function buildShoppingListHtml(
     print-color-adjust: exact;
   }
   .header {
-    border-bottom: 3px solid #0d9488;
+    border-bottom: 3px solid #7c3aed;
     padding-bottom: 14px;
     margin-bottom: 24px;
   }
@@ -168,8 +168,8 @@ export function buildShoppingListHtml(
   .store-name {
     font-size: 18px;
     font-weight: 700;
-    color: #0f766e;
-    background: #ccfbf1;
+    color: #6d28d9;
+    background: #ede9fe;
     padding: 7px 12px;
     border-radius: 8px;
     margin: 0 0 10px;
@@ -264,8 +264,8 @@ export function buildShoppingListHtml(
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: #0f766e;
-    background: #ccfbf1;
+    color: #6d28d9;
+    background: #ede9fe;
     border-radius: 4px;
     padding: 1px 6px;
     margin-left: 8px;
@@ -274,7 +274,7 @@ export function buildShoppingListHtml(
   .item-price {
     flex: 0 0 auto;
     font-weight: 600;
-    color: #0d9488;
+    color: #7c3aed;
     margin-left: 12px;
   }
   .empty { color: #64748b; font-size: 14px; }

@@ -1,44 +1,44 @@
 const colors = {
   light: {
-    text: "#0f172a",
-    tint: "#0d9488",
+    text: "#1e1b2e",
+    tint: "#7c3aed",
 
-    background: "#f8fafc",
-    foreground: "#0f172a",
+    background: "#faf8ff",
+    foreground: "#1e1b2e",
 
     card: "#ffffff",
-    cardForeground: "#0f172a",
+    cardForeground: "#1e1b2e",
 
-    primary: "#0d9488",
+    primary: "#7c3aed",
     primaryForeground: "#ffffff",
 
-    secondary: "#f1f5f9",
-    secondaryForeground: "#334155",
+    secondary: "#f3f0ff",
+    secondaryForeground: "#5b21b6",
 
-    muted: "#f1f5f9",
-    mutedForeground: "#64748b",
+    muted: "#f3f0ff",
+    mutedForeground: "#6b6385",
 
-    accent: "#ccfbf1",
-    accentForeground: "#0f766e",
+    accent: "#ede9fe",
+    accentForeground: "#6d28d9",
 
-    destructive: "#ef4444",
+    destructive: "#f43f5e",
     destructiveForeground: "#ffffff",
 
-    border: "#e2e8f0",
-    input: "#e2e8f0",
+    border: "#e7e1f5",
+    input: "#e7e1f5",
 
     // Spend analytics colors
-    spendHigh: "#fef2f2",
-    spendHighText: "#dc2626",
-    spendLow: "#f0fdf4",
-    spendLowText: "#16a34a",
-    spendNormal: "#f8fafc",
-    spendNormalText: "#475569",
+    spendHigh: "#fff1f2",
+    spendHighText: "#e11d48",
+    spendLow: "#ecfdf5",
+    spendLowText: "#059669",
+    spendNormal: "#faf8ff",
+    spendNormalText: "#6b6385",
 
     // Price comparison
-    priceGood: "#16a34a",
-    priceBad: "#dc2626",
-    priceNeutral: "#475569",
+    priceGood: "#059669",
+    priceBad: "#e11d48",
+    priceNeutral: "#6b6385",
   },
   radius: 12,
 };
