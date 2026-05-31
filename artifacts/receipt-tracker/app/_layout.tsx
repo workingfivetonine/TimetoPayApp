@@ -5,14 +5,17 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
+import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { setBaseUrl } from "@workspace/api-client-react";
+import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DataProvider } from "@/context/DataContext";
@@ -22,6 +25,9 @@ if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 }
 
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
+
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
@@ -30,13 +36,63 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="review-receipt" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="store/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="account" options={{ headerShown: false }} />
+      <Stack.Screen name="admin" options={{ headerShown: false }} />
+      <Stack.Screen name="admin/[userId]" options={{ headerShown: false }} />
     </Stack>
   );
+}
+
+// Clears the React Query cache whenever the signed-in user changes so
+// data from a previous account never leaks into another's session.
+function CacheInvalidator() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  const prev = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prev.current !== undefined && prev.current !== userId) {
+      qc.clear();
+    }
+    prev.current = userId;
+  }, [userId, qc]);
+  return null;
+}
+
+function InitialLayout() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  // Attach the Clerk bearer token to every generated API request.
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+  }, [getToken]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    const inAuthGroup = segments[0] === "(auth)";
+    if (!isSignedIn && !inAuthGroup) {
+      router.replace("/(auth)/sign-in");
+    } else if (isSignedIn && inAuthGroup) {
+      router.replace("/");
+    }
+  }, [isLoaded, isSignedIn, segments, router]);
+
+  if (!isLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  return <RootLayoutNav />;
 }
 
 export default function RootLayout() {
@@ -56,18 +112,23 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <DataProvider>
-            <GestureHandlerRootView>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </DataProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} proxyUrl={proxyUrl}>
+      <ClerkLoaded>
+        <SafeAreaProvider>
+          <ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+              <CacheInvalidator />
+              <DataProvider>
+                <GestureHandlerRootView>
+                  <KeyboardProvider>
+                    <InitialLayout />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </DataProvider>
+            </QueryClientProvider>
+          </ErrorBoundary>
+        </SafeAreaProvider>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }

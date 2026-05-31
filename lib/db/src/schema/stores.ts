@@ -1,9 +1,11 @@
 import { pgTable, serial, text, boolean, numeric, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const storesTable = pgTable("stores", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   address: text("address"),
   phone: text("phone"),
@@ -16,6 +18,6 @@ export const storesTable = pgTable("stores", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertStoreSchema = createInsertSchema(storesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStoreSchema = createInsertSchema(storesTable).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
 export type InsertStore = z.infer<typeof insertStoreSchema>;
 export type Store = typeof storesTable.$inferSelect;

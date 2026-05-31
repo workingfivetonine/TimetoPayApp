@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { tmpdir } from "os";
@@ -121,6 +121,7 @@ function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) 
 }
 
 router.get("/", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const rows = await db
     .select({
       receipt: receiptsTable,
@@ -128,6 +129,7 @@ router.get("/", async (req, res): Promise<void> => {
     })
     .from(receiptsTable)
     .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+    .where(eq(receiptsTable.userId, userId))
     .orderBy(sql`${receiptsTable.purchasedAt} DESC`);
 
   res.json(
@@ -136,20 +138,30 @@ router.get("/", async (req, res): Promise<void> => {
 });
 
 router.post("/", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const parsed = CreateReceiptBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // The referenced store must belong to the user.
+  const [store] = await db
+    .select()
+    .from(storesTable)
+    .where(and(eq(storesTable.id, parsed.data.storeId), eq(storesTable.userId, userId)));
+  if (!store) {
+    res.status(404).json({ error: "Store not found" });
+    return;
+  }
   const [receipt] = await db
     .insert(receiptsTable)
-    .values({ ...parsed.data, purchasedAt: new Date(parsed.data.purchasedAt), total: String(parsed.data.total) })
+    .values({ ...parsed.data, userId, purchasedAt: new Date(parsed.data.purchasedAt), total: String(parsed.data.total) })
     .returning();
-  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, receipt.storeId));
-  res.status(201).json(formatReceipt(receipt, store?.name ?? "Unknown"));
+  res.status(201).json(formatReceipt(receipt, store.name));
 });
 
 router.get("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const id = parseInt(req.params.id);
   const rows = await db
     .select({
@@ -163,7 +175,7 @@ router.get("/:id", async (req, res): Promise<void> => {
     .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
     .leftJoin(lineItemsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
     .leftJoin(itemsTable, eq(lineItemsTable.itemId, itemsTable.id))
-    .where(eq(receiptsTable.id, id));
+    .where(and(eq(receiptsTable.id, id), eq(receiptsTable.userId, userId)));
 
   if (!rows.length) {
     res.status(404).json({ error: "Receipt not found" });
@@ -190,16 +202,36 @@ router.get("/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const id = parseInt(req.params.id);
-  await db.delete(receiptsTable).where(eq(receiptsTable.id, id));
+  await db.delete(receiptsTable).where(and(eq(receiptsTable.id, id), eq(receiptsTable.userId, userId)));
   res.status(204).send();
 });
 
 router.post("/:id/line-items", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const receiptId = parseInt(req.params.id);
   const parsed = AddLineItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Receipt and item must both belong to the user.
+  const [receipt] = await db
+    .select({ id: receiptsTable.id })
+    .from(receiptsTable)
+    .where(and(eq(receiptsTable.id, receiptId), eq(receiptsTable.userId, userId)));
+  if (!receipt) {
+    res.status(404).json({ error: "Receipt not found" });
+    return;
+  }
+  const [ownedItem] = await db
+    .select({ id: itemsTable.id })
+    .from(itemsTable)
+    .where(and(eq(itemsTable.id, parsed.data.itemId), eq(itemsTable.userId, userId)));
+  if (!ownedItem) {
+    res.status(404).json({ error: "Item not found" });
     return;
   }
 
@@ -333,22 +365,23 @@ router.post("/parse", async (req, res): Promise<void> => {
 });
 
 // Shared helper: persist a parsed receipt (store, receipt, line items) to the DB
-async function persistParsedReceipt(parsed: {
+async function persistParsedReceipt(userId: string, parsed: {
   storeName: string;
   purchasedAt: string;
   total: number;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null }[];
 }) {
-  // Find or create store
-  let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
+  // Find or create store (scoped to this user)
+  let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`)))[0];
   if (!store) {
-    [store] = await db.insert(storesTable).values({ name: parsed.storeName }).returning();
+    [store] = await db.insert(storesTable).values({ name: parsed.storeName, userId }).returning();
   }
 
   // Create receipt
   const [receipt] = await db
     .insert(receiptsTable)
     .values({
+      userId,
       storeId: store.id,
       purchasedAt: new Date(parsed.purchasedAt),
       total: String(parsed.total),
@@ -358,10 +391,10 @@ async function persistParsedReceipt(parsed: {
   // Create line items
   const savedLineItems = [];
   for (const li of parsed.lineItems) {
-    let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
+    let item = (await db.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
     if (!item) {
       const icon = li.icon || iconForItemName(li.name);
-      [item] = await db.insert(itemsTable).values({ name: li.name, icon, purchaseCount: 1 }).returning();
+      [item] = await db.insert(itemsTable).values({ name: li.name, icon, purchaseCount: 1, userId }).returning();
     } else {
       const backfillIcon = !item.icon ? li.icon || iconForItemName(li.name) : undefined;
       await db
@@ -426,7 +459,7 @@ router.post("/parse-and-save", async (req, res): Promise<void> => {
       return;
     }
 
-    const { receipt, store, savedLineItems } = await persistParsedReceipt(parsed);
+    const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
     res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
   } catch (err) {
     req.log.error({ err }, "Failed to parse-and-save receipt");
@@ -443,7 +476,7 @@ router.post("/save-parsed", async (req, res): Promise<void> => {
   }
 
   try {
-    const { receipt, store, savedLineItems } = await persistParsedReceipt(parsed);
+    const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
     res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
   } catch (err) {
     req.log.error({ err }, "Failed to save parsed receipt");
@@ -562,23 +595,24 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
       }
     }
 
-    // Persist receipt and line items
-    let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`))[0];
+    // Persist receipt and line items (scoped to this user)
+    const userId = req.userId!;
+    let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`)))[0];
     if (!store) {
-      [store] = await db.insert(storesTable).values({ name: parsed.storeName }).returning();
+      [store] = await db.insert(storesTable).values({ name: parsed.storeName, userId }).returning();
     }
 
     const [receipt] = await db
       .insert(receiptsTable)
-      .values({ storeId: store.id, purchasedAt: new Date(parsed.purchasedAt), total: String(parsed.total) })
+      .values({ userId, storeId: store.id, purchasedAt: new Date(parsed.purchasedAt), total: String(parsed.total) })
       .returning();
 
     const savedLineItems = [];
     for (const li of parsed.lineItems) {
-      let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
+      let item = (await db.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
       if (!item) {
         const icon = li.icon || iconForItemName(li.name);
-        [item] = await db.insert(itemsTable).values({ name: li.name, icon, purchaseCount: 1 }).returning();
+        [item] = await db.insert(itemsTable).values({ name: li.name, icon, purchaseCount: 1, userId }).returning();
       } else {
         const backfillIcon = !item.icon ? li.icon || iconForItemName(li.name) : undefined;
         await db
@@ -646,13 +680,15 @@ router.post("/manual-entry", async (req, res): Promise<void> => {
   }
 
   try {
-    // Find or create store
-    let store = (await db.select().from(storesTable).where(sql`LOWER(${storesTable.name}) = LOWER(${storeName})`))[0];
+    const userId = req.userId!;
+    // Find or create store (scoped to this user)
+    let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${storeName})`)))[0];
     if (!store) {
       [store] = await db
         .insert(storesTable)
         .values({
           name: storeName,
+          userId,
           address: storeAddress ?? null,
           phone: storePhone ?? null,
           openTimes: storeOpenTimes ?? null,
@@ -664,13 +700,14 @@ router.post("/manual-entry", async (req, res): Promise<void> => {
       if (storeAddress) updates.address = storeAddress;
       if (storePhone) updates.phone = storePhone;
       if (storeOpenTimes) updates.openTimes = storeOpenTimes;
-      [store] = await db.update(storesTable).set(updates).where(eq(storesTable.id, store.id)).returning();
+      [store] = await db.update(storesTable).set(updates).where(and(eq(storesTable.id, store.id), eq(storesTable.userId, userId))).returning();
     }
 
     // Create receipt
     const [receipt] = await db
       .insert(receiptsTable)
       .values({
+        userId,
         storeId: store.id,
         purchasedAt: new Date(purchasedAt),
         total: String(total),
@@ -682,9 +719,9 @@ router.post("/manual-entry", async (req, res): Promise<void> => {
     // Create line items
     const savedLineItems = [];
     for (const li of lineItems) {
-      let item = (await db.select().from(itemsTable).where(sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`))[0];
+      let item = (await db.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
       if (!item) {
-        [item] = await db.insert(itemsTable).values({ name: li.name, icon: iconForItemName(li.name), purchaseCount: 1 }).returning();
+        [item] = await db.insert(itemsTable).values({ name: li.name, icon: iconForItemName(li.name), purchaseCount: 1, userId }).returning();
       } else {
         const backfillIcon = !item.icon ? iconForItemName(li.name) : undefined;
         await db

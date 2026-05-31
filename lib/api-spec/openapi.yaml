@@ -22,6 +22,13 @@ tags:
     description: Shopping list generation
   - name: receipts-ai
     description: AI receipt parsing
+  - name: admin
+    description: Admin cross-user views
+  - name: users
+    description: Current user
+
+security:
+  - bearerAuth: []
 
 paths:
   /healthz:
@@ -29,6 +36,7 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
+      security: []
       responses:
         "200":
           description: Healthy
@@ -596,7 +604,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReceiptDetail"
 
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get the currently authenticated user
+      responses:
+        "200":
+          description: The current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: List all users with a summary of their data (admin only)
+      responses:
+        "200":
+          description: List of users with per-user data summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{userId}/receipts:
+    get:
+      operationId: adminGetUserReceipts
+      tags: [admin]
+      summary: Get a specific user's receipts (admin only, read-only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The user's receipts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserReceipts"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthStatus:
       type: object
@@ -604,6 +664,68 @@ components:
       properties:
         status:
           type: string
+
+    CurrentUser:
+      type: object
+      required: [id, isAdmin]
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+
+    AdminUser:
+      type: object
+      required: [id, isAdmin, createdAt, storeCount, itemCount, receiptCount, totalSpend]
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+        storeCount:
+          type: integer
+        itemCount:
+          type: integer
+        receiptCount:
+          type: integer
+        totalSpend:
+          type: number
+
+    AdminReceiptSummary:
+      type: object
+      required: [id, storeName, total, purchasedAt, createdAt]
+      properties:
+        id:
+          type: integer
+        storeName:
+          type: string
+        total:
+          type: number
+        purchasedAt:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AdminUserReceipts:
+      type: object
+      required: [userId, receipts]
+      properties:
+        userId:
+          type: string
+        email:
+          type: ["string", "null"]
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReceiptSummary"
 
     Store:
       type: object

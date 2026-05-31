@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { storesTable } from "@workspace/db";
 import {
@@ -10,7 +10,12 @@ import {
 const router = Router();
 
 router.get("/", async (req, res): Promise<void> => {
-  const stores = await db.select().from(storesTable).orderBy(storesTable.name);
+  const userId = req.userId!;
+  const stores = await db
+    .select()
+    .from(storesTable)
+    .where(eq(storesTable.userId, userId))
+    .orderBy(storesTable.name);
   res.json(
     stores.map((s) => ({
       ...s,
@@ -22,6 +27,7 @@ router.get("/", async (req, res): Promise<void> => {
 });
 
 router.post("/", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const parsed = CreateStoreBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -29,6 +35,7 @@ router.post("/", async (req, res): Promise<void> => {
   }
   const [store] = await db.insert(storesTable).values({
     ...parsed.data,
+    userId,
     deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : null,
     minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : null,
   }).returning();
@@ -41,8 +48,12 @@ router.post("/", async (req, res): Promise<void> => {
 });
 
 router.get("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const id = parseInt(req.params.id);
-  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, id));
+  const [store] = await db
+    .select()
+    .from(storesTable)
+    .where(and(eq(storesTable.id, id), eq(storesTable.userId, userId)));
   if (!store) {
     res.status(404).json({ error: "Store not found" });
     return;
@@ -56,6 +67,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const id = parseInt(req.params.id);
   const parsed = UpdateStoreBody.safeParse(req.body);
   if (!parsed.success) {
@@ -69,7 +81,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : parsed.data.deliveryFee,
       minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : parsed.data.minimumOrderAmount,
     })
-    .where(eq(storesTable.id, id))
+    .where(and(eq(storesTable.id, id), eq(storesTable.userId, userId)))
     .returning();
   if (!store) {
     res.status(404).json({ error: "Store not found" });
@@ -84,8 +96,11 @@ router.patch("/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const id = parseInt(req.params.id);
-  await db.delete(storesTable).where(eq(storesTable.id, id));
+  await db
+    .delete(storesTable)
+    .where(and(eq(storesTable.id, id), eq(storesTable.userId, userId)));
   res.status(204).send();
 });
 

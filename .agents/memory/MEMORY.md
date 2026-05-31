@@ -1,2 +1,1 @@
-- [Item emoji icons](item-icons.md) — per-item emoji: AI-assigned + keyword fallback, lazy backfill on re-encounter, manual override.
-- [Cache invalidation footprint](cache-invalidation.md) — store/item delete cascades ripple into shopping list, items, receipts, BOTH spend analytics + per-store analytics; safe-cancel web confirm.
+- [First-admin election](first-admin-election.md) — electing one admin from "first user ever" must be DB-atomic, never a pre-insert count(*) check.

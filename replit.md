@@ -35,6 +35,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 
 ## Architecture decisions
 
+- **Auth**: Replit-managed Clerk. Every user's data is fully private (stores/items/receipts carry a nullable `userId`, scoped per request by `requireAuth`). The very first account ever created becomes admin and claims all pre-existing ownerless rows (one-time backfill in `middlewares/auth.ts`). Admin gets a read-only cross-user view (`/admin/*`, gated by `requireAdmin`). `GET /me` returns `{id, email, isAdmin}` so the client can show/hide admin UI. Expo client uses `@clerk/expo` with bearer tokens (works on web too); `setAuthTokenGetter` attaches the token to every generated API call. Sign-out + user switch clears the React Query cache so data never leaks across accounts. Clerk keys are auto-provisioned (`CLERK_PUBLISHABLE_KEY` → `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in dev script + build.js); never ask the user for them.
 - Contract-first: all endpoints defined in OpenAPI, hooks/validators auto-generated via Orval
 - Numeric DB columns (price, total, deliveryFee) use `numeric`/string in Drizzle and are cast to `Number` in route responses
 - Receipt AI parse uses OpenAI vision (`gpt-5.2`) via the Replit-managed `@workspace/integrations-openai-ai-server` lib — no API key needed in app code

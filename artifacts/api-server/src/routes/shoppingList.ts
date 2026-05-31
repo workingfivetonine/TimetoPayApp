@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { lineItemsTable, receiptsTable, storesTable, itemsTable } from "@workspace/db";
 
@@ -10,7 +10,12 @@ function daysSince(date: Date): number {
 }
 
 router.get("/", async (req, res): Promise<void> => {
-  const items = await db.select().from(itemsTable).orderBy(itemsTable.name);
+  const userId = req.userId!;
+  const items = await db
+    .select()
+    .from(itemsTable)
+    .where(eq(itemsTable.userId, userId))
+    .orderBy(itemsTable.name);
 
   const result = [];
 
@@ -25,7 +30,7 @@ router.get("/", async (req, res): Promise<void> => {
       .from(lineItemsTable)
       .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
       .innerJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
-      .where(eq(lineItemsTable.itemId, item.id));
+      .where(and(eq(lineItemsTable.itemId, item.id), eq(receiptsTable.userId, userId)));
 
     if (!rows.length) continue;
 

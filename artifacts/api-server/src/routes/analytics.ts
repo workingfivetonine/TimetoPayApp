@@ -7,9 +7,11 @@ const router = Router();
 
 // Weekly spend analytics
 router.get("/spend", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const receipts = await db
     .select({ total: receiptsTable.total, purchasedAt: receiptsTable.purchasedAt })
     .from(receiptsTable)
+    .where(eq(receiptsTable.userId, userId))
     .orderBy(receiptsTable.purchasedAt);
 
   if (!receipts.length) {
@@ -72,8 +74,12 @@ router.get("/spend", async (req, res): Promise<void> => {
 
 // Item price history
 router.get("/items/:id/price-history", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const itemId = parseInt(req.params.id);
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+  const [item] = await db
+    .select()
+    .from(itemsTable)
+    .where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;
@@ -90,7 +96,7 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
     .from(lineItemsTable)
     .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
     .innerJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
-    .where(eq(lineItemsTable.itemId, itemId))
+    .where(and(eq(lineItemsTable.itemId, itemId), eq(receiptsTable.userId, userId)))
     .orderBy(receiptsTable.purchasedAt);
 
   const pricePoints = rows.map((r) => ({
@@ -132,9 +138,11 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
 
 // Daily spend for calendar view
 router.get("/daily-spend", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const receipts = await db
     .select({ total: receiptsTable.total, purchasedAt: receiptsTable.purchasedAt })
     .from(receiptsTable)
+    .where(eq(receiptsTable.userId, userId))
     .orderBy(receiptsTable.purchasedAt);
 
   const dayMap = new Map<string, { total: number; count: number }>();
@@ -163,8 +171,12 @@ router.get("/daily-spend", async (req, res): Promise<void> => {
 
 // Store summary
 router.get("/stores/:id/summary", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const storeId = parseInt(req.params.id);
-  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, storeId));
+  const [store] = await db
+    .select()
+    .from(storesTable)
+    .where(and(eq(storesTable.id, storeId), eq(storesTable.userId, userId)));
   if (!store) {
     res.status(404).json({ error: "Store not found" });
     return;
@@ -173,7 +185,7 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
   const receipts = await db
     .select({ total: receiptsTable.total })
     .from(receiptsTable)
-    .where(eq(receiptsTable.storeId, storeId));
+    .where(and(eq(receiptsTable.storeId, storeId), eq(receiptsTable.userId, userId)));
 
   const totalSpend = receipts.reduce((sum, r) => sum + Number(r.total), 0);
   const avgReceipt = receipts.length ? totalSpend / receipts.length : 0;
@@ -214,8 +226,12 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
 
 // Store visits report — all receipts with line items, plus unique items list
 router.get("/stores/:id/visits", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const storeId = parseInt(req.params.id);
-  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, storeId));
+  const [store] = await db
+    .select()
+    .from(storesTable)
+    .where(and(eq(storesTable.id, storeId), eq(storesTable.userId, userId)));
   if (!store) {
     res.status(404).json({ error: "Store not found" });
     return;
@@ -232,7 +248,7 @@ router.get("/stores/:id/visits", async (req, res): Promise<void> => {
     .from(receiptsTable)
     .innerJoin(lineItemsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
     .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
-    .where(eq(receiptsTable.storeId, storeId))
+    .where(and(eq(receiptsTable.storeId, storeId), eq(receiptsTable.userId, userId)))
     .orderBy(sql`${receiptsTable.purchasedAt} DESC, ${receiptsTable.id}, ${itemsTable.name}`);
 
   // Group rows into visits by receipt id (order preserved by DESC date)
@@ -263,8 +279,12 @@ router.get("/stores/:id/visits", async (req, res): Promise<void> => {
 
 // Item history report — purchase history across all stores and dates
 router.get("/items/:id/history", async (req, res): Promise<void> => {
+  const userId = req.userId!;
   const itemId = parseInt(req.params.id);
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+  const [item] = await db
+    .select()
+    .from(itemsTable)
+    .where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;

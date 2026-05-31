@@ -9,6 +9,42 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface CurrentUser {
+  id: string;
+  /** @nullable */
+  email?: string | null;
+  isAdmin: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  /** @nullable */
+  email?: string | null;
+  isAdmin: boolean;
+  createdAt: string;
+  storeCount: number;
+  itemCount: number;
+  receiptCount: number;
+  totalSpend: number;
+}
+
+export interface AdminReceiptSummary {
+  id: number;
+  storeName: string;
+  total: number;
+  purchasedAt: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface AdminUserReceipts {
+  userId: string;
+  /** @nullable */
+  email?: string | null;
+  receipts: AdminReceiptSummary[];
+}
+
 export interface Store {
   id: number;
   name: string;

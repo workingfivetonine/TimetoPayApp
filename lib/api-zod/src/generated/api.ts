@@ -568,3 +568,50 @@ export const ParsePdfReceiptBody = zod.object({
 })
 
 
+/**
+ * @summary Get the currently authenticated user
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean()
+})
+
+
+/**
+ * @summary List all users with a summary of their data (admin only)
+ */
+export const AdminListUsersResponseItem = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "createdAt": zod.string(),
+  "storeCount": zod.number(),
+  "itemCount": zod.number(),
+  "receiptCount": zod.number(),
+  "totalSpend": zod.number()
+})
+export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
+
+
+/**
+ * @summary Get a specific user's receipts (admin only, read-only)
+ */
+export const AdminGetUserReceiptsParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminGetUserReceiptsResponse = zod.object({
+  "userId": zod.string(),
+  "email": zod.string().nullish(),
+  "receipts": zod.array(zod.object({
+  "id": zod.number(),
+  "storeName": zod.string(),
+  "total": zod.number(),
+  "purchasedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+

@@ -71,14 +71,24 @@ export default function ReceiptsScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Receipts</Text>
-        <TouchableOpacity
-          style={[styles.scanBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/scan")}
-          activeOpacity={0.8}
-        >
-          <Feather name="camera" size={18} color="#fff" />
-          <Text style={styles.scanBtnText}>Scan</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.scanBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push("/scan")}
+            activeOpacity={0.8}
+          >
+            <Feather name="camera" size={18} color="#fff" />
+            <Text style={styles.scanBtnText}>Scan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.accountBtn, { backgroundColor: colors.secondary }]}
+            onPress={() => router.push("/account")}
+            activeOpacity={0.8}
+            accessibilityLabel="Account"
+          >
+            <Feather name="user" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading ? (
@@ -135,6 +145,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: "Inter_700Bold",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   scanBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -142,6 +157,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 22,
+  },
+  accountBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scanBtnText: {
     color: "#fff",

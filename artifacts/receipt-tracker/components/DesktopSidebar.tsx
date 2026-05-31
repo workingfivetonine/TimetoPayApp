@@ -62,6 +62,29 @@ export function DesktopSidebar() {
       {/* Spacer */}
       <View style={{ flex: 1 }} />
 
+      {/* Account link */}
+      <View style={styles.nav}>
+        <TouchableOpacity
+          style={[styles.navItem, pathname.startsWith("/account") && { backgroundColor: colors.accent }]}
+          onPress={() => router.push("/account")}
+          activeOpacity={0.7}
+        >
+          <Feather
+            name="user"
+            size={17}
+            color={pathname.startsWith("/account") ? colors.primary : colors.mutedForeground}
+          />
+          <Text
+            style={[
+              styles.navLabel,
+              { color: pathname.startsWith("/account") ? colors.primary : colors.mutedForeground },
+            ]}
+          >
+            Account
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Scan button */}
       <View style={styles.scanWrap}>
         <TouchableOpacity
