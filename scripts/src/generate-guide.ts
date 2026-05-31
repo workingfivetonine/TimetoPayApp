@@ -10,8 +10,18 @@
  *
  * Run with: pnpm --filter @workspace/scripts run generate-guide
  */
-import { createWriteStream, mkdirSync, copyFileSync, writeFileSync, existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import {
+  createWriteStream,
+  mkdirSync,
+  copyFileSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import {
@@ -98,10 +108,20 @@ function buildMarkdown(): string {
   return lines.join("\n");
 }
 
-function buildPdf(): Promise<void> {
+// Fixed metadata date so regenerating the PDF from unchanged content yields
+// byte-identical output (pdfkit defaults CreationDate to "now", which would
+// otherwise make the --check drift comparison fail spuriously).
+const FIXED_PDF_DATE = new Date(Date.UTC(2024, 0, 1, 0, 0, 0));
+
+function buildPdf(outPath: string): Promise<void> {
   return new Promise((resolvePdf, rejectPdf) => {
-    const doc = new PDFDocument({ size: "A4", margin: 54, autoFirstPage: true });
-    const stream = createWriteStream(PDF_PATH);
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 54,
+      autoFirstPage: true,
+      info: { CreationDate: FIXED_PDF_DATE },
+    });
+    const stream = createWriteStream(outPath);
     stream.on("finish", () => resolvePdf());
     stream.on("error", rejectPdf);
     doc.on("error", rejectPdf);
@@ -205,21 +225,78 @@ function buildPdf(): Promise<void> {
   });
 }
 
-async function main(): Promise<void> {
+async function write(): Promise<void> {
   ensureDirs();
   copyImages([...GUIDE_SECTIONS, ...GUIDE_ADMIN_SECTIONS]);
 
   writeFileSync(MD_PATH, buildMarkdown(), "utf8");
   console.log(`Wrote ${MD_PATH}`);
 
-  await buildPdf();
+  await buildPdf(PDF_PATH);
   console.log(`Wrote ${PDF_PATH}`);
 
   copyFileSync(PDF_PATH, BUNDLED_PDF_PATH);
   console.log(`Copied PDF to ${BUNDLED_PDF_PATH}`);
 }
 
-main().catch((err) => {
-  console.error("Failed to generate guide:", err);
+/**
+ * Regenerate the guide into a temp location and compare it against the committed
+ * outputs. Fails (exit 1) if any of them drifted, so CI/validation catches a
+ * stale offline guide before merge.
+ */
+async function check(): Promise<void> {
+  // Screenshots referenced by the content must still exist.
+  copyImages([...GUIDE_SECTIONS, ...GUIDE_ADMIN_SECTIONS]);
+
+  const tmpDir = mkdtempSync(join(tmpdir(), "guide-check-"));
+  const tmpPdf = join(tmpDir, "Receipt-Tracker-Guide.pdf");
+  await buildPdf(tmpPdf);
+  const freshPdf = readFileSync(tmpPdf);
+  const freshMd = buildMarkdown();
+
+  const drifted: string[] = [];
+
+  const compareText = (label: string, path: string, fresh: string) => {
+    if (!existsSync(path)) {
+      drifted.push(`${label} is missing: ${path}`);
+      return;
+    }
+    if (readFileSync(path, "utf8") !== fresh) {
+      drifted.push(`${label} is out of date: ${path}`);
+    }
+  };
+
+  const comparePdf = (label: string, path: string, fresh: Buffer) => {
+    if (!existsSync(path)) {
+      drifted.push(`${label} is missing: ${path}`);
+      return;
+    }
+    if (!readFileSync(path).equals(fresh)) {
+      drifted.push(`${label} is out of date: ${path}`);
+    }
+  };
+
+  compareText("Guide Markdown", MD_PATH, freshMd);
+  comparePdf("Guide PDF", PDF_PATH, freshPdf);
+  comparePdf("Bundled guide PDF", BUNDLED_PDF_PATH, freshPdf);
+
+  rmSync(tmpDir, { recursive: true, force: true });
+
+  if (drifted.length > 0) {
+    console.error("Offline guide is out of date:");
+    for (const msg of drifted) console.error(`  - ${msg}`);
+    console.error(
+      "\nRun `pnpm --filter @workspace/scripts run generate-guide` and commit the result.",
+    );
+    process.exit(1);
+  }
+
+  console.log("Offline guide is up to date.");
+}
+
+const isCheck = process.argv.includes("--check");
+
+(isCheck ? check() : write()).catch((err) => {
+  console.error(`Failed to ${isCheck ? "check" : "generate"} guide:`, err);
   process.exit(1);
 });
