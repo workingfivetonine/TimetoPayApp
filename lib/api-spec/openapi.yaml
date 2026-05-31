@@ -651,6 +651,185 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminUserReceipts"
 
+  /admin/catalog/global:
+    get:
+      operationId: adminGetGlobalPrices
+      tags: [admin]
+      summary: Global most-recent price per canonical item across all users (admin only)
+      responses:
+        "200":
+          description: Canonical items with overall and per-store most-recent prices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogGlobalItem"
+
+  /admin/catalog/items:
+    get:
+      operationId: adminListCatalogItems
+      tags: [admin]
+      summary: List canonical catalog items with members and merge suggestions (admin only)
+      responses:
+        "200":
+          description: Canonical items and suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntryList"
+
+  /admin/catalog/stores:
+    get:
+      operationId: adminListCatalogStores
+      tags: [admin]
+      summary: List canonical catalog stores with members and merge suggestions (admin only)
+      responses:
+        "200":
+          description: Canonical stores and suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntryList"
+
+  /admin/catalog/items/merge:
+    post:
+      operationId: adminMergeCatalogItems
+      tags: [admin]
+      summary: Merge one canonical item into another (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogMergeInput"
+      responses:
+        "200":
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntry"
+
+  /admin/catalog/stores/merge:
+    post:
+      operationId: adminMergeCatalogStores
+      tags: [admin]
+      summary: Merge one canonical store into another (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogMergeInput"
+      responses:
+        "200":
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntry"
+
+  /admin/catalog/items/{id}:
+    patch:
+      operationId: adminUpdateCatalogItem
+      tags: [admin]
+      summary: Rename or re-icon a canonical item (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogItemUpdate"
+      responses:
+        "200":
+          description: Updated canonical item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntry"
+
+  /admin/catalog/stores/{id}:
+    patch:
+      operationId: adminUpdateCatalogStore
+      tags: [admin]
+      summary: Rename a canonical store (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogStoreUpdate"
+      responses:
+        "200":
+          description: Updated canonical store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntry"
+
+  /admin/catalog/items/{id}/split:
+    post:
+      operationId: adminSplitCatalogItem
+      tags: [admin]
+      summary: Split one member name out of a canonical item into its own entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogSplitInput"
+      responses:
+        "200":
+          description: The new canonical item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntry"
+
+  /admin/catalog/stores/{id}/split:
+    post:
+      operationId: adminSplitCatalogStore
+      tags: [admin]
+      summary: Split one member name out of a canonical store into its own entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogSplitInput"
+      responses:
+        "200":
+          description: The new canonical store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogEntry"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -658,6 +837,129 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    CatalogGlobalStorePrice:
+      type: object
+      required: [catalogStoreId, storeName, latestPrice, latestDate]
+      properties:
+        catalogStoreId:
+          type: integer
+        storeName:
+          type: string
+        latestPrice:
+          type: number
+        latestDate:
+          type: string
+
+    CatalogGlobalItem:
+      type: object
+      required: [catalogItemId, name, overallLatestPrice, overallLatestStoreName, overallLatestDate, stores]
+      properties:
+        catalogItemId:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        overallLatestPrice:
+          type: number
+        overallLatestStoreId:
+          type: ["integer", "null"]
+        overallLatestStoreName:
+          type: string
+        overallLatestDate:
+          type: string
+        stores:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogGlobalStorePrice"
+
+    CatalogMember:
+      type: object
+      required: [normalizedName, displayName, count]
+      properties:
+        normalizedName:
+          type: string
+        displayName:
+          type: string
+        count:
+          type: integer
+
+    CatalogEntry:
+      type: object
+      required: [id, canonicalName, members, totalCount]
+      properties:
+        id:
+          type: integer
+        canonicalName:
+          type: string
+        icon:
+          type: ["string", "null"]
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogMember"
+        totalCount:
+          type: integer
+
+    CatalogSuggestion:
+      type: object
+      required: [ids, names, reason]
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+        names:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+
+    CatalogEntryList:
+      type: object
+      required: [entries, suggestions]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogEntry"
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogSuggestion"
+
+    CatalogMergeInput:
+      type: object
+      required: [sourceId, targetId]
+      properties:
+        sourceId:
+          type: integer
+        targetId:
+          type: integer
+
+    CatalogItemUpdate:
+      type: object
+      properties:
+        canonicalName:
+          type: string
+        icon:
+          type: ["string", "null"]
+
+    CatalogStoreUpdate:
+      type: object
+      required: [canonicalName]
+      properties:
+        canonicalName:
+          type: string
+
+    CatalogSplitInput:
+      type: object
+      required: [normalizedName]
+      properties:
+        normalizedName:
+          type: string
+
     HealthStatus:
       type: object
       required: [status]

@@ -3,5 +3,6 @@ export * from "./stores";
 export * from "./items";
 export * from "./receipts";
 export * from "./lineItems";
+export * from "./catalog";
 export * from "./conversations";
 export * from "./messages";

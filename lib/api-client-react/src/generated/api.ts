@@ -22,6 +22,13 @@ import type {
 import type {
   AdminUser,
   AdminUserReceipts,
+  CatalogEntry,
+  CatalogEntryList,
+  CatalogGlobalItem,
+  CatalogItemUpdate,
+  CatalogMergeInput,
+  CatalogSplitInput,
+  CatalogStoreUpdate,
   CurrentUser,
   DaySpend,
   HealthStatus,
@@ -2648,4 +2655,665 @@ export function useAdminGetUserReceipts<TData = Awaited<ReturnType<typeof adminG
 
 
 
+
+export const getAdminGetGlobalPricesUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/global`
+}
+
+/**
+ * @summary Global most-recent price per canonical item across all users (admin only)
+ */
+export const adminGetGlobalPrices = async ( options?: RequestInit): Promise<CatalogGlobalItem[]> => {
+
+  return customFetch<CatalogGlobalItem[]>(getAdminGetGlobalPricesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetGlobalPricesQueryKey = () => {
+    return [
+    `/api/admin/catalog/global`
+    ] as const;
+    }
+
+
+export const getAdminGetGlobalPricesQueryOptions = <TData = Awaited<ReturnType<typeof adminGetGlobalPrices>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetGlobalPrices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetGlobalPricesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetGlobalPrices>>> = ({ signal }) => adminGetGlobalPrices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetGlobalPrices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetGlobalPricesQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetGlobalPrices>>>
+export type AdminGetGlobalPricesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Global most-recent price per canonical item across all users (admin only)
+ */
+
+export function useAdminGetGlobalPrices<TData = Awaited<ReturnType<typeof adminGetGlobalPrices>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetGlobalPrices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetGlobalPricesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminListCatalogItemsUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/items`
+}
+
+/**
+ * @summary List canonical catalog items with members and merge suggestions (admin only)
+ */
+export const adminListCatalogItems = async ( options?: RequestInit): Promise<CatalogEntryList> => {
+
+  return customFetch<CatalogEntryList>(getAdminListCatalogItemsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListCatalogItemsQueryKey = () => {
+    return [
+    `/api/admin/catalog/items`
+    ] as const;
+    }
+
+
+export const getAdminListCatalogItemsQueryOptions = <TData = Awaited<ReturnType<typeof adminListCatalogItems>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListCatalogItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListCatalogItemsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListCatalogItems>>> = ({ signal }) => adminListCatalogItems({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListCatalogItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListCatalogItemsQueryResult = NonNullable<Awaited<ReturnType<typeof adminListCatalogItems>>>
+export type AdminListCatalogItemsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List canonical catalog items with members and merge suggestions (admin only)
+ */
+
+export function useAdminListCatalogItems<TData = Awaited<ReturnType<typeof adminListCatalogItems>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListCatalogItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListCatalogItemsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminListCatalogStoresUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/stores`
+}
+
+/**
+ * @summary List canonical catalog stores with members and merge suggestions (admin only)
+ */
+export const adminListCatalogStores = async ( options?: RequestInit): Promise<CatalogEntryList> => {
+
+  return customFetch<CatalogEntryList>(getAdminListCatalogStoresUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListCatalogStoresQueryKey = () => {
+    return [
+    `/api/admin/catalog/stores`
+    ] as const;
+    }
+
+
+export const getAdminListCatalogStoresQueryOptions = <TData = Awaited<ReturnType<typeof adminListCatalogStores>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListCatalogStores>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListCatalogStoresQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListCatalogStores>>> = ({ signal }) => adminListCatalogStores({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListCatalogStores>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListCatalogStoresQueryResult = NonNullable<Awaited<ReturnType<typeof adminListCatalogStores>>>
+export type AdminListCatalogStoresQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List canonical catalog stores with members and merge suggestions (admin only)
+ */
+
+export function useAdminListCatalogStores<TData = Awaited<ReturnType<typeof adminListCatalogStores>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListCatalogStores>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListCatalogStoresQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminMergeCatalogItemsUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/items/merge`
+}
+
+/**
+ * @summary Merge one canonical item into another (admin only)
+ */
+export const adminMergeCatalogItems = async (catalogMergeInput: CatalogMergeInput, options?: RequestInit): Promise<CatalogEntry> => {
+
+  return customFetch<CatalogEntry>(getAdminMergeCatalogItemsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogMergeInput,)
+  }
+);}
+
+
+
+
+export const getAdminMergeCatalogItemsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMergeCatalogItems>>, TError,{data: BodyType<CatalogMergeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminMergeCatalogItems>>, TError,{data: BodyType<CatalogMergeInput>}, TContext> => {
+
+const mutationKey = ['adminMergeCatalogItems'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminMergeCatalogItems>>, {data: BodyType<CatalogMergeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminMergeCatalogItems(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminMergeCatalogItemsMutationResult = NonNullable<Awaited<ReturnType<typeof adminMergeCatalogItems>>>
+    export type AdminMergeCatalogItemsMutationBody = BodyType<CatalogMergeInput>
+    export type AdminMergeCatalogItemsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Merge one canonical item into another (admin only)
+ */
+export const useAdminMergeCatalogItems = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMergeCatalogItems>>, TError,{data: BodyType<CatalogMergeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminMergeCatalogItems>>,
+        TError,
+        {data: BodyType<CatalogMergeInput>},
+        TContext
+      > => {
+      return useMutation(getAdminMergeCatalogItemsMutationOptions(options));
+    }
+
+export const getAdminMergeCatalogStoresUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/stores/merge`
+}
+
+/**
+ * @summary Merge one canonical store into another (admin only)
+ */
+export const adminMergeCatalogStores = async (catalogMergeInput: CatalogMergeInput, options?: RequestInit): Promise<CatalogEntry> => {
+
+  return customFetch<CatalogEntry>(getAdminMergeCatalogStoresUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogMergeInput,)
+  }
+);}
+
+
+
+
+export const getAdminMergeCatalogStoresMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMergeCatalogStores>>, TError,{data: BodyType<CatalogMergeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminMergeCatalogStores>>, TError,{data: BodyType<CatalogMergeInput>}, TContext> => {
+
+const mutationKey = ['adminMergeCatalogStores'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminMergeCatalogStores>>, {data: BodyType<CatalogMergeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminMergeCatalogStores(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminMergeCatalogStoresMutationResult = NonNullable<Awaited<ReturnType<typeof adminMergeCatalogStores>>>
+    export type AdminMergeCatalogStoresMutationBody = BodyType<CatalogMergeInput>
+    export type AdminMergeCatalogStoresMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Merge one canonical store into another (admin only)
+ */
+export const useAdminMergeCatalogStores = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMergeCatalogStores>>, TError,{data: BodyType<CatalogMergeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminMergeCatalogStores>>,
+        TError,
+        {data: BodyType<CatalogMergeInput>},
+        TContext
+      > => {
+      return useMutation(getAdminMergeCatalogStoresMutationOptions(options));
+    }
+
+export const getAdminUpdateCatalogItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/catalog/items/${id}`
+}
+
+/**
+ * @summary Rename or re-icon a canonical item (admin only)
+ */
+export const adminUpdateCatalogItem = async (id: number,
+    catalogItemUpdate: CatalogItemUpdate, options?: RequestInit): Promise<CatalogEntry> => {
+
+  return customFetch<CatalogEntry>(getAdminUpdateCatalogItemUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogItemUpdate,)
+  }
+);}
+
+
+
+
+export const getAdminUpdateCatalogItemMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogItem>>, TError,{id: number;data: BodyType<CatalogItemUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogItem>>, TError,{id: number;data: BodyType<CatalogItemUpdate>}, TContext> => {
+
+const mutationKey = ['adminUpdateCatalogItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateCatalogItem>>, {id: number;data: BodyType<CatalogItemUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdateCatalogItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateCatalogItemMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateCatalogItem>>>
+    export type AdminUpdateCatalogItemMutationBody = BodyType<CatalogItemUpdate>
+    export type AdminUpdateCatalogItemMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Rename or re-icon a canonical item (admin only)
+ */
+export const useAdminUpdateCatalogItem = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogItem>>, TError,{id: number;data: BodyType<CatalogItemUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateCatalogItem>>,
+        TError,
+        {id: number;data: BodyType<CatalogItemUpdate>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateCatalogItemMutationOptions(options));
+    }
+
+export const getAdminUpdateCatalogStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/catalog/stores/${id}`
+}
+
+/**
+ * @summary Rename a canonical store (admin only)
+ */
+export const adminUpdateCatalogStore = async (id: number,
+    catalogStoreUpdate: CatalogStoreUpdate, options?: RequestInit): Promise<CatalogEntry> => {
+
+  return customFetch<CatalogEntry>(getAdminUpdateCatalogStoreUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogStoreUpdate,)
+  }
+);}
+
+
+
+
+export const getAdminUpdateCatalogStoreMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogStore>>, TError,{id: number;data: BodyType<CatalogStoreUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogStore>>, TError,{id: number;data: BodyType<CatalogStoreUpdate>}, TContext> => {
+
+const mutationKey = ['adminUpdateCatalogStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateCatalogStore>>, {id: number;data: BodyType<CatalogStoreUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdateCatalogStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateCatalogStoreMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateCatalogStore>>>
+    export type AdminUpdateCatalogStoreMutationBody = BodyType<CatalogStoreUpdate>
+    export type AdminUpdateCatalogStoreMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Rename a canonical store (admin only)
+ */
+export const useAdminUpdateCatalogStore = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogStore>>, TError,{id: number;data: BodyType<CatalogStoreUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateCatalogStore>>,
+        TError,
+        {id: number;data: BodyType<CatalogStoreUpdate>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateCatalogStoreMutationOptions(options));
+    }
+
+export const getAdminSplitCatalogItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/catalog/items/${id}/split`
+}
+
+/**
+ * @summary Split one member name out of a canonical item into its own entry (admin only)
+ */
+export const adminSplitCatalogItem = async (id: number,
+    catalogSplitInput: CatalogSplitInput, options?: RequestInit): Promise<CatalogEntry> => {
+
+  return customFetch<CatalogEntry>(getAdminSplitCatalogItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogSplitInput,)
+  }
+);}
+
+
+
+
+export const getAdminSplitCatalogItemMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSplitCatalogItem>>, TError,{id: number;data: BodyType<CatalogSplitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSplitCatalogItem>>, TError,{id: number;data: BodyType<CatalogSplitInput>}, TContext> => {
+
+const mutationKey = ['adminSplitCatalogItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSplitCatalogItem>>, {id: number;data: BodyType<CatalogSplitInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminSplitCatalogItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSplitCatalogItemMutationResult = NonNullable<Awaited<ReturnType<typeof adminSplitCatalogItem>>>
+    export type AdminSplitCatalogItemMutationBody = BodyType<CatalogSplitInput>
+    export type AdminSplitCatalogItemMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Split one member name out of a canonical item into its own entry (admin only)
+ */
+export const useAdminSplitCatalogItem = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSplitCatalogItem>>, TError,{id: number;data: BodyType<CatalogSplitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSplitCatalogItem>>,
+        TError,
+        {id: number;data: BodyType<CatalogSplitInput>},
+        TContext
+      > => {
+      return useMutation(getAdminSplitCatalogItemMutationOptions(options));
+    }
+
+export const getAdminSplitCatalogStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/catalog/stores/${id}/split`
+}
+
+/**
+ * @summary Split one member name out of a canonical store into its own entry (admin only)
+ */
+export const adminSplitCatalogStore = async (id: number,
+    catalogSplitInput: CatalogSplitInput, options?: RequestInit): Promise<CatalogEntry> => {
+
+  return customFetch<CatalogEntry>(getAdminSplitCatalogStoreUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogSplitInput,)
+  }
+);}
+
+
+
+
+export const getAdminSplitCatalogStoreMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSplitCatalogStore>>, TError,{id: number;data: BodyType<CatalogSplitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSplitCatalogStore>>, TError,{id: number;data: BodyType<CatalogSplitInput>}, TContext> => {
+
+const mutationKey = ['adminSplitCatalogStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSplitCatalogStore>>, {id: number;data: BodyType<CatalogSplitInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminSplitCatalogStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSplitCatalogStoreMutationResult = NonNullable<Awaited<ReturnType<typeof adminSplitCatalogStore>>>
+    export type AdminSplitCatalogStoreMutationBody = BodyType<CatalogSplitInput>
+    export type AdminSplitCatalogStoreMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Split one member name out of a canonical store into its own entry (admin only)
+ */
+export const useAdminSplitCatalogStore = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSplitCatalogStore>>, TError,{id: number;data: BodyType<CatalogSplitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSplitCatalogStore>>,
+        TError,
+        {id: number;data: BodyType<CatalogSplitInput>},
+        TContext
+      > => {
+      return useMutation(getAdminSplitCatalogStoreMutationOptions(options));
+    }
 

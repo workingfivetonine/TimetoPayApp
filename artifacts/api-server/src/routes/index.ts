@@ -7,6 +7,7 @@ import lineItemsRouter from "./lineItems";
 import analyticsRouter from "./analytics";
 import shoppingListRouter from "./shoppingList";
 import adminRouter from "./admin";
+import adminCatalogRouter from "./adminCatalog";
 import meRouter from "./me";
 import { requireAuth } from "../middlewares/auth";
 
@@ -24,6 +25,7 @@ router.use("/receipts", receiptsRouter);
 router.use("/line-items", lineItemsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/shopping-list", shoppingListRouter);
+router.use("/admin/catalog", adminCatalogRouter);
 router.use("/admin", adminRouter);
 
 export default router;

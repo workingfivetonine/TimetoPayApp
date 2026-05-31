@@ -45,6 +45,8 @@ function RootLayoutNav() {
       <Stack.Screen name="account" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="admin/[userId]" options={{ headerShown: false }} />
+      <Stack.Screen name="admin/global" options={{ headerShown: false }} />
+      <Stack.Screen name="admin/catalog" options={{ headerShown: false }} />
     </Stack>
   );
 }

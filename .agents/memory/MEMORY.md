@@ -1,1 +1,1 @@
-- [First-admin election](first-admin-election.md) — electing one admin from "first user ever" must be DB-atomic, never a pre-insert count(*) check.
+- [Global catalog mapping layer](catalog-mapping-layer.md) — admin cross-user price catalog is a mapping layer over private rows; never mutates user data. normalizeName must match SQL lower(btrim).

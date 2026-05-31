@@ -52,6 +52,8 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - **Item detail**: "Delete Item" button at bottom (confirmation warns it removes the item from shopping list, price history, and every receipt's line items via cascade); on success navigates back
 - **Shopping List tab**: auto-populated from scanned receipts; split into Regulars (2+ purchases) and One-offs; shows lowest price and best store. Header download button exports a printable PDF (via `expo-print` + `expo-sharing`) grouped by store, each with Regulars/One-offs subsections, checkboxes per item, and ran-out items italicized/tagged
 - **Analytics tab**: weekly spend bars with HIGH/LOW flags at ±1 std dev; per-item price history (lowest/avg/highest)
+- **Admin: Global prices** (`/admin/global`): admin-only cross-user catalog showing the most-recent price per canonical item (overall + per-store, lowest highlighted), aggregated across ALL users without exposing who bought what
+- **Admin: Manage catalog** (`/admin/catalog`): admin-only tool to merge/rename/split spelling variants of item and store names into canonical entries. Surfaces auto-suggested merges (names that differ only by case/spaces/punctuation). Never mutates users' private rows — only the catalog mapping layer
 
 ## Gotchas
 

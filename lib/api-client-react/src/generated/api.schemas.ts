@@ -5,6 +5,71 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
+export interface CatalogGlobalStorePrice {
+  catalogStoreId: number;
+  storeName: string;
+  latestPrice: number;
+  latestDate: string;
+}
+
+export interface CatalogGlobalItem {
+  catalogItemId: number;
+  name: string;
+  /** @nullable */
+  icon?: string | null;
+  overallLatestPrice: number;
+  /** @nullable */
+  overallLatestStoreId?: number | null;
+  overallLatestStoreName: string;
+  overallLatestDate: string;
+  stores: CatalogGlobalStorePrice[];
+}
+
+export interface CatalogMember {
+  normalizedName: string;
+  displayName: string;
+  count: number;
+}
+
+export interface CatalogEntry {
+  id: number;
+  canonicalName: string;
+  /** @nullable */
+  icon?: string | null;
+  members: CatalogMember[];
+  totalCount: number;
+}
+
+export interface CatalogSuggestion {
+  ids: number[];
+  names: string[];
+  reason: string;
+}
+
+export interface CatalogEntryList {
+  entries: CatalogEntry[];
+  suggestions: CatalogSuggestion[];
+}
+
+export interface CatalogMergeInput {
+  sourceId: number;
+  targetId: number;
+}
+
+export interface CatalogItemUpdate {
+  canonicalName?: string;
+  /** @nullable */
+  icon?: string | null;
+}
+
+export interface CatalogStoreUpdate {
+  canonicalName: string;
+}
+
+export interface CatalogSplitInput {
+  normalizedName: string;
+}
+
 export interface HealthStatus {
   status: string;
 }

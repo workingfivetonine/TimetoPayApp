@@ -75,15 +75,35 @@ export default function AccountScreen() {
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : me?.isAdmin ? (
-          <TouchableOpacity
-            style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => router.push("/admin")}
-            activeOpacity={0.7}
-          >
-            <Feather name="users" size={18} color={colors.primary} />
-            <Text style={[styles.rowText, { color: colors.foreground }]}>Admin: all users</Text>
-            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/admin")}
+              activeOpacity={0.7}
+            >
+              <Feather name="users" size={18} color={colors.primary} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Admin: all users</Text>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/admin/global")}
+              activeOpacity={0.7}
+            >
+              <Feather name="tag" size={18} color={colors.primary} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Global prices</Text>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/admin/catalog")}
+              activeOpacity={0.7}
+            >
+              <Feather name="layers" size={18} color={colors.primary} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Manage catalog</Text>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </>
         ) : null}
 
         <TouchableOpacity

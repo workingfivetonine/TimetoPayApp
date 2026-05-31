@@ -615,3 +615,209 @@ export const AdminGetUserReceiptsResponse = zod.object({
 })
 
 
+/**
+ * @summary Global most-recent price per canonical item across all users (admin only)
+ */
+export const AdminGetGlobalPricesResponseItem = zod.object({
+  "catalogItemId": zod.number(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "overallLatestPrice": zod.number(),
+  "overallLatestStoreId": zod.number().nullish(),
+  "overallLatestStoreName": zod.string(),
+  "overallLatestDate": zod.string(),
+  "stores": zod.array(zod.object({
+  "catalogStoreId": zod.number(),
+  "storeName": zod.string(),
+  "latestPrice": zod.number(),
+  "latestDate": zod.string()
+}))
+})
+export const AdminGetGlobalPricesResponse = zod.array(AdminGetGlobalPricesResponseItem)
+
+
+/**
+ * @summary List canonical catalog items with members and merge suggestions (admin only)
+ */
+export const AdminListCatalogItemsResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})),
+  "suggestions": zod.array(zod.object({
+  "ids": zod.array(zod.number()),
+  "names": zod.array(zod.string()),
+  "reason": zod.string()
+}))
+})
+
+
+/**
+ * @summary List canonical catalog stores with members and merge suggestions (admin only)
+ */
+export const AdminListCatalogStoresResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})),
+  "suggestions": zod.array(zod.object({
+  "ids": zod.array(zod.number()),
+  "names": zod.array(zod.string()),
+  "reason": zod.string()
+}))
+})
+
+
+/**
+ * @summary Merge one canonical item into another (admin only)
+ */
+export const AdminMergeCatalogItemsBody = zod.object({
+  "sourceId": zod.number(),
+  "targetId": zod.number()
+})
+
+export const AdminMergeCatalogItemsResponse = zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})
+
+
+/**
+ * @summary Merge one canonical store into another (admin only)
+ */
+export const AdminMergeCatalogStoresBody = zod.object({
+  "sourceId": zod.number(),
+  "targetId": zod.number()
+})
+
+export const AdminMergeCatalogStoresResponse = zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})
+
+
+/**
+ * @summary Rename or re-icon a canonical item (admin only)
+ */
+export const AdminUpdateCatalogItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminUpdateCatalogItemBody = zod.object({
+  "canonicalName": zod.string().optional(),
+  "icon": zod.string().nullish()
+})
+
+export const AdminUpdateCatalogItemResponse = zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})
+
+
+/**
+ * @summary Rename a canonical store (admin only)
+ */
+export const AdminUpdateCatalogStoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminUpdateCatalogStoreBody = zod.object({
+  "canonicalName": zod.string()
+})
+
+export const AdminUpdateCatalogStoreResponse = zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})
+
+
+/**
+ * @summary Split one member name out of a canonical item into its own entry (admin only)
+ */
+export const AdminSplitCatalogItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminSplitCatalogItemBody = zod.object({
+  "normalizedName": zod.string()
+})
+
+export const AdminSplitCatalogItemResponse = zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})
+
+
+/**
+ * @summary Split one member name out of a canonical store into its own entry (admin only)
+ */
+export const AdminSplitCatalogStoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminSplitCatalogStoreBody = zod.object({
+  "normalizedName": zod.string()
+})
+
+export const AdminSplitCatalogStoreResponse = zod.object({
+  "id": zod.number(),
+  "canonicalName": zod.string(),
+  "icon": zod.string().nullish(),
+  "members": zod.array(zod.object({
+  "normalizedName": zod.string(),
+  "displayName": zod.string(),
+  "count": zod.number()
+})),
+  "totalCount": zod.number()
+})
+
+
