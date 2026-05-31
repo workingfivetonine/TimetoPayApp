@@ -2,6 +2,8 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   Platform,
   ScrollView,
@@ -13,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { downloadGuidePdf } from "@/lib/guidePdf";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
@@ -260,6 +263,21 @@ export default function HelpScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
+  const [downloading, setDownloading] = React.useState(false);
+
+  const handleDownload = React.useCallback(async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadGuidePdf();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not open the guide PDF. Please try again.";
+      Alert.alert("Download failed", message);
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloading]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -268,7 +286,20 @@ export default function HelpScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>How-to Guide</Text>
-        <View style={styles.backBtn} />
+        <TouchableOpacity
+          onPress={handleDownload}
+          style={styles.backBtn}
+          hitSlop={8}
+          disabled={downloading}
+          accessibilityRole="button"
+          accessibilityLabel="Download guide as PDF"
+        >
+          {downloading ? (
+            <ActivityIndicator size="small" color={colors.foreground} />
+          ) : (
+            <Feather name="download" size={22} color={colors.foreground} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -283,6 +314,22 @@ export default function HelpScreen() {
             Scan receipts, track prices over time, and let your shopping list build itself. Here's
             how every part works.
           </Text>
+          <TouchableOpacity
+            onPress={handleDownload}
+            style={[styles.downloadBtn, { backgroundColor: colors.primary }]}
+            disabled={downloading}
+            accessibilityRole="button"
+            accessibilityLabel="Download guide as PDF"
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color={colors.primaryForeground} />
+            ) : (
+              <Feather name="download" size={16} color={colors.primaryForeground} />
+            )}
+            <Text style={[styles.downloadBtnText, { color: colors.primaryForeground }]}>
+              {downloading ? "Preparing PDF…" : "Download PDF"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {SECTIONS.map((section, i) => (
@@ -347,6 +394,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
   },
+  downloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    minWidth: 170,
+  },
+  downloadBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   card: {
     borderWidth: 1,
     borderRadius: 18,
