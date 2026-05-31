@@ -1,1 +1,2 @@
 - [Item emoji icons](item-icons.md) — per-item emoji: AI-assigned + keyword fallback, lazy backfill on re-encounter, manual override.
+- [Cache invalidation footprint](cache-invalidation.md) — store/item delete cascades ripple into shopping list, items, receipts, BOTH spend analytics + per-store analytics; safe-cancel web confirm.

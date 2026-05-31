@@ -23,12 +23,18 @@ import {
   useUpdateStore,
   useDeleteStore,
   getListStoresQueryKey,
+  getListReceiptsQueryKey,
+  getGetShoppingListQueryKey,
+  getListItemsQueryKey,
+  getGetSpendAnalyticsQueryKey,
+  getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { StoreCard } from "@/components/StoreCard";
 import { EmptyState } from "@/components/EmptyState";
+import { confirmDestructive } from "@/lib/confirm";
 import type { Store } from "@workspace/api-client-react";
 import { useRouter } from "expo-router";
 
@@ -137,16 +143,38 @@ export default function StoresScreen() {
     }
   };
 
-  const handleDelete = (id: number) => {
-    deleteMutation.mutate(
-      { id },
-      {
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() }),
-      }
-    );
+  const handleDelete = () => {
+    if (!editingStore) return;
+    const store = editingStore;
+    confirmDestructive({
+      title: `Delete ${store.name}?`,
+      message:
+        "This permanently deletes the store along with all of its scanned receipts and their line items. This can't be undone.",
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        deleteMutation.mutate(
+          { id: store.id },
+          {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+              queryClient.invalidateQueries({
+                predicate: (q) =>
+                  typeof q.queryKey[0] === "string" &&
+                  ((q.queryKey[0] as string).startsWith("/api/receipts") ||
+                    (q.queryKey[0] as string).startsWith("/api/analytics/stores")),
+              });
+              setShowModal(false);
+            },
+          }
+        );
+      },
+    });
   };
-
-  void handleDelete;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -316,6 +344,24 @@ export default function StoresScreen() {
               numberOfLines={3}
             />
 
+            {editingStore && (
+              <TouchableOpacity
+                style={[styles.deleteBtn, { borderColor: colors.destructive }]}
+                onPress={handleDelete}
+                disabled={deleteMutation.isPending}
+                activeOpacity={0.7}
+              >
+                {deleteMutation.isPending ? (
+                  <ActivityIndicator size="small" color={colors.destructive} />
+                ) : (
+                  <>
+                    <Feather name="trash-2" size={16} color={colors.destructive} />
+                    <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete Store</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
             <View style={{ height: 32 }} />
           </ScrollView>
         </KeyboardAvoidingView>
@@ -403,4 +449,15 @@ const styles = StyleSheet.create({
   },
   switchLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   switchSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    marginTop: 28,
+  },
+  deleteBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

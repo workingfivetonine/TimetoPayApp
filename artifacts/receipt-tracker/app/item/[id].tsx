@@ -27,14 +27,18 @@ import {
   useGetItemHistory,
   useMarkRanOut,
   useUpdateItem,
+  useDeleteItem,
   getGetShoppingListQueryKey,
   getGetItemHistoryQueryKey,
   getGetItemPriceHistoryQueryKey,
   getListItemsQueryKey,
+  getListReceiptsQueryKey,
   getGetSpendAnalyticsQueryKey,
+  getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { confirmDestructive } from "@/lib/confirm";
 import type { ItemHistoryEntry } from "@workspace/api-client-react";
 
 function formatDate(iso: string): string {
@@ -196,6 +200,7 @@ export default function ItemHistoryScreen() {
   const { data, isLoading, refetch } = useGetItemHistory(itemId);
   const { mutateAsync: markRanOut, isPending: ranOutPending } = useMarkRanOut();
   const { mutate: updateItem, isPending: iconSaving } = useUpdateItem();
+  const { mutate: deleteItem, isPending: deletePending } = useDeleteItem();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
@@ -232,6 +237,37 @@ export default function ItemHistoryScreen() {
       refetch(),
       queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() }),
     ]);
+  };
+
+  const handleDelete = () => {
+    const name = data?.itemName ?? "this item";
+    confirmDestructive({
+      title: `Delete ${name}?`,
+      message:
+        "This permanently removes the item from your shopping list, price history, and every receipt it appears on. This can't be undone.",
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        deleteItem(
+          { id: itemId },
+          {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+              queryClient.invalidateQueries({
+                predicate: (q) =>
+                  typeof q.queryKey[0] === "string" &&
+                  ((q.queryKey[0] as string).startsWith("/api/receipts") ||
+                    (q.queryKey[0] as string).startsWith("/api/analytics/stores")),
+              });
+              router.back();
+            },
+          }
+        );
+      },
+    });
   };
 
   if (isLoading) {
@@ -458,6 +494,22 @@ export default function ItemHistoryScreen() {
             })}
           </View>
         )}
+
+        <TouchableOpacity
+          style={[styles.deleteBtn, { borderColor: colors.destructive }]}
+          onPress={handleDelete}
+          disabled={deletePending}
+          activeOpacity={0.7}
+        >
+          {deletePending ? (
+            <ActivityIndicator size="small" color={colors.destructive} />
+          ) : (
+            <>
+              <Feather name="trash-2" size={16} color={colors.destructive} />
+              <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete Item</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Emoji picker modal */}
@@ -518,6 +570,17 @@ export default function ItemHistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 24,
+  },
+  deleteBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row",
