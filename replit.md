@@ -8,6 +8,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/scripts run generate-guide` — regenerate the offline how-to guide (MD + PDF) from `@workspace/guide-content`
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required env: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY` — Replit-provisioned OpenAI integration
@@ -32,6 +33,10 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - `artifacts/receipt-tracker/app/` — Expo screens (tabs + scan + receipt/store detail)
 - `artifacts/receipt-tracker/components/` — shared UI components
 - `artifacts/receipt-tracker/constants/colors.ts` — teal theme color tokens
+- `lib/guide-content/src/index.ts` — single source of truth for the how-to guide text (sections, steps, screenshot filenames)
+- `scripts/src/generate-guide.ts` — generator that rebuilds the offline guide (MD + PDF) from `@workspace/guide-content`
+- `docs/guide/` — generated guide outputs (`Receipt-Tracker-Guide.md`, `.pdf`, `images/`)
+- `artifacts/receipt-tracker/assets/guide/Receipt-Tracker-Guide.pdf` — bundled PDF the in-app Help screen downloads (auto-copied by the generator)
 
 ## Architecture decisions
 
@@ -47,6 +52,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - **Browse + add-to-list**: `GET /catalog/browse` (any authed user) returns catalog grouped by category with per-item `inList`; `POST /catalog/add-to-list` matches the user's existing item by ANY normalized alias of the canonical item (via `catalogItemAliasesTable`) to avoid duplicate user rows, then snapshots `globalPrice`/`globalStoreName` onto the item
 - **Recommended price/store** (shopping list + PDF): uses the user's OWN purchase history when available, else falls back to the snapshotted global price (`priceSource` = `history` | `global` | `none`); `recommendedPrice`/`recommendedStoreName`/lowest/avg/store are all nullable ("no price yet")
 - Camera is only available natively (iOS/Android); web falls back to image picker
+- **Offline guide stays in sync with the in-app guide**: the how-to guide text lives ONCE in `@workspace/guide-content` (`GUIDE_SECTIONS` / `GUIDE_ADMIN_SECTIONS`). `app/help.tsx` renders it (mapping `imageFile` → static `require()` in `GUIDE_IMAGES`), and `pnpm --filter @workspace/scripts run generate-guide` rebuilds `docs/guide/Receipt-Tracker-Guide.{md,pdf}` (PDF via `pdfkit`) and copies the PDF into `artifacts/receipt-tracker/assets/guide/`. After editing guide copy or swapping a screenshot in `assets/images/guide/`, rerun the generator so the bundled PDF doesn't drift. When adding a section, add it to `guide-content` AND add its screenshot key to `GUIDE_IMAGES` (Metro requires static `require()` literals)
 
 ## Product
 

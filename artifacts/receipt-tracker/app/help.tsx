@@ -14,6 +14,11 @@ import {
   type ImageSourcePropType,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  GUIDE_SECTIONS,
+  GUIDE_ADMIN_SECTIONS,
+  type GuideSectionContent,
+} from "@workspace/guide-content";
 import { useColors } from "@/hooks/useColors";
 import { downloadGuidePdf } from "@/lib/guidePdf";
 
@@ -29,203 +34,40 @@ interface GuideSection {
 
 const SHOT_ASPECT = 402 / 860;
 
-const SECTIONS: GuideSection[] = [
-  {
-    icon: "log-in",
-    title: "Signing in",
-    intro:
-      "Receipt Tracker keeps each person's data private, so you start by signing in. Your receipts, stores, and prices are only ever visible to your own account.",
-    steps: [
-      "Enter your email and password, then tap Sign in.",
-      "New here? Tap Sign up to create an account in a few seconds.",
-      "You can sign out any time from the Account screen to switch accounts.",
-    ],
-    image: require("@/assets/images/guide/sign-in.jpg"),
-  },
-  {
-    icon: "file-text",
-    title: "Your receipts",
-    intro:
-      "The Receipts tab is your home base — every receipt you scan or enter shows up here, newest first, with the store and total.",
-    steps: [
-      "Tap any receipt to open it and see the individual line items.",
-      "The total on the right is calculated from the items on that receipt.",
-      "Use the trash icon to remove a receipt you no longer need.",
-    ],
-    image: require("@/assets/images/guide/receipts.jpg"),
-  },
-  {
-    icon: "list",
-    title: "Receipt details",
-    intro:
-      "Open a receipt to review what was bought. This is where you fix anything the scanner misread.",
-    steps: [
-      "Tap the pencil on a line to edit its name or price.",
-      "Tap the × to delete a single item from the receipt.",
-      "Each item carries an emoji and feeds your price history automatically.",
-    ],
-    image: require("@/assets/images/guide/receipt-detail.jpg"),
-  },
-  {
-    icon: "camera",
-    title: "Adding a receipt",
-    intro:
-      "Tap Scan (or Add Receipt) to capture a new purchase. AI reads the store, items, and prices for you.",
-    steps: [
-      "Choose Photo to snap or upload a paper receipt — the AI extracts everything.",
-      "Upload PDF works best for online order confirmations.",
-      "Prefer to type? Use Enter Manually for a full receipt or Log Items for a quick list.",
-    ],
-    image: require("@/assets/images/guide/scan.jpg"),
-  },
-  {
-    icon: "check-circle",
-    title: "Review & save a scan",
-    intro:
-      "After the AI reads a photo or PDF, you land on the Review screen to confirm everything before it's saved. Anything the AI wasn't sure about is highlighted in amber.",
-    steps: [
-      "Check the store, date, and total at the top, then fix any highlighted fields.",
-      "Edit item names, prices, and quantities; remove a line with the trash icon or add one with Add Item.",
-      "Tap Confirm & Save to file the receipt and update your prices and shopping list.",
-    ],
-    image: require("@/assets/images/guide/review-receipt.jpg"),
-  },
-  {
-    icon: "edit-3",
-    title: "Enter a receipt manually",
-    intro:
-      "No photo? Choose Enter Manually to type a full receipt yourself — handy for cash purchases or older receipts.",
-    steps: [
-      "Fill in the store details and the receipt date, time, and totals.",
-      "Add each item with its name, price, and quantity using Add Item.",
-      "Tap Save to file it just like a scanned receipt.",
-    ],
-    image: require("@/assets/images/guide/manual-entry.jpg"),
-  },
-  {
-    icon: "plus-square",
-    title: "Quickly log items",
-    intro:
-      "Log Items is the fastest way to jot down a few things — just a store, a date, and a short list. The total adds itself up as you go.",
-    steps: [
-      "Start typing a store name and pick from the suggestions, or enter a new one.",
-      "Add each item with its price and quantity; the running total updates live.",
-      "Tap Save to turn the list into a receipt.",
-    ],
-    image: require("@/assets/images/guide/quick-add.jpg"),
-  },
-  {
-    icon: "shopping-bag",
-    title: "Stores",
-    intro:
-      "The Stores tab keeps the places you shop, along with delivery fees and minimum-order details.",
-    steps: [
-      "Tap + to add a store, or the pencil to edit one.",
-      "Record delivery fee and minimum order to power the cost-benefit analysis.",
-      "Tap a store card to open its detail screen.",
-    ],
-    image: require("@/assets/images/guide/stores.jpg"),
-  },
-  {
-    icon: "truck",
-    title: "Store cost-benefit",
-    intro:
-      "Each store's detail screen shows how much you spend there and whether delivery is worth it.",
-    steps: [
-      "See total spent, average receipt, and number of visits at a glance.",
-      "The delivery box tells you what percentage the fee adds to a typical order.",
-      "Browse every item you've ever bought at that store.",
-    ],
-    image: require("@/assets/images/guide/store-detail.jpg"),
-  },
-  {
-    icon: "trending-up",
-    title: "Item price history",
-    intro:
-      "Tap any item to track its price over time and see which store gave you the best deal.",
-    steps: [
-      "Lowest, average, and highest prices are summarized up top.",
-      "The price trend chart plots every purchase you've logged.",
-      "Tap the emoji to change it, or use Delete Item to remove it everywhere.",
-    ],
-    image: require("@/assets/images/guide/item-detail.jpg"),
-  },
-  {
-    icon: "check-square",
-    title: "Shopping list",
-    intro:
-      "Your list builds itself from what you buy. Regulars are things you've purchased 2+ times; One-offs are the rest.",
-    steps: [
-      "Each item shows its lowest price, the best store, and how much you save.",
-      "Mark something Ran Out to bump it back to the top of your list.",
-      "Use the download button in the header to export a printable PDF grouped by store.",
-    ],
-    image: require("@/assets/images/guide/shopping.jpg"),
-  },
-  {
-    icon: "bar-chart-2",
-    title: "Spending analytics",
-    intro:
-      "The Analytics tab turns your receipts into spending insights so you can spot trends.",
-    steps: [
-      "The calendar heatmap shades each day by how much you spent.",
-      "Switch to Weekly to see spend per week with high/low flags.",
-      "The Items view breaks down price history item by item.",
-    ],
-    image: require("@/assets/images/guide/analytics.jpg"),
-  },
-  {
-    icon: "grid",
-    title: "Browse catalog",
-    intro:
-      "Open Browse Catalog from the Shopping List header to see prices seen across everyone's receipts, grouped by category.",
-    steps: [
-      "Tap the + (check) button to add any item to your own shopping list.",
-      "Items already on your list appear checked.",
-      "Prices reflect the most recent sighting across all shoppers — no names attached.",
-    ],
-    image: require("@/assets/images/guide/catalog.jpg"),
-  },
-  {
-    icon: "user",
-    title: "Your account",
-    intro:
-      "The Account screen shows who you're signed in as and lets you sign out. Admins see extra tools here.",
-    steps: [
-      "Confirm the email tied to your data.",
-      "Sign out to switch accounts — your data stays private to you.",
-      "Admin tools, when available, appear as rows above Sign out.",
-    ],
-    image: require("@/assets/images/guide/account.jpg"),
-  },
-];
+// Screenshots must be referenced with static `require()` literals so Metro can
+// bundle them. The map keys mirror `imageFile` in `@workspace/guide-content`.
+const GUIDE_IMAGES: Record<string, ImageSourcePropType> = {
+  "sign-in.jpg": require("@/assets/images/guide/sign-in.jpg"),
+  "receipts.jpg": require("@/assets/images/guide/receipts.jpg"),
+  "receipt-detail.jpg": require("@/assets/images/guide/receipt-detail.jpg"),
+  "scan.jpg": require("@/assets/images/guide/scan.jpg"),
+  "review-receipt.jpg": require("@/assets/images/guide/review-receipt.jpg"),
+  "manual-entry.jpg": require("@/assets/images/guide/manual-entry.jpg"),
+  "quick-add.jpg": require("@/assets/images/guide/quick-add.jpg"),
+  "stores.jpg": require("@/assets/images/guide/stores.jpg"),
+  "store-detail.jpg": require("@/assets/images/guide/store-detail.jpg"),
+  "item-detail.jpg": require("@/assets/images/guide/item-detail.jpg"),
+  "shopping.jpg": require("@/assets/images/guide/shopping.jpg"),
+  "analytics.jpg": require("@/assets/images/guide/analytics.jpg"),
+  "catalog.jpg": require("@/assets/images/guide/catalog.jpg"),
+  "account.jpg": require("@/assets/images/guide/account.jpg"),
+  "admin-global.jpg": require("@/assets/images/guide/admin-global.jpg"),
+  "admin-catalog.jpg": require("@/assets/images/guide/admin-catalog.jpg"),
+};
 
-const ADMIN_SECTIONS: GuideSection[] = [
-  {
-    icon: "tag",
-    title: "Global prices",
-    intro:
-      "Admins get a read-only, cross-user view of the most recent price for every item — overall and per store.",
-    steps: [
-      "Tap a card to expand per-store prices, with the lowest highlighted.",
-      "Data is aggregated across all users without exposing who bought what.",
-      "Use it to keep the shared catalog's prices realistic.",
-    ],
-    image: require("@/assets/images/guide/admin-global.jpg"),
-  },
-  {
-    icon: "layers",
-    title: "Manage catalog",
-    intro:
-      "The catalog tool lets admins tidy up spelling variants of item and store names into clean, canonical entries.",
-    steps: [
-      "Merge, rename, or split entries from the Items and Stores tabs.",
-      "Auto-suggested merges surface near-duplicate names for one-tap cleanup.",
-      "This only touches the shared catalog — it never edits anyone's private rows.",
-    ],
-    image: require("@/assets/images/guide/admin-catalog.jpg"),
-  },
-];
+function toSection(content: GuideSectionContent): GuideSection {
+  return {
+    icon: content.icon as FeatherName,
+    title: content.title,
+    intro: content.intro,
+    steps: content.steps,
+    image: GUIDE_IMAGES[content.imageFile],
+  };
+}
+
+const SECTIONS: GuideSection[] = GUIDE_SECTIONS.map(toSection);
+
+const ADMIN_SECTIONS: GuideSection[] = GUIDE_ADMIN_SECTIONS.map(toSection);
 
 function GuideCard({ section, index }: { section: GuideSection; index: number }) {
   const colors = useColors();

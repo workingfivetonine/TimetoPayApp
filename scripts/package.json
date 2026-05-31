@@ -5,10 +5,16 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "generate-guide": "tsx ./src/generate-guide.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/guide-content": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pdfkit": "^0.13.9",
+    "pdfkit": "^0.18.0",
     "tsx": "catalog:"
   }
 }

@@ -477,6 +477,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/guide-content':
+        specifier: workspace:*
+        version: link:../../lib/guide-content
       babel-plugin-react-compiler:
         specifier: ^19.0.0-beta-e993439-20250117
         version: 19.0.0-beta-ebf51a3-20250411
@@ -626,6 +629,8 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
+  lib/guide-content: {}
+
   lib/integrations-openai-ai-react: {}
 
   lib/integrations-openai-ai-server:
@@ -645,10 +650,20 @@ importers:
         version: 25.6.2
 
   scripts:
+    dependencies:
+      '@workspace/guide-content':
+        specifier: workspace:*
+        version: link:../lib/guide-content
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 25.6.2
+      '@types/pdfkit':
+        specifier: ^0.13.9
+        version: 0.13.9
+      pdfkit:
+        specifier: ^0.18.0
+        version: 0.18.0
       tsx:
         specifier: 'catalog:'
         version: 4.21.0
@@ -2775,6 +2790,9 @@ packages:
 
   '@types/pdf-parse@1.1.5':
     resolution: {integrity: sha512-kBfrSXsloMnUJOKi25s3+hRmkycHfLK6A09eRGqF/N8BkQoPUmaCr+q8Cli5FnfohEz/rsv82zAiPz/LXtOGhA==}
+
+  '@types/pdfkit@0.13.9':
+    resolution: {integrity: sha512-RDG8Yb1zT7I01FfpwK7nMSA433XWpblMqSCtA5vJlSyavWZb303HUYPCel6JTiDDFqwGLvtAnYbH8N/e0Cb89g==}
 
   '@types/pg@8.20.0':
     resolution: {integrity: sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==}
@@ -9447,6 +9465,10 @@ snapshots:
       undici-types: 7.19.2
 
   '@types/pdf-parse@1.1.5':
+    dependencies:
+      '@types/node': 25.6.2
+
+  '@types/pdfkit@0.13.9':
     dependencies:
       '@types/node': 25.6.2
 
