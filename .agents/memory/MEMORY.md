@@ -1,1 +1,2 @@
 - [Shopping-list membership logic](shopping-list-membership.md) — membership/dismissal rule is duplicated across two routes; they must stay in sync or browse and the list diverge.
+- [Single @types/react across workspace](types-react-dedup.md) — pnpm override pins one @types/react; two versions cause "VoidOrUndefinedOnly"/ref typecheck errors via hoisting.

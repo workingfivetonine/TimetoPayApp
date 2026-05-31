@@ -75,6 +75,14 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Force a single @types/react / @types/react-dom across the whole workspace.
+  # Web artifacts (mockup-sandbox) want ^19.2 while the Expo app pins ~19.1, which
+  # left two @types/react versions in the store. Packages like lucide-react that
+  # don't declare an @types/react peer then resolved react's types via the hoisted
+  # copy (19.1.17), clashing with the artifact's own 19.2 types ("two different
+  # VoidOrUndefinedOnly" / ref errors). Pinning one version eliminates the clash.
+  "@types/react": "catalog:"
+  "@types/react-dom": "catalog:"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
