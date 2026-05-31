@@ -62,8 +62,27 @@ export function DesktopSidebar() {
       {/* Spacer */}
       <View style={{ flex: 1 }} />
 
-      {/* Account link */}
+      {/* Help + Account links */}
       <View style={styles.nav}>
+        <TouchableOpacity
+          style={[styles.navItem, pathname.startsWith("/help") && { backgroundColor: colors.accent }]}
+          onPress={() => router.push("/help")}
+          activeOpacity={0.7}
+        >
+          <Feather
+            name="book-open"
+            size={17}
+            color={pathname.startsWith("/help") ? colors.primary : colors.mutedForeground}
+          />
+          <Text
+            style={[
+              styles.navLabel,
+              { color: pathname.startsWith("/help") ? colors.primary : colors.mutedForeground },
+            ]}
+          >
+            How-to Guide
+          </Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.navItem, pathname.startsWith("/account") && { backgroundColor: colors.accent }]}
           onPress={() => router.push("/account")}

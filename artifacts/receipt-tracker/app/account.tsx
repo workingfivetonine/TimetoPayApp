@@ -72,6 +72,16 @@ export default function AccountScreen() {
           ) : null}
         </View>
 
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => router.push("/help")}
+          activeOpacity={0.7}
+        >
+          <Feather name="book-open" size={18} color={colors.primary} />
+          <Text style={[styles.rowText, { color: colors.foreground }]}>How-to guide</Text>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : me?.isAdmin ? (

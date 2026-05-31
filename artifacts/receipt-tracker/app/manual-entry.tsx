@@ -568,6 +568,5 @@ function makeStyles(colors: any) {
       fontSize: 15,
       fontFamily: "Inter_600SemiBold",
     },
-    muted: colors.muted,
   });
 }

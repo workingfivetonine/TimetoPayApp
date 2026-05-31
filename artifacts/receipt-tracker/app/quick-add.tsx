@@ -493,6 +493,5 @@ function styles(colors: any) {
     },
     totalLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
     totalValue: { fontSize: 20, fontFamily: "Inter_700Bold" },
-    muted: colors.muted,
   });
 }
