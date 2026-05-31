@@ -27,6 +27,9 @@ export const catalogItemsTable = pgTable("catalog_items", {
   id: serial("id").primaryKey(),
   canonicalName: text("canonical_name").notNull(),
   icon: text("icon"),
+  // Fixed-list category (see api-server lib/categories). Copied from the user
+  // item that first creates this entry; admin can override it.
+  category: text("category"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

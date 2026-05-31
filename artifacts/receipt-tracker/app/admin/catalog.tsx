@@ -29,6 +29,23 @@ import { EmptyState } from "@/components/EmptyState";
 
 type Tab = "items" | "stores";
 
+// Mirrors FIXED_CATEGORIES in the API server's categories lib.
+const CATEGORIES = [
+  "Produce",
+  "Meat & Seafood",
+  "Dairy & Eggs",
+  "Bakery",
+  "Pantry",
+  "Frozen",
+  "Beverages",
+  "Snacks",
+  "Household",
+  "Personal Care",
+  "Baby",
+  "Pet",
+  "Other",
+] as const;
+
 export default function AdminCatalogScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -53,6 +70,7 @@ export default function AdminCatalogScreen() {
   const [renameTarget, setRenameTarget] = React.useState<CatalogEntry | null>(null);
   const [renameText, setRenameText] = React.useState("");
   const [mergeSource, setMergeSource] = React.useState<CatalogEntry | null>(null);
+  const [categoryTarget, setCategoryTarget] = React.useState<CatalogEntry | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const active = tab === "items" ? itemsQuery : storesQuery;
@@ -74,6 +92,18 @@ export default function AdminCatalogScreen() {
       else await updateStore.mutateAsync({ id: renameTarget.id, data: { canonicalName: name } });
       refetch();
       setRenameTarget(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPickCategory = async (category: string) => {
+    if (!categoryTarget) return;
+    setBusy(true);
+    try {
+      await updateItem.mutateAsync({ id: categoryTarget.id, data: { category } });
+      refetch();
+      setCategoryTarget(null);
     } finally {
       setBusy(false);
     }
@@ -174,12 +204,14 @@ export default function AdminCatalogScreen() {
             <EntryCard
               entry={item}
               colors={colors}
+              showCategory={tab === "items"}
               onRename={() => {
                 setRenameTarget(item);
                 setRenameText(item.canonicalName);
               }}
               onMerge={() => setMergeSource(item)}
               onSplit={(norm) => onSplit(item, norm)}
+              onEditCategory={() => setCategoryTarget(item)}
             />
           )}
         />
@@ -253,6 +285,42 @@ export default function AdminCatalogScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Category picker */}
+      <Modal visible={!!categoryTarget} transparent animationType="fade" onRequestClose={() => setCategoryTarget(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card, maxHeight: "70%" }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              Category for “{categoryTarget?.canonicalName}”
+            </Text>
+            <FlatList
+              data={CATEGORIES}
+              keyExtractor={(c) => c}
+              style={{ marginTop: 8 }}
+              renderItem={({ item: cat }) => {
+                const selected = categoryTarget?.category === cat;
+                return (
+                  <TouchableOpacity
+                    style={[styles.targetRow, { borderColor: selected ? colors.primary : colors.border }]}
+                    onPress={() => onPickCategory(cat)}
+                    disabled={busy}
+                  >
+                    <Text style={[styles.targetName, { color: colors.foreground }]} numberOfLines={1}>
+                      {cat}
+                    </Text>
+                    {selected ? (
+                      <Feather name="check" size={16} color={colors.primary} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <TouchableOpacity style={[styles.modalBtn, { alignSelf: "flex-end", marginTop: 8 }]} onPress={() => setCategoryTarget(null)}>
+              <Text style={[styles.modalBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -296,15 +364,19 @@ function SuggestionsHeader({
 function EntryCard({
   entry,
   colors,
+  showCategory,
   onRename,
   onMerge,
   onSplit,
+  onEditCategory,
 }: {
   entry: CatalogEntry;
   colors: ReturnType<typeof useColors>;
+  showCategory: boolean;
   onRename: () => void;
   onMerge: () => void;
   onSplit: (normalizedName: string) => void;
+  onEditCategory: () => void;
 }) {
   const canSplit = entry.members.length > 1;
   return (
@@ -327,6 +399,20 @@ function EntryCard({
           <Feather name="git-merge" size={16} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
+
+      {showCategory ? (
+        <TouchableOpacity
+          style={[styles.categoryRow, { borderColor: colors.border }]}
+          onPress={onEditCategory}
+          activeOpacity={0.7}
+        >
+          <Feather name="tag" size={13} color={colors.mutedForeground} />
+          <Text style={[styles.categoryText, { color: entry.category ? colors.foreground : colors.mutedForeground }]}>
+            {entry.category ?? "Set category"}
+          </Text>
+          <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      ) : null}
 
       <View style={styles.chips}>
         {entry.members.map((m) => (
@@ -385,6 +471,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   sub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   iconBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  categoryRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, alignSelf: "flex-start" },
+  categoryText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 },
   chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, maxWidth: "100%" },
   chipText: { fontSize: 12, fontFamily: "Inter_500Medium" },

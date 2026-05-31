@@ -10,4 +10,6 @@ export interface CatalogItemUpdate {
   canonicalName?: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
 }

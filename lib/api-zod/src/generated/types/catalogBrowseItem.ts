@@ -7,17 +7,17 @@
  */
 import type { CatalogGlobalStorePrice } from './catalogGlobalStorePrice';
 
-export interface CatalogGlobalItem {
+export interface CatalogBrowseItem {
   catalogItemId: number;
   name: string;
   /** @nullable */
   icon?: string | null;
   /** @nullable */
-  category?: string | null;
-  overallLatestPrice: number;
+  category: string | null;
   /** @nullable */
-  overallLatestStoreId?: number | null;
-  overallLatestStoreName: string;
-  overallLatestDate: string;
+  bestPrice?: number | null;
+  /** @nullable */
+  bestStoreName?: string | null;
+  inList?: boolean;
   stores: CatalogGlobalStorePrice[];
 }

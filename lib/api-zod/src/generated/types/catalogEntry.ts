@@ -12,6 +12,8 @@ export interface CatalogEntry {
   canonicalName: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
   members: CatalogMember[];
   totalCount: number;
 }

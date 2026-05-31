@@ -4,8 +4,6 @@ import {
   db,
   itemsTable,
   storesTable,
-  receiptsTable,
-  lineItemsTable,
   catalogItemsTable,
   catalogItemAliasesTable,
   catalogStoresTable,
@@ -27,9 +25,9 @@ import { requireAdmin } from "../middlewares/auth";
 import {
   ensureCatalog,
   looseKey,
-  normItemNameSql,
-  normStoreNameSql,
+  computeGlobalPrices,
 } from "../lib/catalog";
+import { isValidCategory } from "../lib/categories";
 
 const router = Router();
 router.use(requireAdmin);
@@ -39,6 +37,7 @@ type Entry = {
   id: number;
   canonicalName: string;
   icon: string | null;
+  category: string | null;
   members: Member[];
   totalCount: number;
 };
@@ -70,102 +69,7 @@ function buildSuggestions(entries: Entry[]): Suggestion[] {
 
 router.get("/global", async (_req, res): Promise<void> => {
   await ensureCatalog();
-
-  // Every purchased line item routed to its canonical item + store, with the
-  // price and purchase date. Reduced in JS to "latest" per group.
-  const rows = await db
-    .select({
-      catalogItemId: catalogItemAliasesTable.catalogItemId,
-      catalogStoreId: catalogStoreAliasesTable.catalogStoreId,
-      price: lineItemsTable.price,
-      purchasedAt: receiptsTable.purchasedAt,
-      createdAt: receiptsTable.createdAt,
-    })
-    .from(lineItemsTable)
-    .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
-    .innerJoin(catalogItemAliasesTable, eq(catalogItemAliasesTable.normalizedName, normItemNameSql))
-    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
-    .innerJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
-    .innerJoin(catalogStoreAliasesTable, eq(catalogStoreAliasesTable.normalizedName, normStoreNameSql));
-
-  const catItems = await db
-    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon })
-    .from(catalogItemsTable);
-  const catStores = await db
-    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName })
-    .from(catalogStoresTable);
-  const itemMap = new Map(catItems.map((c) => [c.id, c]));
-  const storeMap = new Map(catStores.map((c) => [c.id, c.name]));
-
-  // Sort newest first so the first row seen per group is the most recent.
-  const sorted = rows
-    .map((r) => ({
-      catalogItemId: r.catalogItemId,
-      catalogStoreId: r.catalogStoreId,
-      price: Number(r.price),
-      purchasedAt: r.purchasedAt,
-      createdAt: r.createdAt,
-    }))
-    .sort((a, b) => {
-      const t = b.purchasedAt.getTime() - a.purchasedAt.getTime();
-      if (t !== 0) return t;
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
-
-  type StoreAgg = { catalogStoreId: number; storeName: string; latestPrice: number; latestDate: Date };
-  type ItemAgg = {
-    overallLatestPrice: number;
-    overallLatestStoreId: number;
-    overallLatestDate: Date;
-    stores: Map<number, StoreAgg>;
-  };
-  const agg = new Map<number, ItemAgg>();
-
-  for (const r of sorted) {
-    let a = agg.get(r.catalogItemId);
-    if (!a) {
-      a = {
-        overallLatestPrice: r.price,
-        overallLatestStoreId: r.catalogStoreId,
-        overallLatestDate: r.purchasedAt,
-        stores: new Map(),
-      };
-      agg.set(r.catalogItemId, a);
-    }
-    if (!a.stores.has(r.catalogStoreId)) {
-      a.stores.set(r.catalogStoreId, {
-        catalogStoreId: r.catalogStoreId,
-        storeName: storeMap.get(r.catalogStoreId) ?? "Unknown",
-        latestPrice: r.price,
-        latestDate: r.purchasedAt,
-      });
-    }
-  }
-
-  const result = Array.from(agg.entries())
-    .map(([catalogItemId, a]) => {
-      const item = itemMap.get(catalogItemId);
-      return {
-        catalogItemId,
-        name: item?.name ?? "Unknown",
-        icon: item?.icon ?? null,
-        overallLatestPrice: a.overallLatestPrice,
-        overallLatestStoreId: a.overallLatestStoreId,
-        overallLatestStoreName: storeMap.get(a.overallLatestStoreId) ?? "Unknown",
-        overallLatestDate: a.overallLatestDate.toISOString(),
-        stores: Array.from(a.stores.values())
-          .sort((x, y) => x.latestPrice - y.latestPrice)
-          .map((s) => ({
-            catalogStoreId: s.catalogStoreId,
-            storeName: s.storeName,
-            latestPrice: s.latestPrice,
-            latestDate: s.latestDate.toISOString(),
-          })),
-      };
-    })
-    .sort((x, y) => x.name.localeCompare(y.name));
-
-  res.json(result);
+  res.json(await computeGlobalPrices());
 });
 
 // ---- Catalog listings (items & stores) ------------------------------------
@@ -174,7 +78,7 @@ router.get("/items", async (_req, res): Promise<void> => {
   await ensureCatalog();
 
   const catItems = await db
-    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon })
+    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon, category: catalogItemsTable.category })
     .from(catalogItemsTable);
 
   const aliases = await db
@@ -213,6 +117,7 @@ router.get("/items", async (_req, res): Promise<void> => {
         id: c.id,
         canonicalName: c.name,
         icon: c.icon ?? null,
+        category: c.category ?? null,
         members,
         totalCount: members.reduce((sum, m) => sum + m.count, 0),
       };
@@ -264,6 +169,7 @@ router.get("/stores", async (_req, res): Promise<void> => {
         id: c.id,
         canonicalName: c.name,
         icon: null,
+        category: null,
         members,
         totalCount: members.reduce((sum, m) => sum + m.count, 0),
       };
@@ -277,7 +183,7 @@ router.get("/stores", async (_req, res): Promise<void> => {
 
 async function buildItemEntry(id: number): Promise<Entry | null> {
   const [c] = await db
-    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon })
+    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon, category: catalogItemsTable.category })
     .from(catalogItemsTable)
     .where(eq(catalogItemsTable.id, id));
   if (!c) return null;
@@ -290,7 +196,7 @@ async function buildItemEntry(id: number): Promise<Entry | null> {
     displayName: a.displayName,
     count: 0,
   }));
-  return { id: c.id, canonicalName: c.name, icon: c.icon ?? null, members, totalCount: 0 };
+  return { id: c.id, canonicalName: c.name, icon: c.icon ?? null, category: c.category ?? null, members, totalCount: 0 };
 }
 
 async function buildStoreEntry(id: number): Promise<Entry | null> {
@@ -308,7 +214,7 @@ async function buildStoreEntry(id: number): Promise<Entry | null> {
     displayName: a.displayName,
     count: 0,
   }));
-  return { id: c.id, canonicalName: c.name, icon: null, members, totalCount: 0 };
+  return { id: c.id, canonicalName: c.name, icon: null, category: null, members, totalCount: 0 };
 }
 
 // ---- Merge ----------------------------------------------------------------
@@ -381,9 +287,16 @@ router.patch("/items/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const update: { canonicalName?: string; icon?: string | null } = {};
+  const update: { canonicalName?: string; icon?: string | null; category?: string | null } = {};
   if (parsed.data.canonicalName !== undefined) update.canonicalName = parsed.data.canonicalName;
   if (parsed.data.icon !== undefined) update.icon = parsed.data.icon;
+  if (parsed.data.category !== undefined) {
+    if (parsed.data.category !== null && !isValidCategory(parsed.data.category)) {
+      res.status(400).json({ error: "Invalid category" });
+      return;
+    }
+    update.category = parsed.data.category;
+  }
   if (Object.keys(update).length === 0) {
     res.status(400).json({ error: "Nothing to update" });
     return;

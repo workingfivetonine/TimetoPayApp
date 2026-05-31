@@ -16,6 +16,7 @@ import {
   useGetShoppingList,
   getGetShoppingListQueryKey,
   useMarkRanOut,
+  useDismissItem,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
@@ -34,10 +35,12 @@ export default function ShoppingScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
+  const [dismissingItemId, setDismissingItemId] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
 
   const { data: list, isLoading } = useGetShoppingList();
   const { mutateAsync: markRanOut } = useMarkRanOut();
+  const { mutateAsync: dismissItem } = useDismissItem();
 
   const isDesktop = useDesktop();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
@@ -56,6 +59,16 @@ export default function ShoppingScreen() {
       await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
     } finally {
       setLoadingItemId(null);
+    }
+  };
+
+  const handleDismiss = async (itemId: number) => {
+    setDismissingItemId(itemId);
+    try {
+      await dismissItem({ id: itemId });
+      await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+    } finally {
+      setDismissingItemId(null);
     }
   };
 
@@ -94,20 +107,29 @@ export default function ShoppingScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Shopping List</Text>
-        {hasItems && (
+        <View style={styles.headerActions}>
           <TouchableOpacity
             style={[styles.downloadButton, { backgroundColor: colors.accent }]}
-            onPress={handleDownload}
-            disabled={downloading}
-            accessibilityLabel="Download shopping list as PDF"
+            onPress={() => router.push("/catalog")}
+            accessibilityLabel="Browse catalog"
           >
-            {downloading ? (
-              <ActivityIndicator size="small" color={colors.accentForeground} />
-            ) : (
-              <Feather name="download" size={18} color={colors.accentForeground} />
-            )}
+            <Feather name="grid" size={18} color={colors.accentForeground} />
           </TouchableOpacity>
-        )}
+          {hasItems && (
+            <TouchableOpacity
+              style={[styles.downloadButton, { backgroundColor: colors.accent }]}
+              onPress={handleDownload}
+              disabled={downloading}
+              accessibilityLabel="Download shopping list as PDF"
+            >
+              {downloading ? (
+                <ActivityIndicator size="small" color={colors.accentForeground} />
+              ) : (
+                <Feather name="download" size={18} color={colors.accentForeground} />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {isLoading ? (
@@ -143,6 +165,8 @@ export default function ShoppingScreen() {
                 onPress={() => router.push(`/item/${item.itemId}`)}
                 onRanOut={() => handleRanOut(item.itemId)}
                 ranOutLoading={loadingItemId === item.itemId}
+                onDismiss={() => handleDismiss(item.itemId)}
+                dismissLoading={dismissingItemId === item.itemId}
               />
             </View>
           )}
@@ -164,6 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
   downloadButton: {
     width: 40,
     height: 40,

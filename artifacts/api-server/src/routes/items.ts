@@ -96,4 +96,20 @@ router.post("/:id/ran-out", async (req, res): Promise<void> => {
   res.json({ ranOutAt: ranOutAt.toISOString(), daysSinceLastPurchase });
 });
 
+router.post("/:id/dismiss", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = parseInt(req.params.id);
+  const dismissedAt = new Date();
+  const [item] = await db
+    .update(itemsTable)
+    .set({ dismissedAt })
+    .where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId)))
+    .returning();
+  if (!item) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+  res.json({ dismissedAt: dismissedAt.toISOString() });
+});
+
 export default router;

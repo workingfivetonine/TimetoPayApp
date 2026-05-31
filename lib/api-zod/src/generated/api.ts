@@ -148,6 +148,18 @@ export const MarkRanOutResponse = zod.object({
 
 
 /**
+ * @summary Dismiss an item from the shopping list until it is purchased or runs out again
+ */
+export const DismissItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DismissItemResponse = zod.object({
+  "dismissedAt": zod.string()
+})
+
+
+/**
  * @summary Get an item by ID
  */
 export const GetItemParams = zod.object({
@@ -444,11 +456,16 @@ export const GetShoppingListResponse = zod.object({
   "itemId": zod.number(),
   "itemName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
-  "averagePrice": zod.number(),
-  "lowestPrice": zod.number(),
-  "lowestPriceStoreName": zod.string(),
+  "averagePrice": zod.number().nullish(),
+  "lowestPrice": zod.number().nullish(),
+  "lowestPriceStoreName": zod.string().nullish(),
+  "recommendedPrice": zod.number().nullish(),
+  "recommendedStoreName": zod.string().nullish(),
+  "priceSource": zod.union([zod.literal('history'),zod.literal('global'),zod.literal(null)]).nullish(),
+  "addedToList": zod.boolean().optional(),
   "isRecurring": zod.boolean(),
   "daysSinceLastPurchase": zod.number().nullish(),
   "lastPurchasedAt": zod.string().nullish(),
@@ -458,11 +475,16 @@ export const GetShoppingListResponse = zod.object({
   "itemId": zod.number(),
   "itemName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "purchaseCount": zod.number(),
-  "averagePrice": zod.number(),
-  "lowestPrice": zod.number(),
-  "lowestPriceStoreName": zod.string(),
+  "averagePrice": zod.number().nullish(),
+  "lowestPrice": zod.number().nullish(),
+  "lowestPriceStoreName": zod.string().nullish(),
+  "recommendedPrice": zod.number().nullish(),
+  "recommendedStoreName": zod.string().nullish(),
+  "priceSource": zod.union([zod.literal('history'),zod.literal('global'),zod.literal(null)]).nullish(),
+  "addedToList": zod.boolean().optional(),
   "isRecurring": zod.boolean(),
   "daysSinceLastPurchase": zod.number().nullish(),
   "lastPurchasedAt": zod.string().nullish(),
@@ -488,6 +510,7 @@ export const ParseReceiptImageResponse = zod.object({
   "lineItems": zod.array(zod.object({
   "name": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
   "nameUncertain": zod.boolean().optional(),
@@ -517,6 +540,7 @@ export const SaveParsedReceiptBody = zod.object({
   "lineItems": zod.array(zod.object({
   "name": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "price": zod.number(),
   "quantity": zod.number(),
   "nameUncertain": zod.boolean().optional(),
@@ -616,12 +640,55 @@ export const AdminGetUserReceiptsResponse = zod.object({
 
 
 /**
+ * @summary Browse the global price catalog grouped by category (all users)
+ */
+export const BrowseCatalogResponse = zod.object({
+  "categories": zod.array(zod.object({
+  "category": zod.string(),
+  "items": zod.array(zod.object({
+  "catalogItemId": zod.number(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "category": zod.string().nullable(),
+  "bestPrice": zod.number().nullish(),
+  "bestStoreName": zod.string().nullish(),
+  "inList": zod.boolean().optional(),
+  "stores": zod.array(zod.object({
+  "catalogStoreId": zod.number(),
+  "storeName": zod.string(),
+  "latestPrice": zod.number(),
+  "latestDate": zod.string()
+}))
+}))
+}))
+})
+
+
+/**
+ * @summary Add a catalog item to the current user's shopping list
+ */
+export const AddCatalogItemToListBody = zod.object({
+  "catalogItemId": zod.number()
+})
+
+export const AddCatalogItemToListResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "icon": zod.string().nullish().describe('Emoji icon representing the item'),
+  "notes": zod.string().nullish(),
+  "purchaseCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Global most-recent price per canonical item across all users (admin only)
  */
 export const AdminGetGlobalPricesResponseItem = zod.object({
   "catalogItemId": zod.number(),
   "name": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "overallLatestPrice": zod.number(),
   "overallLatestStoreId": zod.number().nullish(),
   "overallLatestStoreName": zod.string(),
@@ -644,6 +711,7 @@ export const AdminListCatalogItemsResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -667,6 +735,7 @@ export const AdminListCatalogStoresResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -694,6 +763,7 @@ export const AdminMergeCatalogItemsResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -715,6 +785,7 @@ export const AdminMergeCatalogStoresResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -733,13 +804,15 @@ export const AdminUpdateCatalogItemParams = zod.object({
 
 export const AdminUpdateCatalogItemBody = zod.object({
   "canonicalName": zod.string().optional(),
-  "icon": zod.string().nullish()
+  "icon": zod.string().nullish(),
+  "category": zod.string().nullish()
 })
 
 export const AdminUpdateCatalogItemResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -764,6 +837,7 @@ export const AdminUpdateCatalogStoreResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -788,6 +862,7 @@ export const AdminSplitCatalogItemResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -812,6 +887,7 @@ export const AdminSplitCatalogStoreResponse = zod.object({
   "id": zod.number(),
   "canonicalName": zod.string(),
   "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),

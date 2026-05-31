@@ -1,1 +1,1 @@
-- [Global catalog mapping layer](catalog-mapping-layer.md) — admin cross-user price catalog is a mapping layer over private rows; never mutates user data. normalizeName must match SQL lower(btrim).
+- [Shopping-list membership logic](shopping-list-membership.md) — membership/dismissal rule is duplicated across two routes; they must stay in sync or browse and the list diverge.

@@ -10,6 +10,8 @@ interface Props {
   onPress?: () => void;
   onRanOut?: () => void;
   ranOutLoading?: boolean;
+  onDismiss?: () => void;
+  dismissLoading?: boolean;
 }
 
 export function ShoppingListItemRow({
@@ -18,10 +20,18 @@ export function ShoppingListItemRow({
   onPress,
   onRanOut,
   ranOutLoading,
+  onDismiss,
+  dismissLoading,
 }: Props) {
   const colors = useColors();
 
-  const savingsVsAvg = item.averagePrice - item.lowestPrice;
+  const recommendedPrice = item.recommendedPrice ?? null;
+  const recommendedStoreName = item.recommendedStoreName ?? null;
+  const fromGlobal = item.priceSource === "global";
+  const savingsVsAvg =
+    item.averagePrice != null && item.lowestPrice != null
+      ? item.averagePrice - item.lowestPrice
+      : 0;
   const days = item.daysSinceLastPurchase;
   const hasRanOut = item.ranOutAt != null;
 
@@ -56,17 +66,25 @@ export function ShoppingListItemRow({
           ) : null}
 
           <View style={styles.metaRow}>
-            {showBestStore && (
+            {showBestStore && recommendedStoreName && (
               <View style={styles.storeRow}>
                 <Feather name="map-pin" size={11} color={colors.mutedForeground} />
                 <Text style={[styles.storeText, { color: colors.mutedForeground }]}>
-                  {item.lowestPriceStoreName}
+                  {recommendedStoreName}
                 </Text>
                 {savingsVsAvg > 0.01 && (
                   <Text style={[styles.savings, { color: colors.priceGood }]}>
                     saves ${savingsVsAvg.toFixed(2)}
                   </Text>
                 )}
+              </View>
+            )}
+            {fromGlobal && (
+              <View style={styles.storeRow}>
+                <Feather name="globe" size={11} color={colors.mutedForeground} />
+                <Text style={[styles.storeText, { color: colors.mutedForeground }]}>
+                  from catalog
+                </Text>
               </View>
             )}
             {daysLabel && (
@@ -81,12 +99,20 @@ export function ShoppingListItemRow({
         </View>
 
         <View style={styles.priceCol}>
-          <Text style={[styles.lowestPrice, { color: colors.primary }]}>
-            ${item.lowestPrice.toFixed(2)}
-          </Text>
-          <Text style={[styles.avgPrice, { color: colors.mutedForeground }]}>
-            avg ${item.averagePrice.toFixed(2)}
-          </Text>
+          {recommendedPrice != null ? (
+            <Text style={[styles.lowestPrice, { color: colors.primary }]}>
+              ${recommendedPrice.toFixed(2)}
+            </Text>
+          ) : (
+            <Text style={[styles.avgPrice, { color: colors.mutedForeground }]}>
+              no price yet
+            </Text>
+          )}
+          {item.averagePrice != null && (
+            <Text style={[styles.avgPrice, { color: colors.mutedForeground }]}>
+              avg ${item.averagePrice.toFixed(2)}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
 
@@ -122,6 +148,26 @@ export function ShoppingListItemRow({
           </>
         )}
       </TouchableOpacity>
+
+      {/* Dismiss (remove from list) button */}
+      {onDismiss && (
+        <TouchableOpacity
+          style={[
+            styles.dismissBtn,
+            { backgroundColor: colors.secondary, borderColor: colors.border },
+          ]}
+          onPress={onDismiss}
+          activeOpacity={0.7}
+          disabled={dismissLoading}
+          accessibilityLabel="Remove from list"
+        >
+          {dismissLoading ? (
+            <Feather name="loader" size={13} color={colors.mutedForeground} />
+          ) : (
+            <Feather name="trash-2" size={13} color={colors.mutedForeground} />
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -221,6 +267,16 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     textAlign: "center",
     lineHeight: 12,
+  },
+  dismissBtn: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+    minWidth: 36,
   },
   priceGood: {},
 });

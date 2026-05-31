@@ -22,6 +22,8 @@ import type {
 import type {
   AdminUser,
   AdminUserReceipts,
+  CatalogAddToListInput,
+  CatalogBrowse,
   CatalogEntry,
   CatalogEntryList,
   CatalogGlobalItem,
@@ -31,6 +33,7 @@ import type {
   CatalogStoreUpdate,
   CurrentUser,
   DaySpend,
+  DismissResponse,
   HealthStatus,
   Item,
   ItemHistoryReport,
@@ -730,6 +733,76 @@ export const useMarkRanOut = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getMarkRanOutMutationOptions(options));
+    }
+
+export const getDismissItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/items/${id}/dismiss`
+}
+
+/**
+ * @summary Dismiss an item from the shopping list until it is purchased or runs out again
+ */
+export const dismissItem = async (id: number, options?: RequestInit): Promise<DismissResponse> => {
+
+  return customFetch<DismissResponse>(getDismissItemUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDismissItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissItem>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissItem>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['dismissItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissItem>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  dismissItem(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissItemMutationResult = NonNullable<Awaited<ReturnType<typeof dismissItem>>>
+
+    export type DismissItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Dismiss an item from the shopping list until it is purchased or runs out again
+ */
+export const useDismissItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissItem>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissItem>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDismissItemMutationOptions(options));
     }
 
 export const getGetItemUrl = (id: number,) => {
@@ -2655,6 +2728,154 @@ export function useAdminGetUserReceipts<TData = Awaited<ReturnType<typeof adminG
 
 
 
+
+export const getBrowseCatalogUrl = () => {
+
+
+
+
+  return `/api/catalog/browse`
+}
+
+/**
+ * @summary Browse the global price catalog grouped by category (all users)
+ */
+export const browseCatalog = async ( options?: RequestInit): Promise<CatalogBrowse> => {
+
+  return customFetch<CatalogBrowse>(getBrowseCatalogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getBrowseCatalogQueryKey = () => {
+    return [
+    `/api/catalog/browse`
+    ] as const;
+    }
+
+
+export const getBrowseCatalogQueryOptions = <TData = Awaited<ReturnType<typeof browseCatalog>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof browseCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBrowseCatalogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof browseCatalog>>> = ({ signal }) => browseCatalog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof browseCatalog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type BrowseCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof browseCatalog>>>
+export type BrowseCatalogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Browse the global price catalog grouped by category (all users)
+ */
+
+export function useBrowseCatalog<TData = Awaited<ReturnType<typeof browseCatalog>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof browseCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getBrowseCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAddCatalogItemToListUrl = () => {
+
+
+
+
+  return `/api/catalog/add-to-list`
+}
+
+/**
+ * @summary Add a catalog item to the current user's shopping list
+ */
+export const addCatalogItemToList = async (catalogAddToListInput: CatalogAddToListInput, options?: RequestInit): Promise<Item> => {
+
+  return customFetch<Item>(getAddCatalogItemToListUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogAddToListInput,)
+  }
+);}
+
+
+
+
+export const getAddCatalogItemToListMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCatalogItemToList>>, TError,{data: BodyType<CatalogAddToListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addCatalogItemToList>>, TError,{data: BodyType<CatalogAddToListInput>}, TContext> => {
+
+const mutationKey = ['addCatalogItemToList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addCatalogItemToList>>, {data: BodyType<CatalogAddToListInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  addCatalogItemToList(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddCatalogItemToListMutationResult = NonNullable<Awaited<ReturnType<typeof addCatalogItemToList>>>
+    export type AddCatalogItemToListMutationBody = BodyType<CatalogAddToListInput>
+    export type AddCatalogItemToListMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a catalog item to the current user's shopping list
+ */
+export const useAddCatalogItemToList = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCatalogItemToList>>, TError,{data: BodyType<CatalogAddToListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addCatalogItemToList>>,
+        TError,
+        {data: BodyType<CatalogAddToListInput>},
+        TContext
+      > => {
+      return useMutation(getAddCatalogItemToListMutationOptions(options));
+    }
 
 export const getAdminGetGlobalPricesUrl = () => {
 

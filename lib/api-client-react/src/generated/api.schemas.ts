@@ -17,6 +17,8 @@ export interface CatalogGlobalItem {
   name: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
   overallLatestPrice: number;
   /** @nullable */
   overallLatestStoreId?: number | null;
@@ -36,6 +38,8 @@ export interface CatalogEntry {
   canonicalName: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
   members: CatalogMember[];
   totalCount: number;
 }
@@ -60,6 +64,8 @@ export interface CatalogItemUpdate {
   canonicalName?: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
 }
 
 export interface CatalogStoreUpdate {
@@ -333,6 +339,38 @@ export interface RanOutResponse {
   daysSinceLastPurchase?: number | null;
 }
 
+export interface DismissResponse {
+  dismissedAt: string;
+}
+
+export interface CatalogBrowseItem {
+  catalogItemId: number;
+  name: string;
+  /** @nullable */
+  icon?: string | null;
+  /** @nullable */
+  category: string | null;
+  /** @nullable */
+  bestPrice?: number | null;
+  /** @nullable */
+  bestStoreName?: string | null;
+  inList?: boolean;
+  stores: CatalogGlobalStorePrice[];
+}
+
+export interface CatalogBrowseCategory {
+  category: string;
+  items: CatalogBrowseItem[];
+}
+
+export interface CatalogBrowse {
+  categories: CatalogBrowseCategory[];
+}
+
+export interface CatalogAddToListInput {
+  catalogItemId: number;
+}
+
 export interface WeeklySpend {
   weekStart: string;
   weekEnd: string;
@@ -390,17 +428,40 @@ export interface StoreSummary {
   deliveryCostBenefitNote?: string | null;
 }
 
+/**
+ * @nullable
+ */
+export type ShoppingListItemPriceSource = typeof ShoppingListItemPriceSource[keyof typeof ShoppingListItemPriceSource] | null;
+
+
+export const ShoppingListItemPriceSource = {
+  history: 'history',
+  global: 'global',
+} as const;
+
 export interface ShoppingListItem {
   itemId: number;
   itemName: string;
   /** @nullable */
   icon?: string | null;
   /** @nullable */
+  category?: string | null;
+  /** @nullable */
   notes?: string | null;
   purchaseCount: number;
-  averagePrice: number;
-  lowestPrice: number;
-  lowestPriceStoreName: string;
+  /** @nullable */
+  averagePrice?: number | null;
+  /** @nullable */
+  lowestPrice?: number | null;
+  /** @nullable */
+  lowestPriceStoreName?: string | null;
+  /** @nullable */
+  recommendedPrice?: number | null;
+  /** @nullable */
+  recommendedStoreName?: string | null;
+  /** @nullable */
+  priceSource?: ShoppingListItemPriceSource;
+  addedToList?: boolean;
   isRecurring: boolean;
   /** @nullable */
   daysSinceLastPurchase?: number | null;
@@ -419,6 +480,8 @@ export interface ParsedReceiptLineItem {
   name: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
   price: number;
   quantity: number;
   nameUncertain?: boolean;

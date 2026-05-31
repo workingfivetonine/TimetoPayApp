@@ -42,6 +42,7 @@ function RootLayoutNav() {
       <Stack.Screen name="review-receipt" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="store/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="catalog" options={{ headerShown: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="admin/[userId]" options={{ headerShown: false }} />

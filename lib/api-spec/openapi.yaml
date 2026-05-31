@@ -187,6 +187,27 @@ paths:
         "404":
           description: Item not found
 
+  /items/{id}/dismiss:
+    post:
+      operationId: dismissItem
+      tags: [items]
+      summary: Dismiss an item from the shopping list until it is purchased or runs out again
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dismissal recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DismissResponse"
+        "404":
+          description: Item not found
+
   /items/{id}:
     get:
       operationId: getItem
@@ -651,6 +672,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminUserReceipts"
 
+  /catalog/browse:
+    get:
+      operationId: browseCatalog
+      tags: [catalog]
+      summary: Browse the global price catalog grouped by category (all users)
+      responses:
+        "200":
+          description: Catalog items grouped by category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogBrowse"
+
+  /catalog/add-to-list:
+    post:
+      operationId: addCatalogItemToList
+      tags: [catalog]
+      summary: Add a catalog item to the current user's shopping list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogAddToListInput"
+      responses:
+        "200":
+          description: Item added to the shopping list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "404":
+          description: Catalog item not found
+
   /admin/catalog/global:
     get:
       operationId: adminGetGlobalPrices
@@ -860,6 +915,8 @@ components:
           type: string
         icon:
           type: ["string", "null"]
+        category:
+          type: ["string", "null"]
         overallLatestPrice:
           type: number
         overallLatestStoreId:
@@ -893,6 +950,8 @@ components:
         canonicalName:
           type: string
         icon:
+          type: ["string", "null"]
+        category:
           type: ["string", "null"]
         members:
           type: array
@@ -944,6 +1003,8 @@ components:
         canonicalName:
           type: string
         icon:
+          type: ["string", "null"]
+        category:
           type: ["string", "null"]
 
     CatalogStoreUpdate:
@@ -1368,6 +1429,63 @@ components:
         daysSinceLastPurchase:
           type: ["integer", "null"]
 
+    DismissResponse:
+      type: object
+      required: [dismissedAt]
+      properties:
+        dismissedAt:
+          type: string
+
+    CatalogBrowseItem:
+      type: object
+      required: [catalogItemId, name, category, stores]
+      properties:
+        catalogItemId:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        bestPrice:
+          type: ["number", "null"]
+        bestStoreName:
+          type: ["string", "null"]
+        inList:
+          type: boolean
+        stores:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogGlobalStorePrice"
+
+    CatalogBrowseCategory:
+      type: object
+      required: [category, items]
+      properties:
+        category:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogBrowseItem"
+
+    CatalogBrowse:
+      type: object
+      required: [categories]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogBrowseCategory"
+
+    CatalogAddToListInput:
+      type: object
+      required: [catalogItemId]
+      properties:
+        catalogItemId:
+          type: integer
+
     WeeklySpend:
       type: object
       required: [weekStart, weekEnd, total, isHigh, isLow]
@@ -1469,7 +1587,7 @@ components:
 
     ShoppingListItem:
       type: object
-      required: [itemId, itemName, purchaseCount, averagePrice, lowestPrice, lowestPriceStoreName, isRecurring]
+      required: [itemId, itemName, purchaseCount, isRecurring]
       properties:
         itemId:
           type: integer
@@ -1477,16 +1595,27 @@ components:
           type: string
         icon:
           type: ["string", "null"]
+        category:
+          type: ["string", "null"]
         notes:
           type: ["string", "null"]
         purchaseCount:
           type: integer
         averagePrice:
-          type: number
+          type: ["number", "null"]
         lowestPrice:
-          type: number
+          type: ["number", "null"]
         lowestPriceStoreName:
-          type: string
+          type: ["string", "null"]
+        recommendedPrice:
+          type: ["number", "null"]
+        recommendedStoreName:
+          type: ["string", "null"]
+        priceSource:
+          type: ["string", "null"]
+          enum: ["history", "global", null]
+        addedToList:
+          type: boolean
         isRecurring:
           type: boolean
         daysSinceLastPurchase:
@@ -1516,6 +1645,8 @@ components:
         name:
           type: string
         icon:
+          type: ["string", "null"]
+        category:
           type: ["string", "null"]
         price:
           type: number

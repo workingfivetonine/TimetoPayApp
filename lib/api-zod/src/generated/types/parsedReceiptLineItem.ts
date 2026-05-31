@@ -10,6 +10,8 @@ export interface ParsedReceiptLineItem {
   name: string;
   /** @nullable */
   icon?: string | null;
+  /** @nullable */
+  category?: string | null;
   price: number;
   quantity: number;
   nameUncertain?: boolean;

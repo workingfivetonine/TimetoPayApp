@@ -5,6 +5,7 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { ShoppingListItemPriceSource } from './shoppingListItemPriceSource';
 
 export interface ShoppingListItem {
   itemId: number;
@@ -12,11 +13,23 @@ export interface ShoppingListItem {
   /** @nullable */
   icon?: string | null;
   /** @nullable */
+  category?: string | null;
+  /** @nullable */
   notes?: string | null;
   purchaseCount: number;
-  averagePrice: number;
-  lowestPrice: number;
-  lowestPriceStoreName: string;
+  /** @nullable */
+  averagePrice?: number | null;
+  /** @nullable */
+  lowestPrice?: number | null;
+  /** @nullable */
+  lowestPriceStoreName?: string | null;
+  /** @nullable */
+  recommendedPrice?: number | null;
+  /** @nullable */
+  recommendedStoreName?: string | null;
+  /** @nullable */
+  priceSource?: ShoppingListItemPriceSource;
+  addedToList?: boolean;
   isRecurring: boolean;
   /** @nullable */
   daysSinceLastPurchase?: number | null;

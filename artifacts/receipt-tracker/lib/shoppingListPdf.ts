@@ -27,10 +27,10 @@ function groupByStore(
   };
 
   for (const item of recurring) {
-    ensure(item.lowestPriceStoreName || UNKNOWN_STORE).regulars.push(item);
+    ensure(item.recommendedStoreName || UNKNOWN_STORE).regulars.push(item);
   }
   for (const item of oneOff) {
-    ensure(item.lowestPriceStoreName || UNKNOWN_STORE).oneOffs.push(item);
+    ensure(item.recommendedStoreName || UNKNOWN_STORE).oneOffs.push(item);
   }
 
   const groups = Array.from(map.values());
@@ -66,21 +66,29 @@ function renderItem(item: ShoppingListItem): string {
   const icon = escapeHtml(item.icon || "🛒");
   const name = escapeHtml(item.itemName);
   const notes = item.notes ? `<span class="item-notes">${escapeHtml(item.notes)}</span>` : "";
-  const lowest = formatPrice(item.lowestPrice);
-  const avg = formatPrice(item.averagePrice);
   const ranOutTag = ranOut ? `<span class="ranout-tag">ran out</span>` : "";
+  const catalogTag =
+    item.priceSource === "global" ? `<span class="catalog-tag">catalog</span>` : "";
   const nameClass = ranOut ? "item-name ranout" : "item-name";
+  const priceHtml =
+    item.recommendedPrice != null
+      ? `<span class="item-price">${formatPrice(item.recommendedPrice)}</span>`
+      : `<span class="item-avg">no price yet</span>`;
+  const avgHtml =
+    item.averagePrice != null
+      ? `<span class="item-avg">avg ${formatPrice(item.averagePrice)}</span>`
+      : "";
   return `
     <li class="item">
       <span class="checkbox"></span>
       <span class="item-icon">${icon}</span>
       <span class="item-main">
-        <span class="${nameClass}">${name}${ranOutTag}</span>
+        <span class="${nameClass}">${name}${ranOutTag}${catalogTag}</span>
         ${notes}
       </span>
       <span class="item-pricing">
-        <span class="item-price">${lowest}</span>
-        <span class="item-avg">avg ${avg}</span>
+        ${priceHtml}
+        ${avgHtml}
       </span>
     </li>`;
 }
@@ -244,6 +252,20 @@ export function buildShoppingListHtml(
     letter-spacing: 0.4px;
     color: #dc2626;
     background: #fef2f2;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .catalog-tag {
+    display: inline-block;
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #0f766e;
+    background: #ccfbf1;
     border-radius: 4px;
     padding: 1px 6px;
     margin-left: 8px;

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { lineItemsTable, receiptsTable, storesTable, itemsTable } from "@workspace/db";
 
@@ -32,30 +32,72 @@ router.get("/", async (req, res): Promise<void> => {
       .innerJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
       .where(and(eq(lineItemsTable.itemId, item.id), eq(receiptsTable.userId, userId)));
 
-    if (!rows.length) continue;
+    const addedToListAt = item.addedToListAt ?? null;
 
-    const prices = rows.map((r) => Number(r.price));
-    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-    const lowestPrice = Math.min(...prices);
-    const lowestRow = rows[prices.indexOf(lowestPrice)];
+    // Items with no purchase history only appear if they were explicitly added
+    // to the list (e.g. from the global catalog).
+    if (!rows.length && !addedToListAt) continue;
 
-    const lastPurchasedAt = rows.reduce<Date>(
-      (max, r) => (r.purchasedAt > max ? r.purchasedAt : max),
-      rows[0].purchasedAt
-    );
+    let averagePrice: number | null = null;
+    let lowestPrice: number | null = null;
+    let lowestPriceStoreName: string | null = null;
+    let lastPurchasedAt: Date | null = null;
+
+    if (rows.length) {
+      const prices = rows.map((r) => Number(r.price));
+      averagePrice = Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100;
+      lowestPrice = Math.min(...prices);
+      lowestPriceStoreName = rows[prices.indexOf(lowestPrice)].storeName;
+      lastPurchasedAt = rows.reduce<Date>(
+        (max, r) => (r.purchasedAt > max ? r.purchasedAt : max),
+        rows[0].purchasedAt
+      );
+    }
+
+    // Dismissal: hide the item if it was dismissed AFTER the most recent
+    // purchase / ran-out / add-to-list event. A newer event makes it reappear.
+    if (item.dismissedAt) {
+      const events: number[] = [];
+      if (lastPurchasedAt) events.push(lastPurchasedAt.getTime());
+      if (item.ranOutAt) events.push(item.ranOutAt.getTime());
+      if (addedToListAt) events.push(addedToListAt.getTime());
+      const latestEvent = events.length ? Math.max(...events) : 0;
+      if (item.dismissedAt.getTime() >= latestEvent) continue;
+    }
+
+    // Recommended store/price: prefer the user's own lowest-price history; for
+    // items added from the global catalog with no history, fall back to the
+    // snapshot taken at add time.
+    let recommendedPrice: number | null = null;
+    let recommendedStoreName: string | null = null;
+    let priceSource: "history" | "global" | null = null;
+    if (lowestPrice != null) {
+      recommendedPrice = lowestPrice;
+      recommendedStoreName = lowestPriceStoreName;
+      priceSource = "history";
+    } else if (item.globalPrice != null) {
+      recommendedPrice = Number(item.globalPrice);
+      recommendedStoreName = item.globalStoreName ?? null;
+      priceSource = "global";
+    }
 
     result.push({
       itemId: item.id,
       itemName: item.name,
       icon: item.icon ?? null,
+      category: item.category ?? null,
       notes: item.notes ?? null,
       purchaseCount: item.purchaseCount,
-      averagePrice: Math.round(avgPrice * 100) / 100,
+      averagePrice,
       lowestPrice,
-      lowestPriceStoreName: lowestRow.storeName,
+      lowestPriceStoreName,
+      recommendedPrice,
+      recommendedStoreName,
+      priceSource,
+      addedToList: addedToListAt != null,
       isRecurring: item.purchaseCount >= 2,
-      lastPurchasedAt: lastPurchasedAt.toISOString(),
-      daysSinceLastPurchase: daysSince(lastPurchasedAt),
+      lastPurchasedAt: lastPurchasedAt ? lastPurchasedAt.toISOString() : null,
+      daysSinceLastPurchase: lastPurchasedAt ? daysSince(lastPurchasedAt) : null,
       ranOutAt: item.ranOutAt ? item.ranOutAt.toISOString() : null,
     });
   }

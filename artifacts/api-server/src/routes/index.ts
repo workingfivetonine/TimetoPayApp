@@ -6,6 +6,7 @@ import receiptsRouter from "./receipts";
 import lineItemsRouter from "./lineItems";
 import analyticsRouter from "./analytics";
 import shoppingListRouter from "./shoppingList";
+import catalogRouter from "./catalog";
 import adminRouter from "./admin";
 import adminCatalogRouter from "./adminCatalog";
 import meRouter from "./me";
@@ -25,6 +26,7 @@ router.use("/receipts", receiptsRouter);
 router.use("/line-items", lineItemsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/shopping-list", shoppingListRouter);
+router.use("/catalog", catalogRouter);
 router.use("/admin/catalog", adminCatalogRouter);
 router.use("/admin", adminRouter);
 
