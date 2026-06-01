@@ -21,8 +21,15 @@ export function Scene6_Outro() {
       exit={{ opacity: 0, filter: 'blur(10px)' }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
     >
+      <div
+        className="absolute inset-0 z-0"
+        style={{
+          background:
+            'radial-gradient(closest-side at 50% 50%, rgba(250,248,255,0.95), rgba(250,248,255,0.6) 55%, rgba(250,248,255,0) 75%)',
+        }}
+      />
       <motion.div
-        className="flex flex-col items-center text-center"
+        className="relative z-10 flex flex-col items-center text-center"
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
@@ -45,7 +52,7 @@ export function Scene6_Outro() {
         </h1>
 
         <motion.p
-          className="text-[2.2vw] font-semibold text-gray-500 mt-4"
+          className="text-[2.2vw] font-semibold text-[var(--color-text-secondary)] mt-4"
           initial={{ opacity: 0, y: 20 }}
           animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.5 }}
@@ -65,7 +72,7 @@ export function Scene6_Outro() {
         </motion.div>
 
         <motion.p
-          className="text-[1.4vw] text-gray-400 mt-6"
+          className="text-[1.6vw] font-medium text-[var(--color-text-secondary)] mt-6"
           initial={{ opacity: 0 }}
           animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: 0.5 }}
