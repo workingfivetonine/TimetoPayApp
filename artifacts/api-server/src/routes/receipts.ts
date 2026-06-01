@@ -17,7 +17,7 @@ import {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
-import { aiAbuseGuard } from "../middlewares/aiRateLimit.js";
+import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (
@@ -48,6 +48,7 @@ const imageGuard = aiAbuseGuard({
   maxConcurrentGlobal: 8,
   bodyField: "imageBase64",
   maxBodyChars: MAX_IMAGE_B64_CHARS,
+  payloadType: "image",
 });
 const pdfGuard = aiAbuseGuard({
   windowMs: 60_000,
@@ -57,6 +58,7 @@ const pdfGuard = aiAbuseGuard({
   maxConcurrentGlobal: 4,
   bodyField: "pdfBase64",
   maxBodyChars: MAX_PDF_B64_CHARS,
+  payloadType: "pdf",
 });
 
 function receiptPrompt(): string {
@@ -319,6 +321,7 @@ router.post("/detect-bounds", imageGuard, async (req, res): Promise<void> => {
   }
 
   try {
+    if (!chargeGlobalAiBudget(res)) return;
     const response = await openai.chat.completions.create({
       model: "gpt-5.2",
       max_completion_tokens: 256,
@@ -379,6 +382,7 @@ router.post("/parse", imageGuard, async (req, res): Promise<void> => {
   }
 
   try {
+    if (!chargeGlobalAiBudget(res)) return;
     const response = await openai.chat.completions.create({
       model: "gpt-5.2",
       max_completion_tokens: 4096,
@@ -538,6 +542,7 @@ router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
   }
 
   try {
+    if (!chargeGlobalAiBudget(res)) return;
     const response = await openai.chat.completions.create({
       model: "gpt-5.2",
       max_completion_tokens: 4096,
@@ -632,7 +637,9 @@ router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
     const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null.`;
 
     if (extractedText.length >= 50) {
-      // Text-based PDF: send extracted text to language model
+      // Text-based PDF: structural parsing succeeded — charge global budget
+      // immediately before the model call.
+      if (!chargeGlobalAiBudget(res)) return;
       const response = await openai.chat.completions.create({
         model: "gpt-5.2",
         max_completion_tokens: 2048,
@@ -675,6 +682,10 @@ router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
         res.status(422).json({ error: "Could not render PDF pages — the file may be corrupted." });
         return;
       }
+
+      // Image-based PDF: pdftoppm succeeded (structural + render validation
+      // both passed) — charge global budget immediately before the vision call.
+      if (!chargeGlobalAiBudget(res)) return;
 
       const imageContents = await Promise.all(
         pageFiles.map(async (f) => {
