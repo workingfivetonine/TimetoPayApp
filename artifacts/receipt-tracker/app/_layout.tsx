@@ -81,8 +81,6 @@ function InitialLayout() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    // TEMP_SCREENSHOT_BYPASS: skip auth redirect so signed-out preview renders app
-    if (true) return; // eslint-disable-line no-constant-condition
     const inAuthGroup = segments[0] === "(auth)";
     const onLanding = segments[0] === "landing";
     if (!isSignedIn && !inAuthGroup && !onLanding) {

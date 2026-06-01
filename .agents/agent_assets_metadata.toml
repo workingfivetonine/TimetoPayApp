@@ -17,3 +17,33 @@ id = "yH4U_qaQ4f9MtvnaEAdnx"
 uri = "file://docs/guide/Receipt-Tracker-Guide.md"
 type = "text"
 title = "Receipt Tracker — How-To Guide (Markdown)"
+
+[[outputs]]
+id = "byFgEa-Yjm9yncdnt81Hm"
+uri = "file://screenshots/appstore/01-receipts.png"
+type = "image"
+title = "1 — Receipts (Snap a receipt)"
+
+[[outputs]]
+id = "dlo1xYgZtBX6oWQmxLfAV"
+uri = "file://screenshots/appstore/02-stores.png"
+type = "image"
+title = "2 — Stores (Compare true cost)"
+
+[[outputs]]
+id = "gZp10Xydg5Fo7HTi3Nzqt"
+uri = "file://screenshots/appstore/03-shopping.png"
+type = "image"
+title = "3 — Shopping List (Lowest price)"
+
+[[outputs]]
+id = "MWPnEH693ZFp8_Dw84N0Q"
+uri = "file://screenshots/appstore/04-analytics.png"
+type = "image"
+title = "4 — Analytics (Where money goes)"
+
+[[outputs]]
+id = "Ri_Ixhh11iBwrHl5be6BT"
+uri = "file://screenshots/appstore/05-catalog.png"
+type = "image"
+title = "5 — Catalog (Real prices)"

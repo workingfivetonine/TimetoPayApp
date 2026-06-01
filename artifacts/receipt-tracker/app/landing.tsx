@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   Image,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,17 @@ import {
 import { useColors } from "@/hooks/useColors";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
+
+// Privacy / Support are standalone server-rendered pages (see server/serve.js),
+// not in-app routes — open them as full web pages.
+function openLegalPage(page: "privacy" | "support") {
+  if (Platform.OS === "web") {
+    window.location.href = `/${page}`;
+  } else {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.9to5shopping.com";
+    void Linking.openURL(`https://${domain}/${page}`);
+  }
+}
 
 const FEATURES: { icon: FeatherName; title: string; body: string }[] = [
   {
@@ -168,9 +180,26 @@ export default function LandingPage() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>
-          © {new Date().getFullYear()} Receipt Tracker
-        </Text>
+        <View style={styles.footerWrap}>
+          <View style={styles.footerLinks}>
+            <TouchableOpacity
+              onPress={() => openLegalPage("privacy")}
+              accessibilityRole="link"
+            >
+              <Text style={styles.footerLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.footerDot}>·</Text>
+            <TouchableOpacity
+              onPress={() => openLegalPage("support")}
+              accessibilityRole="link"
+            >
+              <Text style={styles.footerLink}>Support</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.footer}>
+            © {new Date().getFullYear()} Receipt Tracker
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -387,6 +416,25 @@ function makeStyles(colors: ReturnType<typeof useColors>, isWide: boolean) {
       textAlign: "center",
       maxWidth: 480,
       marginBottom: 22,
+    },
+    footerWrap: {
+      alignItems: "center",
+      gap: 10,
+    },
+    footerLinks: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    footerLink: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 13,
+      color: colors.primary,
+    },
+    footerDot: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 13,
+      color: colors.mutedForeground,
     },
     footer: {
       fontFamily: "Inter_400Regular",
