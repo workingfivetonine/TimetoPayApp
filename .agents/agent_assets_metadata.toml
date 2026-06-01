@@ -95,3 +95,9 @@ id = "KvRPHv_zJ37_VixDqcucE"
 uri = "file://exports/receipt-tracker-cover.jpg"
 type = "image"
 title = "Receipt Tracker — Ko-Fi Cover Image (1920×1080)"
+
+[[outputs]]
+id = "borcPjripO6AyloiUntNK"
+uri = "file://docs/brand-kit/Receipt-Tracker-Brand-Kit.md"
+type = "text"
+title = "TimetoPay Brand Kit (for Canva)"
