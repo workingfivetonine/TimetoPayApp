@@ -36,6 +36,7 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="landing" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: "fullScreenModal" }} />
@@ -81,9 +82,10 @@ function InitialLayout() {
   useEffect(() => {
     if (!isLoaded) return;
     const inAuthGroup = segments[0] === "(auth)";
-    if (!isSignedIn && !inAuthGroup) {
-      router.replace("/(auth)/sign-in");
-    } else if (isSignedIn && inAuthGroup) {
+    const onLanding = segments[0] === "landing";
+    if (!isSignedIn && !inAuthGroup && !onLanding) {
+      router.replace("/landing");
+    } else if (isSignedIn && (inAuthGroup || onLanding)) {
       router.replace("/");
     }
   }, [isLoaded, isSignedIn, segments, router]);
