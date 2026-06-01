@@ -28,6 +28,7 @@ import {
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 
 interface LineItemRow {
   id: number;
@@ -125,7 +126,6 @@ export default function QuickAddScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
       const body = {
         storeName: trimStore,
         purchasedAt,
@@ -138,7 +138,7 @@ export default function QuickAddScreen() {
       };
 
       const token = await getToken();
-      const response = await expoFetch(`https://${domain}/api/receipts/manual-entry`, {
+      const response = await expoFetch(`${getApiOrigin()}/api/receipts/manual-entry`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

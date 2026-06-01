@@ -26,6 +26,7 @@ import {
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 
 interface LineItemRow {
   id: number;
@@ -136,8 +137,7 @@ export default function ManualEntryScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const url = `https://${domain}/api/receipts/manual-entry`;
+      const url = `${getApiOrigin()}/api/receipts/manual-entry`;
       const body = {
         storeName: trimmedStore,
         storeAddress: storeAddress.trim() || null,

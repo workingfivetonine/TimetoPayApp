@@ -26,6 +26,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
+import { getApiOrigin } from "@/lib/apiBase";
 
 interface PendingImage {
   uri: string;
@@ -53,8 +54,7 @@ export default function ScanScreen() {
   };
 
   const callApi = async (path: string, body: object) => {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN;
-    const url = `https://${domain}/api/receipts/${path}`;
+    const url = `${getApiOrigin()}/api/receipts/${path}`;
     const token = await getToken();
     const response = await expoFetch(url, {
       method: "POST",
@@ -91,8 +91,7 @@ export default function ScanScreen() {
     setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const url = `https://${domain}/api/receipts/parse`;
+      const url = `${getApiOrigin()}/api/receipts/parse`;
       const token = await getToken();
       const response = await expoFetch(url, {
         method: "POST",

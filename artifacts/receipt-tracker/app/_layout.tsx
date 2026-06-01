@@ -19,14 +19,18 @@ import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DataProvider } from "@/context/DataContext";
+import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
 
-// Set base URL for API calls — Expo bundles run outside the web proxy
-if (process.env.EXPO_PUBLIC_DOMAIN) {
-  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
-}
+// Set base URL for API calls. On production web this resolves to the live
+// serving origin so the app works on the custom domain AND the *.replit.app
+// domain (baked absolute URLs would be cross-origin on the other domain and
+// break Clerk's session — blank screen). Native/dev use the build-time domain.
+setBaseUrl(getApiOrigin());
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
-const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
+// Same-origin Clerk proxy on production web (works on any serving domain);
+// undefined in dev (Clerk hits the dev FAPI directly).
+const proxyUrl = getClerkProxyUrl();
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();

@@ -20,6 +20,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
@@ -107,8 +108,7 @@ export default function ReviewReceiptScreen() {
     setSaving(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const url = `https://${domain}/api/receipts/save-parsed`;
+      const url = `${getApiOrigin()}/api/receipts/save-parsed`;
       const token = await getToken();
       const response = await expoFetch(url, {
         method: "POST",

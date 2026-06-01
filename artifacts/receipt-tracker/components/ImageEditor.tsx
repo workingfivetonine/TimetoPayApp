@@ -20,6 +20,7 @@ import { useAuth } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 
 interface Props {
   uri: string;
@@ -273,10 +274,9 @@ export default function ImageEditor({
   const handleAutoFrame = async () => {
     setAutoFraming(true);
     try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
       const token = await getToken();
       const response = await expoFetch(
-        `https://${domain}/api/receipts/detect-bounds`,
+        `${getApiOrigin()}/api/receipts/detect-bounds`,
         {
           method: "POST",
           headers: {
