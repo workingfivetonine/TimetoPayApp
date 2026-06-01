@@ -33,7 +33,30 @@ const MIME_TYPES = {
   ".ttf": "font/ttf",
   ".otf": "font/otf",
   ".map": "application/json",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
 };
+
+function getBaseUrl(req) {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = forwardedProto || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  return `${protocol}://${host}`;
+}
+
+function serveRobots(req, res) {
+  const baseUrl = getBaseUrl(req);
+  const body = `User-agent: *\nAllow: /\n\nSitemap: ${baseUrl}/sitemap.xml\n`;
+  res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+  res.end(body);
+}
+
+function serveSitemap(req, res) {
+  const baseUrl = getBaseUrl(req);
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${baseUrl}/</loc>\n    <changefreq>weekly</changefreq>\n  </url>\n</urlset>\n`;
+  res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
+  res.end(body);
+}
 
 function getAppName() {
   try {
@@ -113,6 +136,14 @@ const server = http.createServer((req, res) => {
 
   if (basePath && pathname.startsWith(basePath)) {
     pathname = pathname.slice(basePath.length) || "/";
+  }
+
+  if (pathname === "/robots.txt") {
+    return serveRobots(req, res);
+  }
+
+  if (pathname === "/sitemap.xml") {
+    return serveSitemap(req, res);
   }
 
   if (pathname === "/" || pathname === "/manifest") {

@@ -2,3 +2,4 @@
 - [Single @types/react across workspace](types-react-dedup.md) — pnpm override pins one @types/react; two versions cause "VoidOrUndefinedOnly"/ref typecheck errors via hoisting.
 - [RN Web destructive confirmations](rn-web-alert.md) — Alert.alert no-ops on React Native Web; use @/lib/confirm confirmDestructive for confirm-before-destroy flows.
 - [Single-admin invariant](admin-single-admin-invariant.md) — always exactly one master admin; transfers roll back if target vanishes; startup self-heals zero-admin state.
+- [Receipt Tracker deployment is mobile-only](deployment-web-vs-mobile.md) — published site serves an Expo Go QR launcher, not a web app; Replit also injects a Disallow robots.txt until the app serves its own (republish to apply).

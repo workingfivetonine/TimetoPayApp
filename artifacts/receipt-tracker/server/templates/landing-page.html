@@ -1,9 +1,28 @@
 <!doctype html>
 <html>
   <head>
-    <title>APP_NAME_PLACEHOLDER</title>
+    <title>APP_NAME_PLACEHOLDER — Scan receipts, track prices, smart shopping list</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="APP_NAME_PLACEHOLDER is a mobile app that scans your receipts with AI, tracks grocery prices over time, and builds a smart shopping list. Get it on iOS and Android with Expo Go."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="BASE_URL_PLACEHOLDER" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="APP_NAME_PLACEHOLDER" />
+    <meta
+      property="og:description"
+      content="Scan receipts with AI, track grocery prices over time, and build a smart shopping list."
+    />
+    <meta property="og:url" content="BASE_URL_PLACEHOLDER" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="APP_NAME_PLACEHOLDER" />
+    <meta
+      name="twitter:description"
+      content="Scan receipts with AI, track grocery prices over time, and build a smart shopping list."
+    />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='180' height='180' viewBox='0 0 180 180' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='180' height='180' rx='36' fill='%23FF3C00'/%3E%3C/svg%3E" />
     <style>
       * {
@@ -394,9 +413,9 @@
       </div>
     </div>
 
-    <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+    <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js" defer></script>
     <script>
-      (function () {
+      window.addEventListener("DOMContentLoaded", function () {
         const ua = navigator.userAgent;
         const loadingEl = document.getElementById("loading");
         const contentEl = document.getElementById("content");
@@ -454,7 +473,7 @@
             contentEl.style.display = "block";
           }, 500);
         }
-      })();
+      });
     </script>
   </body>
 </html>
