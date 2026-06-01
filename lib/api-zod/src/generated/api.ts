@@ -844,16 +844,10 @@ export const BrowseCatalogResponse = zod.object({
   "category": zod.string().nullable(),
   "bestPrice": zod.number().nullish(),
   "bestStoreName": zod.string().nullish(),
-  "bestDate": zod.string().nullish(),
+  "bestDate": zod.string().nullish().describe('Coarsened to year-month (YYYY-MM) precision to prevent exact-date inference from other users\' purchase timestamps. Never exposes the day or time component.\n'),
   "inList": zod.boolean().optional(),
   "inHistory": zod.boolean().optional(),
-  "userItemId": zod.number().nullish(),
-  "stores": zod.array(zod.object({
-  "catalogStoreId": zod.number(),
-  "storeName": zod.string(),
-  "latestPrice": zod.number(),
-  "latestDate": zod.string()
-}))
+  "userItemId": zod.number().nullish()
 }))
 }))
 })

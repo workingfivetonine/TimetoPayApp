@@ -38,9 +38,17 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 
 function formatSeen(iso: string | null | undefined): string | null {
   if (!iso) return null;
+  // bestDate is coarsened to YYYY-MM on the server (no day component).
+  // Parse it as a UTC year-month string to avoid local-timezone shifts.
+  const match = /^(\d{4})-(\d{2})$/.exec(iso);
+  if (match) {
+    const d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+  }
+  // Fallback for any full ISO string (e.g. from a cached response).
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 export default function CatalogBrowseScreen() {

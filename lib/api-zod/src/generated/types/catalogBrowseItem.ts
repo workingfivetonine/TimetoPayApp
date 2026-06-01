@@ -5,7 +5,6 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
-import type { CatalogGlobalStorePrice } from './catalogGlobalStorePrice';
 
 export interface CatalogBrowseItem {
   catalogItemId: number;
@@ -18,11 +17,14 @@ export interface CatalogBrowseItem {
   bestPrice?: number | null;
   /** @nullable */
   bestStoreName?: string | null;
-  /** @nullable */
+  /**
+     * Coarsened to year-month (YYYY-MM) precision to prevent exact-date inference from other users' purchase timestamps. Never exposes the day or time component.
+
+     * @nullable
+     */
   bestDate?: string | null;
   inList?: boolean;
   inHistory?: boolean;
   /** @nullable */
   userItemId?: number | null;
-  stores: CatalogGlobalStorePrice[];
 }

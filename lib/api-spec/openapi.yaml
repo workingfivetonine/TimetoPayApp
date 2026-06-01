@@ -1868,7 +1868,7 @@ components:
 
     CatalogBrowseItem:
       type: object
-      required: [catalogItemId, name, category, stores]
+      required: [catalogItemId, name, category]
       properties:
         catalogItemId:
           type: integer
@@ -1884,16 +1884,16 @@ components:
           type: ["string", "null"]
         bestDate:
           type: ["string", "null"]
+          description: >
+            Coarsened to year-month (YYYY-MM) precision to prevent exact-date
+            inference from other users' purchase timestamps. Never exposes the
+            day or time component.
         inList:
           type: boolean
         inHistory:
           type: boolean
         userItemId:
           type: ["integer", "null"]
-        stores:
-          type: array
-          items:
-            $ref: "#/components/schemas/CatalogGlobalStorePrice"
 
     CatalogBrowseCategory:
       type: object

@@ -137,6 +137,17 @@ router.get("/browse", async (req, res): Promise<void> => {
     const matchNorm = norms.find((n) => inListItemIdByNorm.has(n)) ?? null;
     const inList = matchNorm != null;
     const inHistory = norms.some((n) => historyNorms.has(n));
+    // Coarsen the date to year-month (YYYY-MM) to prevent exact-timestamp
+    // inference from other users' purchase history. The full ISO date is
+    // available in the admin view only.
+    const coarsenDate = (iso: string | null): string | null => {
+      if (!iso) return null;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return null;
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      return `${y}-${m}`;
+    };
     return {
       catalogItemId: g.catalogItemId,
       name: g.name,
@@ -144,11 +155,10 @@ router.get("/browse", async (req, res): Promise<void> => {
       category: g.category,
       bestPrice: best ? best.latestPrice : null,
       bestStoreName: best ? best.storeName : null,
-      bestDate: best ? best.latestDate : null,
+      bestDate: best ? coarsenDate(best.latestDate) : null,
       inList,
       inHistory,
       userItemId: matchNorm != null ? inListItemIdByNorm.get(matchNorm)! : null,
-      stores: g.stores,
     };
   });
 
