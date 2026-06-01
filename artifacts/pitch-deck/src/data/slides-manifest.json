@@ -1,0 +1,58 @@
+[
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e01",
+    "position": 1,
+    "filepath": "src/pages/slides/Cover.tsx",
+    "title": "Receipt Tracker",
+    "description": "Cover — product name, tagline, and scan screen",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e02",
+    "position": 2,
+    "filepath": "src/pages/slides/Problem.tsx",
+    "title": "The problem",
+    "description": "Overpaying, receipt clutter, and no price memory",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e03",
+    "position": 3,
+    "filepath": "src/pages/slides/Solution.tsx",
+    "title": "The solution",
+    "description": "AI receipt scanning — point, capture, done",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e04",
+    "position": 4,
+    "filepath": "src/pages/slides/PriceHistory.tsx",
+    "title": "Price history",
+    "description": "Spend analytics and per-item price tracking",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e05",
+    "position": 5,
+    "filepath": "src/pages/slides/ShoppingList.tsx",
+    "title": "Smart shopping list",
+    "description": "Auto-built list with lowest price and best store",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e06",
+    "position": 6,
+    "filepath": "src/pages/slides/Catalog.tsx",
+    "title": "Shared price catalog",
+    "description": "Community prices, privacy-preserving",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1f0c2a4-1d3e-4a6b-8c91-0a1b2c3d4e07",
+    "position": 7,
+    "filepath": "src/pages/slides/Support.tsx",
+    "title": "Support the build",
+    "description": "Closing CTA — support on Ko-fi, try it free",
+    "speakerNotes": ""
+  }
+]
