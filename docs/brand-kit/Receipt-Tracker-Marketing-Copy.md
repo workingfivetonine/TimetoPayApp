@@ -6,17 +6,24 @@ A single home for all the blurbs, taglines, and marketing copy — both what's c
 
 ## ⭐ Logo tagline (short — for the lockup under "TimetoPay")
 
-Use one short line directly beneath the logo. Recommended:
+Use one short line directly beneath the logo. Recommended (the "worth keeping the receipt" angle):
 
-> **Scan smarter. Spend less.**
+> **Finally, a reason to keep the receipt.**
 
-Other short options that fit a logo lockup (keep it to ~2–4 words / one short line):
-- Every receipt, smarter.
-- Know what you pay.
+Other short options in the same vein (playful — paper receipts are worth it now):
+- Say yes to paper receipts.
+- The reason you save receipts.
+- It's worth the paper receipt.
+- Don't toss that receipt.
+- Every receipt is worth keeping.
+- Now your receipts pay you back.
+- Keep the receipt. Keep the savings.
+- Paper receipts, finally worth it.
+- Save the receipt, save the money.
+
+If you'd rather a benefit-first line instead of the receipt angle:
+- Scan smarter. Spend less.
 - Receipts → real savings.
-- Your grocery price memory.
-- Shop smart. Save more.
-- The price-aware shopping app.
 - Snap. Track. Save.
 
 ---
