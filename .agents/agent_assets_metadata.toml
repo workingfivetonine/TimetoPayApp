@@ -162,3 +162,9 @@ id = "pxZpjq2y5iFMr_cW5TflX"
 uri = "file://.local/outputs/TimetoPay-Assets.zip"
 type = "unspecified"
 title = "TimetoPay-Assets.zip — all images, videos, graphics & guides"
+
+[[outputs]]
+id = "J7h8g9aAKOOYEOKI7NASL"
+uri = "file://docs/brand-kit/Receipt-Tracker-Marketing-Copy.pdf"
+type = "pdf"
+title = "TimetoPay — Marketing Copy & Feature List (PDF)"
