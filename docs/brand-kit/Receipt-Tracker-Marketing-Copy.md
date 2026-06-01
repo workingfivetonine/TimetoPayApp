@@ -10,6 +10,14 @@ Use one short line directly beneath the logo. Recommended (the "worth keeping th
 
 > **Finally, a reason to keep the receipt.**
 
+Ultra-short (1–3 words, best for a tight logo lockup):
+- Keep the receipt.
+- Worth the receipt.
+- Save the receipt.
+- Receipts worth keeping.
+- Yes to receipts.
+- Receipts pay off.
+
 Other short options in the same vein (playful — paper receipts are worth it now):
 - Say yes to paper receipts.
 - The reason you save receipts.
