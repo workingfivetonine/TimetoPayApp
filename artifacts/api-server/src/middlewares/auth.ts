@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { and, eq, sql } from "drizzle-orm";
 import { db, usersTable, type User } from "@workspace/db";
+import { isBootstrapAdminEmail } from "../lib/adminBootstrap";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -21,12 +22,13 @@ async function ensureUser(userId: string): Promise<User> {
   if (existing) return existing;
 
   let email: string | null = null;
+  let emailVerified = false;
   try {
     const clerkUser = await clerkClient.users.getUser(userId);
-    email =
-      clerkUser.primaryEmailAddress?.emailAddress ??
-      clerkUser.emailAddresses[0]?.emailAddress ??
-      null;
+    const primary =
+      clerkUser.primaryEmailAddress ?? clerkUser.emailAddresses[0] ?? null;
+    email = primary?.emailAddress ?? null;
+    emailVerified = primary?.verification?.status === "verified";
   } catch {
     // Email is best-effort; proceed without it.
   }
@@ -37,26 +39,28 @@ async function ensureUser(userId: string): Promise<User> {
     .values({ id: userId, email, isAdmin: false })
     .onConflictDoNothing();
 
-  // Atomically elect the first-ever admin. The NOT EXISTS guard avoids
-  // contention once an admin exists; the partial unique index on
-  // is_admin = true guarantees at most one admin even if two brand-new
-  // users sign in concurrently (the loser's UPDATE raises a unique
-  // violation, which we swallow so they remain a normal user).
-  // The elected admin becomes the master_admin role. We deliberately do NOT
-  // claim pre-existing ownerless data — the admin starts with a clean personal
-  // account and only sees the cross-user admin views.
-  try {
-    await db
-      .update(usersTable)
-      .set({ isAdmin: true, role: "master_admin" })
-      .where(
-        and(
-          eq(usersTable.id, userId),
-          sql`NOT EXISTS (SELECT 1 FROM users u WHERE u.is_admin = true)`,
-        ),
-      );
-  } catch {
-    // Lost the admin race — remain a normal user.
+  // Trusted admin bootstrap. Admin is NEVER granted just for being the first
+  // (or any) public sign-up. We only promote a brand-new user when BOTH:
+  //   1. their primary email is verified AND listed in ADMIN_BOOTSTRAP_EMAILS
+  //      (a deployer-controlled allowlist — the trust anchor), and
+  //   2. no admin currently exists (the NOT EXISTS guard; the partial unique
+  //      index on is_admin = true is the concurrency backstop — a losing race
+  //      raises a unique violation which we swallow so the user stays general).
+  // With no allowlist configured, the app deliberately stays admin-less.
+  if (email && emailVerified && isBootstrapAdminEmail(email)) {
+    try {
+      await db
+        .update(usersTable)
+        .set({ isAdmin: true, role: "master_admin" })
+        .where(
+          and(
+            eq(usersTable.id, userId),
+            sql`NOT EXISTS (SELECT 1 FROM users u WHERE u.is_admin = true)`,
+          ),
+        );
+    } catch {
+      // Lost the admin race or hit the single-admin index — stay general.
+    }
   }
 
   const [user] = await db

@@ -1,4 +1,5 @@
 import { and, eq, lt, sql } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
 import {
   db,
   usersTable,
@@ -7,6 +8,7 @@ import {
   receiptsTable,
 } from "@workspace/db";
 import { logger } from "./logger";
+import { getBootstrapAdminEmails, normalizeEmail } from "./adminBootstrap";
 
 // One-time, idempotent data reconciliations run at server startup. Safe to run
 // on every boot: each step self-disables once it has nothing left to do, so it
@@ -70,12 +72,15 @@ async function reconcileAdminRole(): Promise<void> {
   }
 }
 
-// Safety net for the single-admin invariant: if there are users but none is an
-// admin (which should never happen, but could after an unexpected failure), the
-// app would be permanently admin-less since election only runs for brand-new
-// signups. Promote the earliest-created user back to master admin so admin
-// access can always be recovered on the next boot. Idempotent (no-op when an
-// admin already exists or there are no users).
+// Trusted recovery for the single-admin invariant. If no admin exists (which
+// should never happen, but could after a bad migration, restore, or manual DB
+// repair), recovery is anchored ONLY to the deployer-controlled
+// ADMIN_BOOTSTRAP_EMAILS allowlist. We deliberately do NOT silently re-elect the
+// earliest-created user — that would let an early public sign-up regain full
+// admin after any admin-less state (a privilege-escalation path). With no
+// allowlist configured, the app stays admin-less (a safe, explicit state) and
+// the operator must set ADMIN_BOOTSTRAP_EMAILS to recover. Idempotent (no-op
+// when an admin already exists, no allowlist is set, or no user matches it).
 async function ensureAdminExists(): Promise<void> {
   const [admin] = await db
     .select({ id: usersTable.id })
@@ -84,18 +89,68 @@ async function ensureAdminExists(): Promise<void> {
     .limit(1);
   if (admin) return;
 
-  const [earliest] = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .orderBy(usersTable.createdAt)
-    .limit(1);
-  if (!earliest) return;
+  const adminEmails = getBootstrapAdminEmails();
+  if (adminEmails.size === 0) {
+    logger.warn(
+      "No admin exists and ADMIN_BOOTSTRAP_EMAILS is unset — leaving the app " +
+        "admin-less. Set ADMIN_BOOTSTRAP_EMAILS to a trusted email to recover admin access.",
+    );
+    return;
+  }
 
-  await db
-    .update(usersTable)
-    .set({ isAdmin: true, role: "master_admin" })
-    .where(eq(usersTable.id, earliest.id));
-  logger.warn({ userId: earliest.id }, "No admin found — elected earliest user as master admin");
+  const candidates = await db
+    .select({ id: usersTable.id, email: usersTable.email })
+    .from(usersTable)
+    .orderBy(usersTable.createdAt);
+
+  // The local users.email is populated best-effort at account creation and may
+  // be stale or historically unverified, so we NEVER make a privilege decision
+  // on it alone. We use it only as a cheap pre-filter, then RE-VALIDATE each
+  // candidate against Clerk and require a CURRENTLY-verified primary email that
+  // is still in the allowlist — the same trust rule as the signup bootstrap.
+  for (const candidate of candidates) {
+    const localEmail = normalizeEmail(candidate.email);
+    if (!localEmail || !adminEmails.has(localEmail)) continue;
+
+    let verifiedAllowlisted = false;
+    try {
+      const clerkUser = await clerkClient.users.getUser(candidate.id);
+      const primary =
+        clerkUser.primaryEmailAddress ?? clerkUser.emailAddresses[0] ?? null;
+      const primaryEmail = normalizeEmail(primary?.emailAddress);
+      const primaryVerified = primary?.verification?.status === "verified";
+      verifiedAllowlisted =
+        primaryVerified && primaryEmail !== null && adminEmails.has(primaryEmail);
+    } catch (err) {
+      logger.warn(
+        { err, userId: candidate.id },
+        "Failed to verify bootstrap admin candidate against Clerk — skipping",
+      );
+    }
+    if (!verifiedAllowlisted) continue;
+
+    const promoted = await db
+      .update(usersTable)
+      .set({ isAdmin: true, role: "master_admin" })
+      .where(
+        and(
+          eq(usersTable.id, candidate.id),
+          sql`NOT EXISTS (SELECT 1 FROM users u WHERE u.is_admin = true)`,
+        ),
+      )
+      .returning({ id: usersTable.id });
+    if (promoted.length > 0) {
+      logger.warn(
+        { userId: candidate.id },
+        "No admin existed — promoted trusted, Clerk-verified ADMIN_BOOTSTRAP_EMAILS user to master admin",
+      );
+      return;
+    }
+  }
+
+  logger.warn(
+    "No admin exists and no Clerk-verified user matches ADMIN_BOOTSTRAP_EMAILS — leaving the app admin-less.",
+  );
 }
 
 export async function runStartupReconciliations(): Promise<void> {
