@@ -102,3 +102,39 @@ If you'd rather a benefit-first line instead of the receipt angle:
 
 **Elevator pitch (2 sentences):**
 > Prices creep up and receipts pile up, but nobody's actually keeping track. TimetoPay does it for you — scan any receipt, and AI turns it into price history, spending insights, and a smart, store-by-store shopping list that always finds you the cheapest option.
+
+---
+
+## 4. Full feature list (benefit-led)
+
+Drop-in copy for a landing page, app-store description, or pitch — grouped by the benefit each feature sells.
+
+### Scan smarter, type less
+- 📸 **AI receipt scanning** — snap a photo and AI instantly pulls out every item, price, and store. No manual entry.
+- 🖼️ **Upload from your gallery** — already have a photo? Import it in a tap.
+- 📄 **PDF receipt import** — forward an emailed or digital receipt and let AI do the rest.
+- 🏷️ **Auto-categorized & labeled** — every item gets a category and emoji icon automatically, so your history is organized the moment it's scanned.
+
+### Never overpay again
+- 💰 **Automatic price tracking** — watch how prices change over time, per item.
+- 🥇 **Best price & best store** — instantly see where each item is cheapest based on your own buying history.
+- 🛒 **Smart shopping list** — builds itself from what you actually buy, split into *Regulars* (your staples) and *One-offs*.
+- 🏪 **Store cost-benefit analysis** — factor in delivery fees and minimum-order thresholds to know which store really wins.
+- 🌐 **Community price catalog** — see typical prices shoppers near you pay, so you know a good deal when you see one (fully anonymized — we never show whose purchase is whose).
+
+### Stay organized effortlessly
+- 📝 **Printable & shareable lists** — export a clean PDF grouped by store, with checkboxes and "ran out" tags.
+- 🔍 **Search & sort everywhere** — find any item, store, or receipt in seconds across every screen.
+- ✏️ **Full control** — edit item names, add notes, fix prices, or swap an item's icon anytime.
+
+### Know where your money goes
+- 📊 **Spending analytics** — weekly spend at a glance with automatic HIGH/LOW flags when something's unusual.
+- 📈 **Per-item price history** — lowest, average, and highest price for everything you buy.
+
+### Private and built for trust
+- 🔒 **Your data is yours** — every receipt, store, and price is private to your account by default.
+- 🛡️ **Privacy-first community pricing** — aggregated insights without ever exposing an individual's purchases.
+
+### Use it anywhere
+- 📱 **Mobile + web** — native iOS and Android apps plus a full web app in any browser, all on the same account.
+- 🎁 **Free 30-day trial**, then simple affordable pricing. Pay with card or PayPal.
