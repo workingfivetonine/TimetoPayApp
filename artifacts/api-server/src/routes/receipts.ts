@@ -16,10 +16,47 @@ import {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
+import { aiAbuseGuard } from "../middlewares/aiRateLimit.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require("pdf-parse/lib/pdf-parse.js");
+const pdfParse: (
+  buf: Buffer,
+  options?: { max?: number },
+) => Promise<{ text: string; numpages: number }> = require("pdf-parse/lib/pdf-parse.js");
 const execFileAsync = promisify(execFile);
+
+// Abuse-control limits for the AI-backed endpoints. Base64 expands ~33% over
+// raw bytes, so these char caps bound the decoded image/PDF the model and
+// pdftoppm have to process well below the global 20mb body cap.
+const MAX_IMAGE_B64_CHARS = 10 * 1024 * 1024; // ~7.5 MB decoded image
+const MAX_PDF_B64_CHARS = 15 * 1024 * 1024; // ~11 MB decoded PDF
+// Only the first few pages are ever sent to the model; bound the expensive
+// local work (text extraction + rasterization) to the same cap.
+const PDF_MAX_PAGES = 4;
+// Hard wall-clock cap on the pdftoppm subprocess so a crafted PDF cannot
+// monopolize a worker; SIGKILL guarantees the child is reaped even if it
+// ignores SIGTERM.
+const PDFTOPPM_TIMEOUT_MS = 25_000;
+
+// Guards for image endpoints vs the heavier PDF endpoint.
+const imageGuard = aiAbuseGuard({
+  windowMs: 60_000,
+  maxPerWindow: 12,
+  dailyMax: 200,
+  maxConcurrentPerUser: 2,
+  maxConcurrentGlobal: 8,
+  bodyField: "imageBase64",
+  maxBodyChars: MAX_IMAGE_B64_CHARS,
+});
+const pdfGuard = aiAbuseGuard({
+  windowMs: 60_000,
+  maxPerWindow: 6,
+  dailyMax: 100,
+  maxConcurrentPerUser: 1,
+  maxConcurrentGlobal: 4,
+  bodyField: "pdfBase64",
+  maxBodyChars: MAX_PDF_B64_CHARS,
+});
 
 function receiptPrompt(): string {
   const today = new Date().toISOString();
@@ -267,7 +304,7 @@ router.post("/:id/line-items", async (req, res): Promise<void> => {
 });
 
 // Detect receipt bounding box in a photo using AI
-router.post("/detect-bounds", async (req, res): Promise<void> => {
+router.post("/detect-bounds", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -327,7 +364,7 @@ Rules:
 });
 
 // Parse receipt image with AI
-router.post("/parse", async (req, res): Promise<void> => {
+router.post("/parse", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -434,7 +471,7 @@ async function persistParsedReceipt(userId: string, parsed: {
 }
 
 // Parse and save receipt
-router.post("/parse-and-save", async (req, res): Promise<void> => {
+router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -492,7 +529,7 @@ router.post("/save-parsed", async (req, res): Promise<void> => {
 });
 
 // Parse and save a PDF receipt — handles text-based and image-based (scanned) PDFs
-router.post("/parse-pdf", async (req, res): Promise<void> => {
+router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
     res.status(400).json({ error: "pdfBase64 is required" });
@@ -507,8 +544,10 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
   try {
     const buffer = Buffer.from(pdfBase64, "base64");
 
-    // Try text extraction first (works for text-based PDFs)
-    const pdfData = await pdfParse(buffer);
+    // Try text extraction first (works for text-based PDFs). Cap the parse to
+    // the first PDF_MAX_PAGES so a huge document can't make text extraction
+    // itself expensive — we only ever use the first few pages anyway.
+    const pdfData = await pdfParse(buffer, { max: PDF_MAX_PAGES });
     const extractedText = pdfData.text.trim();
 
     type ParsedReceipt = {
@@ -547,16 +586,25 @@ router.post("/parse-pdf", async (req, res): Promise<void> => {
         return;
       }
     } else {
-      // Image-based PDF: render pages with pdftoppm then use Vision
+      // Image-based PDF: render pages with pdftoppm then use Vision.
+      // CRITICAL: bound the rasterization itself with -f/-l so only the first
+      // PDF_MAX_PAGES are ever rendered (the expensive step). Without this, a
+      // crafted high-page-count PDF would rasterize every page before the later
+      // slice() threw the rest away — a CPU/disk DoS. A wall-clock timeout +
+      // SIGKILL guarantees a pathological page can't pin a worker indefinitely.
       await writeFile(pdfPath, buffer);
-      await execFileAsync("pdftoppm", ["-jpeg", "-r", "150", pdfPath, imgPrefix]);
+      await execFileAsync(
+        "pdftoppm",
+        ["-jpeg", "-r", "150", "-f", "1", "-l", String(PDF_MAX_PAGES), pdfPath, imgPrefix],
+        { timeout: PDFTOPPM_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
+      );
 
       // Collect generated JPEG files (pdftoppm names them prefix-1.jpg, prefix-01.jpg, etc.)
       const allFiles = await readdir(tmpdir());
       const pageFiles = allFiles
         .filter((f) => f.startsWith(`receipt-${id}`) && f.endsWith(".jpg"))
         .sort()
-        .slice(0, 4); // cap at 4 pages to limit tokens
+        .slice(0, PDF_MAX_PAGES); // defense-in-depth: -f/-l already bounds this
 
       for (const f of pageFiles) tempFiles.push(join(tmpdir(), f));
 
