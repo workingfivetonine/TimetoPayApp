@@ -63,6 +63,7 @@ Required guarantees:
 - Non-admin routes MUST return only the authenticated user’s receipts, items, stores, analytics, and shopping-list data.
 - Admin-only cross-user routes MUST remain server-side gated.
 - Aggregated catalog features MUST avoid exposing singleton or near-singleton user activity in a way that defeats the app’s privacy promise.
+- Aggregated catalog privacy controls MUST not rely solely on raw account counts in a self-service signup environment, because attacker-created accounts can be used to steer or defeat naive k-anonymity thresholds.
 - Logs and errors MUST not leak secrets, tokens, or raw sensitive payloads.
 
 ### Denial of Service
@@ -71,6 +72,7 @@ Receipt parsing is the most important availability risk. Authenticated users can
 
 Required guarantees:
 - Expensive AI-backed receipt and catalog-assist endpoints MUST have rate limits, quotas, or equivalent abuse controls.
+- Shared AI budgets and quotas MUST not be consumed by requests that have not yet passed required-field validation, or attackers can turn the quota itself into a cheap denial-of-service primitive.
 - Uploaded image/PDF payloads MUST have enforceable size and complexity limits appropriate for model and PDF-processing paths.
 - External/model calls and local PDF tooling MUST fail safely without allowing one user to monopolize resources.
 
