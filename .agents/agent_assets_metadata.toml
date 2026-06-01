@@ -1,10 +1,5 @@
 uploads = []
-
-[[generated]]
-id = "CjY1iJXIBWLF8NW_jU036"
-uri = "file://artifacts/receipt-tracker/assets/images/icon.png"
-type = "image"
-title = "generated_image"
+generated = []
 
 [[outputs]]
 id = "PCLEHQ1WcUtx6Mqyl39Eq"
