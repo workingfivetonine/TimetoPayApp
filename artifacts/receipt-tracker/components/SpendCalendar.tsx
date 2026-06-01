@@ -6,20 +6,17 @@ import type { DaySpend } from "@workspace/api-client-react";
 
 interface Props {
   data: DaySpend[];
+  onDayPress?: (day: DaySpend) => void;
+  onAddReceipt?: (dateStr: string) => void;
 }
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-function getMondayWeekday(date: Date): number {
-  // 0=Mon, 6=Sun
-  return (date.getDay() + 6) % 7;
-}
-
-export function SpendCalendar({ data }: Props) {
+export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
   const colors = useColors();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -52,10 +49,10 @@ export function SpendCalendar({ data }: Props) {
     else setMonth(m => m + 1);
   };
 
-  // Build calendar grid: days from Mon of first week to Sun of last week
+  // Build calendar grid: days from Sun of first week to Sat of last week
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startOffset = getMondayWeekday(firstDay);
+  const startOffset = firstDay.getDay(); // 0=Sun ... 6=Sat
 
   const cells: (Date | null)[] = [];
   for (let i = 0; i < startOffset; i++) cells.push(null);
@@ -100,12 +97,27 @@ export function SpendCalendar({ data }: Props) {
             const isToday = dateStr === todayStr;
             const intensity = spend && monthMax > 0 ? spend.total / monthMax : 0;
 
-            // teal fill: opacity 0.12 → 0.7 based on intensity
+            // violet fill: opacity 0.12 → 0.7 based on intensity
             const bgOpacity = intensity > 0 ? 0.12 + intensity * 0.58 : 0;
-            const spendColor = `rgba(13, 148, 136, ${bgOpacity})`;
+            const spendColor = `rgba(124, 58, 237, ${bgOpacity})`;
+
+            const handlePress = () => {
+              if (spend) onDayPress?.(spend);
+              else onAddReceipt?.(dateStr);
+            };
 
             return (
-              <View key={i} style={styles.cell}>
+              <TouchableOpacity
+                key={i}
+                style={styles.cell}
+                onPress={handlePress}
+                activeOpacity={0.6}
+                accessibilityLabel={
+                  spend
+                    ? `${dateStr}, ${spend.receiptCount} receipt${spend.receiptCount !== 1 ? "s" : ""}, $${spend.total.toFixed(2)}`
+                    : `${dateStr}, add a receipt`
+                }
+              >
                 <View
                   style={[
                     styles.dayCell,
@@ -124,7 +136,7 @@ export function SpendCalendar({ data }: Props) {
                   >
                     {date.getDate()}
                   </Text>
-                  {spend && (
+                  {spend ? (
                     <Text
                       style={[
                         styles.spendAmount,
@@ -134,9 +146,11 @@ export function SpendCalendar({ data }: Props) {
                     >
                       ${spend.total >= 100 ? Math.round(spend.total) : spend.total.toFixed(0)}
                     </Text>
+                  ) : (
+                    <Feather name="plus" size={10} color={colors.mutedForeground} style={styles.addIcon} />
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -148,7 +162,7 @@ export function SpendCalendar({ data }: Props) {
           {[0.12, 0.3, 0.48, 0.65, 0.7].map((op, i) => (
             <View
               key={i}
-              style={[styles.legendDot, { backgroundColor: `rgba(13, 148, 136, ${op})` }]}
+              style={[styles.legendDot, { backgroundColor: `rgba(124, 58, 237, ${op})` }]}
             />
           ))}
         </View>
@@ -207,6 +221,9 @@ const styles = StyleSheet.create({
   spendAmount: {
     fontSize: 9,
     fontFamily: "Inter_600SemiBold",
+  },
+  addIcon: {
+    opacity: 0.45,
   },
   legend: {
     flexDirection: "row",

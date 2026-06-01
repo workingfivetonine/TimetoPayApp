@@ -354,7 +354,12 @@ export interface CatalogBrowseItem {
   bestPrice?: number | null;
   /** @nullable */
   bestStoreName?: string | null;
+  /** @nullable */
+  bestDate?: string | null;
   inList?: boolean;
+  inHistory?: boolean;
+  /** @nullable */
+  userItemId?: number | null;
   stores: CatalogGlobalStorePrice[];
 }
 
@@ -365,6 +370,11 @@ export interface CatalogBrowseCategory {
 
 export interface CatalogBrowse {
   categories: CatalogBrowseCategory[];
+}
+
+export interface MergeItemInput {
+  /** The id of the item to merge this item into */
+  targetId: number;
 }
 
 export interface CatalogAddToListInput {
@@ -503,6 +513,7 @@ export interface DaySpend {
   date: string;
   total: number;
   receiptCount: number;
+  receiptIds: number[];
 }
 
 export interface ParseReceiptInput {

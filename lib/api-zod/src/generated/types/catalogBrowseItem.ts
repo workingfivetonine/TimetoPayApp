@@ -18,6 +18,11 @@ export interface CatalogBrowseItem {
   bestPrice?: number | null;
   /** @nullable */
   bestStoreName?: string | null;
+  /** @nullable */
+  bestDate?: string | null;
   inList?: boolean;
+  inHistory?: boolean;
+  /** @nullable */
+  userItemId?: number | null;
   stores: CatalogGlobalStorePrice[];
 }

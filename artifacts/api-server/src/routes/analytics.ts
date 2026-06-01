@@ -140,12 +140,12 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
 router.get("/daily-spend", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const receipts = await db
-    .select({ total: receiptsTable.total, purchasedAt: receiptsTable.purchasedAt })
+    .select({ id: receiptsTable.id, total: receiptsTable.total, purchasedAt: receiptsTable.purchasedAt })
     .from(receiptsTable)
     .where(eq(receiptsTable.userId, userId))
     .orderBy(receiptsTable.purchasedAt);
 
-  const dayMap = new Map<string, { total: number; count: number }>();
+  const dayMap = new Map<string, { total: number; count: number; receiptIds: number[] }>();
 
   for (const r of receipts) {
     const key = new Date(r.purchasedAt).toISOString().split("T")[0];
@@ -153,8 +153,9 @@ router.get("/daily-spend", async (req, res): Promise<void> => {
     if (existing) {
       existing.total += Number(r.total);
       existing.count += 1;
+      existing.receiptIds.push(r.id);
     } else {
-      dayMap.set(key, { total: Number(r.total), count: 1 });
+      dayMap.set(key, { total: Number(r.total), count: 1, receiptIds: [r.id] });
     }
   }
 
@@ -164,6 +165,7 @@ router.get("/daily-spend", async (req, res): Promise<void> => {
       date,
       total: Math.round(v.total * 100) / 100,
       receiptCount: v.count,
+      receiptIds: v.receiptIds,
     }));
 
   res.json(days);

@@ -160,6 +160,27 @@ export const DismissItemResponse = zod.object({
 
 
 /**
+ * @summary Merge this item into another item (reassigns purchase history, deletes this item)
+ */
+export const MergeItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MergeItemBody = zod.object({
+  "targetId": zod.number().describe('The id of the item to merge this item into')
+})
+
+export const MergeItemResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "icon": zod.string().nullish().describe('Emoji icon representing the item'),
+  "notes": zod.string().nullish(),
+  "purchaseCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get an item by ID
  */
 export const GetItemParams = zod.object({
@@ -326,7 +347,8 @@ export const DeleteLineItemParams = zod.object({
 export const GetDailySpendResponseItem = zod.object({
   "date": zod.string().describe('ISO date string YYYY-MM-DD'),
   "total": zod.number(),
-  "receiptCount": zod.number()
+  "receiptCount": zod.number(),
+  "receiptIds": zod.array(zod.number())
 })
 export const GetDailySpendResponse = zod.array(GetDailySpendResponseItem)
 
@@ -652,7 +674,10 @@ export const BrowseCatalogResponse = zod.object({
   "category": zod.string().nullable(),
   "bestPrice": zod.number().nullish(),
   "bestStoreName": zod.string().nullish(),
+  "bestDate": zod.string().nullish(),
   "inList": zod.boolean().optional(),
+  "inHistory": zod.boolean().optional(),
+  "userItemId": zod.number().nullish(),
   "stores": zod.array(zod.object({
   "catalogStoreId": zod.number(),
   "storeName": zod.string(),

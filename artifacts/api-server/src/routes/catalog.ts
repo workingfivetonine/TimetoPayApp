@@ -65,9 +65,15 @@ router.get("/browse", async (req, res): Promise<void> => {
     if (prev == null || t > prev) lastPurchaseByItem.set(r.itemId, t);
   }
 
-  const inListNorms = new Set<string>();
+  // norm -> the user's item id, for items currently on the list (so the client
+  // can remove/dismiss them). And the set of norms the user has real purchase
+  // history for (used by the "In my history" filter).
+  const inListItemIdByNorm = new Map<string, number>();
+  const historyNorms = new Set<string>();
   for (const i of userItems) {
+    const norm = normalizeName(i.name);
     const lastPurchased = lastPurchaseByItem.get(i.id) ?? null;
+    if (lastPurchased != null) historyNorms.add(norm);
     const addedAt = i.addedToListAt ? i.addedToListAt.getTime() : null;
     // Not on the list at all unless it has history or was added explicitly.
     if (lastPurchased == null && addedAt == null) continue;
@@ -80,7 +86,7 @@ router.get("/browse", async (req, res): Promise<void> => {
       const latestEvent = events.length ? Math.max(...events) : 0;
       if (i.dismissedAt.getTime() >= latestEvent) continue;
     }
-    inListNorms.add(normalizeName(i.name));
+    inListItemIdByNorm.set(norm, i.id);
   }
 
   const normsByItem = await aliasNormsByItem();
@@ -88,7 +94,9 @@ router.get("/browse", async (req, res): Promise<void> => {
   const items = global.map((g) => {
     const best = g.stores.length ? g.stores[0] : null;
     const norms = normsByItem.get(g.catalogItemId) ?? [];
-    const inList = norms.some((n) => inListNorms.has(n));
+    const matchNorm = norms.find((n) => inListItemIdByNorm.has(n)) ?? null;
+    const inList = matchNorm != null;
+    const inHistory = norms.some((n) => historyNorms.has(n));
     return {
       catalogItemId: g.catalogItemId,
       name: g.name,
@@ -96,7 +104,10 @@ router.get("/browse", async (req, res): Promise<void> => {
       category: g.category,
       bestPrice: best ? best.latestPrice : null,
       bestStoreName: best ? best.storeName : null,
+      bestDate: best ? best.latestDate : null,
       inList,
+      inHistory,
+      userItemId: matchNorm != null ? inListItemIdByNorm.get(matchNorm)! : null,
       stores: g.stores,
     };
   });

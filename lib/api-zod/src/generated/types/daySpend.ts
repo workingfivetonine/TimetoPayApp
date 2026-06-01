@@ -11,4 +11,5 @@ export interface DaySpend {
   date: string;
   total: number;
   receiptCount: number;
+  receiptIds: number[];
 }

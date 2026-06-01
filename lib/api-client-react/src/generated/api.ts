@@ -44,6 +44,7 @@ import type {
   LineItemInput,
   LineItemUpdate,
   ManualEntryInput,
+  MergeItemInput,
   ParsePdfInput,
   ParseReceiptInput,
   ParsedReceipt,
@@ -803,6 +804,78 @@ export const useDismissItem = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDismissItemMutationOptions(options));
+    }
+
+export const getMergeItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/items/${id}/merge`
+}
+
+/**
+ * @summary Merge this item into another item (reassigns purchase history, deletes this item)
+ */
+export const mergeItem = async (id: number,
+    mergeItemInput: MergeItemInput, options?: RequestInit): Promise<Item> => {
+
+  return customFetch<Item>(getMergeItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      mergeItemInput,)
+  }
+);}
+
+
+
+
+export const getMergeItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeItem>>, TError,{id: number;data: BodyType<MergeItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mergeItem>>, TError,{id: number;data: BodyType<MergeItemInput>}, TContext> => {
+
+const mutationKey = ['mergeItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergeItem>>, {id: number;data: BodyType<MergeItemInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  mergeItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MergeItemMutationResult = NonNullable<Awaited<ReturnType<typeof mergeItem>>>
+    export type MergeItemMutationBody = BodyType<MergeItemInput>
+    export type MergeItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Merge this item into another item (reassigns purchase history, deletes this item)
+ */
+export const useMergeItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeItem>>, TError,{id: number;data: BodyType<MergeItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mergeItem>>,
+        TError,
+        {id: number;data: BodyType<MergeItemInput>},
+        TContext
+      > => {
+      return useMutation(getMergeItemMutationOptions(options));
     }
 
 export const getGetItemUrl = (id: number,) => {

@@ -109,11 +109,12 @@ export default function ShoppingScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Shopping List</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[styles.downloadButton, { backgroundColor: colors.accent }]}
+            style={[styles.browseButton, { backgroundColor: colors.accent }]}
             onPress={() => router.push("/catalog")}
             accessibilityLabel="Browse catalog"
           >
-            <Feather name="grid" size={18} color={colors.accentForeground} />
+            <Feather name="grid" size={16} color={colors.accentForeground} />
+            <Text style={[styles.browseButtonText, { color: colors.accentForeground }]}>Browse</Text>
           </TouchableOpacity>
           {hasItems && (
             <TouchableOpacity
@@ -196,6 +197,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  browseButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+  },
+  browseButtonText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   sectionHeader: {
     paddingHorizontal: 16,

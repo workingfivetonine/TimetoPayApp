@@ -208,6 +208,33 @@ paths:
         "404":
           description: Item not found
 
+  /items/{id}/merge:
+    post:
+      operationId: mergeItem
+      tags: [items]
+      summary: Merge this item into another item (reassigns purchase history, deletes this item)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeItemInput"
+      responses:
+        "200":
+          description: Merged item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "404":
+          description: Item not found
+
   /items/{id}:
     get:
       operationId: getItem
@@ -1452,8 +1479,14 @@ components:
           type: ["number", "null"]
         bestStoreName:
           type: ["string", "null"]
+        bestDate:
+          type: ["string", "null"]
         inList:
           type: boolean
+        inHistory:
+          type: boolean
+        userItemId:
+          type: ["integer", "null"]
         stores:
           type: array
           items:
@@ -1478,6 +1511,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CatalogBrowseCategory"
+
+    MergeItemInput:
+      type: object
+      required: [targetId]
+      properties:
+        targetId:
+          type: integer
+          description: The id of the item to merge this item into
 
     CatalogAddToListInput:
       type: object
@@ -1680,7 +1721,7 @@ components:
 
     DaySpend:
       type: object
-      required: [date, total, receiptCount]
+      required: [date, total, receiptCount, receiptIds]
       properties:
         date:
           type: string
@@ -1689,6 +1730,10 @@ components:
           type: number
         receiptCount:
           type: integer
+        receiptIds:
+          type: array
+          items:
+            type: integer
 
     ParseReceiptInput:
       type: object

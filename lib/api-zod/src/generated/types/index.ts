@@ -38,6 +38,7 @@ export * from './lineItemInput';
 export * from './lineItemUpdate';
 export * from './manualEntryInput';
 export * from './manualEntryInputLineItemsItem';
+export * from './mergeItemInput';
 export * from './parsedReceipt';
 export * from './parsedReceiptLineItem';
 export * from './parsePdfInput';

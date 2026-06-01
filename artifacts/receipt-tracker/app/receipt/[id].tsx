@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Modal,
   TextInput,
   Platform,
@@ -20,14 +19,17 @@ import {
   useGetReceipt,
   useUpdateItem,
   useDeleteLineItem,
+  useDeleteReceipt,
   getGetReceiptQueryKey,
   getListReceiptsQueryKey,
   getGetShoppingListQueryKey,
   getGetSpendAnalyticsQueryKey,
+  getGetDailySpendQueryKey,
   getListItemsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { confirmDestructive } from "@/lib/confirm";
 import type { LineItem } from "@workspace/api-client-react";
 
 export default function ReceiptDetailScreen() {
@@ -45,8 +47,34 @@ export default function ReceiptDetailScreen() {
   const { data: receipt, isLoading } = useGetReceipt(receiptId);
   const updateItemMutation = useUpdateItem();
   const deleteLineItemMutation = useDeleteLineItem();
+  const deleteReceiptMutation = useDeleteReceipt();
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
+
+  const handleDeleteReceipt = () => {
+    confirmDestructive({
+      title: "Delete Receipt",
+      message:
+        "This permanently removes this receipt and all its line items. Item price history from this receipt will also be removed. This can't be undone.",
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        deleteReceiptMutation.mutate(
+          { id: receiptId },
+          {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              router.back();
+            },
+          }
+        );
+      },
+    });
+  };
 
   const openEdit = (li: LineItem) => {
     setEditingItem(li);
@@ -74,28 +102,27 @@ export default function ReceiptDetailScreen() {
   };
 
   const handleDeleteLineItem = (liId: number) => {
-    Alert.alert("Remove Item", "Remove this line item from the receipt?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: () => {
-          deleteLineItemMutation.mutate(
-            { id: liId },
-            {
-              onSuccess: () => {
-                queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
-                queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
-                queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
-                queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
-                queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              },
-            }
-          );
-        },
+    confirmDestructive({
+      title: "Remove Item",
+      message: "Remove this line item from the receipt?",
+      confirmLabel: "Remove",
+      onConfirm: () => {
+        deleteLineItemMutation.mutate(
+          { id: liId },
+          {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
+              queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            },
+          }
+        );
       },
-    ]);
+    });
   };
 
   if (isLoading) {
@@ -204,6 +231,17 @@ export default function ReceiptDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Delete receipt */}
+        <TouchableOpacity
+          style={[styles.deleteBtn, { borderColor: colors.destructive }]}
+          onPress={handleDeleteReceipt}
+          disabled={deleteReceiptMutation.isPending}
+          activeOpacity={0.7}
+        >
+          <Feather name="trash-2" size={16} color={colors.destructive} />
+          <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete Receipt</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Edit Item Modal */}
@@ -330,4 +368,15 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
   },
   textArea: { minHeight: 80, textAlignVertical: "top" },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  deleteBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
