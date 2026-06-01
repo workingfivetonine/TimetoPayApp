@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,14 @@ import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
+
+type ReceiptSort = "recent" | "price" | "store";
+const RECEIPT_SORT: SortOption<ReceiptSort>[] = [
+  { key: "recent", label: "Recent" },
+  { key: "price", label: "Price" },
+  { key: "store", label: "Store" },
+];
 
 export default function ReceiptsScreen() {
   const colors = useColors();
@@ -31,9 +39,30 @@ export default function ReceiptsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<ReceiptSort>("recent");
 
   const { data: receipts, isLoading } = useListReceipts();
   const deleteMutation = useDeleteReceipt();
+
+  const hasReceipts = (receipts?.length ?? 0) > 0;
+  const visibleReceipts = useMemo(() => {
+    const all = receipts ?? [];
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? all.filter(
+          (r) =>
+            r.storeName.toLowerCase().includes(q) ||
+            (r.notes ?? "").toLowerCase().includes(q),
+        )
+      : [...all];
+    filtered.sort((a, b) => {
+      if (sortKey === "price") return b.total - a.total;
+      if (sortKey === "store") return a.storeName.localeCompare(b.storeName);
+      return new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime();
+    });
+    return filtered;
+  }, [receipts, query, sortKey]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -91,20 +120,31 @@ export default function ReceiptsScreen() {
         </View>
       </View>
 
+      {hasReceipts ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search receipts…"
+          sortOptions={RECEIPT_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <FlatList
-          data={receipts ?? []}
+          data={visibleReceipts}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={[
             styles.list,
             { paddingBottom },
-            (!receipts || receipts.length === 0) && styles.emptyList,
+            visibleReceipts.length === 0 && styles.emptyList,
           ]}
-          scrollEnabled={!!(receipts && receipts.length > 0)}
+          scrollEnabled={visibleReceipts.length > 0}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -115,8 +155,12 @@ export default function ReceiptsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="file-text"
-              title="No receipts yet"
-              subtitle="Tap Scan to photograph a receipt and track your spending"
+              title={query ? "No matching receipts" : "No receipts yet"}
+              subtitle={
+                query
+                  ? "Try a different search."
+                  : "Tap Scan to photograph a receipt and track your spending"
+              }
             />
           }
           renderItem={({ item }) => (

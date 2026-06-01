@@ -23,10 +23,47 @@ import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
 import { downloadShoppingListPdf } from "@/lib/shoppingListPdf";
 import type { ShoppingListItem } from "@workspace/api-client-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
+
+type ShoppingSort = "az" | "price" | "category";
+const SHOPPING_SORT: SortOption<ShoppingSort>[] = [
+  { key: "az", label: "A–Z" },
+  { key: "price", label: "Price" },
+  { key: "category", label: "Category" },
+];
+
+function filterAndSortShopping(
+  arr: ShoppingListItem[],
+  query: string,
+  sortKey: ShoppingSort,
+): ShoppingListItem[] {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? arr.filter(
+        (it) =>
+          it.itemName.toLowerCase().includes(q) ||
+          (it.category ?? "").toLowerCase().includes(q),
+      )
+    : [...arr];
+  filtered.sort((a, b) => {
+    if (sortKey === "price") {
+      const ap = a.recommendedPrice ?? a.lowestPrice ?? Number.POSITIVE_INFINITY;
+      const bp = b.recommendedPrice ?? b.lowestPrice ?? Number.POSITIVE_INFINITY;
+      if (ap !== bp) return ap - bp;
+    } else if (sortKey === "category") {
+      const ac = a.category ?? "\uffff";
+      const bc = b.category ?? "\uffff";
+      const c = ac.localeCompare(bc);
+      if (c !== 0) return c;
+    }
+    return a.itemName.localeCompare(b.itemName);
+  });
+  return filtered;
+}
 
 export default function ShoppingScreen() {
   const colors = useColors();
@@ -37,6 +74,8 @@ export default function ShoppingScreen() {
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
   const [dismissingItemId, setDismissingItemId] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<ShoppingSort>("az");
 
   const { data: list, isLoading } = useGetShoppingList();
   const { mutateAsync: markRanOut } = useMarkRanOut();
@@ -88,20 +127,30 @@ export default function ShoppingScreen() {
     }
   };
 
+  const recurring = useMemo(
+    () => filterAndSortShopping(list?.recurring ?? [], query, sortKey),
+    [list?.recurring, query, sortKey],
+  );
+  const oneOff = useMemo(
+    () => filterAndSortShopping(list?.oneOff ?? [], query, sortKey),
+    [list?.oneOff, query, sortKey],
+  );
+
   const sections: { title: string; subtitle: string; data: ShoppingListItem[] }[] = [
     {
       title: "Regulars",
       subtitle: "Bought 2+ times",
-      data: list?.recurring ?? [],
+      data: recurring,
     },
     {
       title: "One-offs",
       subtitle: "Bought once",
-      data: list?.oneOff ?? [],
+      data: oneOff,
     },
   ];
 
   const hasItems = (list?.recurring?.length ?? 0) + (list?.oneOff?.length ?? 0) > 0;
+  const matchCount = recurring.length + oneOff.length;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -133,6 +182,17 @@ export default function ShoppingScreen() {
         </View>
       </View>
 
+      {hasItems ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search your list…"
+          sortOptions={SHOPPING_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
       {isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={colors.primary} />
@@ -142,6 +202,12 @@ export default function ShoppingScreen() {
           icon="check-square"
           title="No items yet"
           subtitle="Scan receipts to auto-build your shopping list with prices"
+        />
+      ) : matchCount === 0 ? (
+        <EmptyState
+          icon="search"
+          title="No matching items"
+          subtitle="Try a different search."
         />
       ) : (
         <SectionList

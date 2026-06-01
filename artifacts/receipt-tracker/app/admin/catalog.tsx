@@ -32,8 +32,15 @@ import {
 import type { CatalogEntry, CatalogSuggestion } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
 
 type Tab = "items" | "stores";
+
+type CatalogSort = "az" | "count";
+const CATALOG_SORT: SortOption<CatalogSort>[] = [
+  { key: "az", label: "A–Z" },
+  { key: "count", label: "Most used" },
+];
 
 // Mirrors FIXED_CATEGORIES in the API server's categories lib.
 const CATEGORIES = [
@@ -94,15 +101,34 @@ export default function AdminCatalogScreen() {
   const [busy, setBusy] = React.useState(false);
   const [catLoading, setCatLoading] = React.useState(false);
   const [dupLoading, setDupLoading] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [sortKey, setSortKey] = React.useState<CatalogSort>("az");
 
   const switchTab = (t: Tab) => {
     setTab(t);
     setAiCategory({});
     setRejectedCategory(new Set());
+    setQuery("");
   };
 
   const active = tab === "items" ? itemsQuery : storesQuery;
   const entries = active.data?.entries ?? [];
+  const visibleEntries = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? entries.filter(
+          (e) =>
+            e.canonicalName.toLowerCase().includes(q) ||
+            (e.category ?? "").toLowerCase().includes(q) ||
+            e.members.some((m) => m.displayName.toLowerCase().includes(q)),
+        )
+      : [...entries];
+    filtered.sort((a, b) => {
+      if (sortKey === "count" && b.totalCount !== a.totalCount) return b.totalCount - a.totalCount;
+      return a.canonicalName.localeCompare(b.canonicalName);
+    });
+    return filtered;
+  }, [entries, query, sortKey]);
   const suggestions = [
     ...(active.data?.suggestions ?? []),
     ...(tab === "items" ? aiDupes.items : aiDupes.stores),
@@ -291,6 +317,17 @@ export default function AdminCatalogScreen() {
         ))}
       </View>
 
+      {entries.length > 0 ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder={tab === "items" ? "Search items…" : "Search stores…"}
+          sortOptions={CATALOG_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
       {active.isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
@@ -301,7 +338,7 @@ export default function AdminCatalogScreen() {
         </View>
       ) : (
         <FlatList
-          data={entries}
+          data={visibleEntries}
           keyExtractor={(e) => String(e.id)}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
@@ -319,7 +356,11 @@ export default function AdminCatalogScreen() {
             />
           }
           ListEmptyComponent={
-            <EmptyState icon="layers" title="Nothing here yet" subtitle="Catalog entries appear as users add data." />
+            <EmptyState
+              icon="layers"
+              title={query ? `No matching ${tab}` : "Nothing here yet"}
+              subtitle={query ? "Try a different search." : "Catalog entries appear as users add data."}
+            />
           }
           renderItem={({ item }) => (
             <EntryCard

@@ -15,6 +15,14 @@ import { useAdminGetGlobalPrices } from "@workspace/api-client-react";
 import type { CatalogGlobalItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
+
+type GlobalSort = "az" | "price" | "recent";
+const GLOBAL_SORT: SortOption<GlobalSort>[] = [
+  { key: "az", label: "A–Z" },
+  { key: "price", label: "Price" },
+  { key: "recent", label: "Recent" },
+];
 
 export default function AdminGlobalPricesScreen() {
   const colors = useColors();
@@ -22,8 +30,30 @@ export default function AdminGlobalPricesScreen() {
   const insets = useSafeAreaInsets();
   const { data, isLoading, error } = useAdminGetGlobalPrices();
   const [expanded, setExpanded] = React.useState<Record<number, boolean>>({});
+  const [query, setQuery] = React.useState("");
+  const [sortKey, setSortKey] = React.useState<GlobalSort>("az");
 
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
+
+  const hasData = (data?.length ?? 0) > 0;
+  const visible = React.useMemo(() => {
+    const all = data ?? [];
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? all.filter(
+          (it) =>
+            it.name.toLowerCase().includes(q) ||
+            it.overallLatestStoreName.toLowerCase().includes(q),
+        )
+      : [...all];
+    filtered.sort((a, b) => {
+      if (sortKey === "price") return a.overallLatestPrice - b.overallLatestPrice;
+      if (sortKey === "recent")
+        return new Date(b.overallLatestDate).getTime() - new Date(a.overallLatestDate).getTime();
+      return a.name.localeCompare(b.name);
+    });
+    return filtered;
+  }, [data, query, sortKey]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -35,6 +65,17 @@ export default function AdminGlobalPricesScreen() {
         <View style={styles.backBtn} />
       </View>
 
+      {hasData ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search items or stores…"
+          sortOptions={GLOBAL_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
@@ -45,7 +86,7 @@ export default function AdminGlobalPricesScreen() {
         </View>
       ) : (
         <FlatList
-          data={data ?? []}
+          data={visible}
           keyExtractor={(i) => String(i.catalogItemId)}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
@@ -54,7 +95,11 @@ export default function AdminGlobalPricesScreen() {
             </Text>
           }
           ListEmptyComponent={
-            <EmptyState icon="tag" title="No prices yet" subtitle="Once users scan receipts, prices show up here." />
+            <EmptyState
+              icon="tag"
+              title={query ? "No matching items" : "No prices yet"}
+              subtitle={query ? "Try a different search." : "Once users scan receipts, prices show up here."}
+            />
           }
           renderItem={({ item }) => (
             <PriceCard

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -34,6 +34,7 @@ import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { StoreCard } from "@/components/StoreCard";
 import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
 import { confirmDestructive } from "@/lib/confirm";
 import type { Store } from "@workspace/api-client-react";
 import { useRouter } from "expo-router";
@@ -60,6 +61,12 @@ const defaultForm: StoreFormData = {
   notes: "",
 };
 
+type StoreSort = "az" | "delivery";
+const STORE_SORT: SortOption<StoreSort>[] = [
+  { key: "az", label: "A–Z" },
+  { key: "delivery", label: "Delivery fee" },
+];
+
 export default function StoresScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -69,11 +76,35 @@ export default function StoresScreen() {
   const [showModal, setShowModal] = useState(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [form, setForm] = useState<StoreFormData>(defaultForm);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<StoreSort>("az");
 
   const { data: stores, isLoading } = useListStores();
   const createMutation = useCreateStore();
   const updateMutation = useUpdateStore();
   const deleteMutation = useDeleteStore();
+
+  const hasStores = (stores?.length ?? 0) > 0;
+  const visibleStores = useMemo(() => {
+    const all = stores ?? [];
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? all.filter(
+          (s) =>
+            s.name.toLowerCase().includes(q) ||
+            (s.address ?? "").toLowerCase().includes(q),
+        )
+      : [...all];
+    filtered.sort((a, b) => {
+      if (sortKey === "delivery") {
+        const af = a.deliveryFee ?? Number.POSITIVE_INFINITY;
+        const bf = b.deliveryFee ?? Number.POSITIVE_INFINITY;
+        if (af !== bf) return af - bf;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    return filtered;
+  }, [stores, query, sortKey]);
 
   const isDesktop = useDesktop();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
@@ -189,25 +220,40 @@ export default function StoresScreen() {
         </TouchableOpacity>
       </View>
 
+      {hasStores ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search stores…"
+          sortOptions={STORE_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
       {isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <FlatList
-          data={stores ?? []}
+          data={visibleStores}
           keyExtractor={(s) => String(s.id)}
           contentContainerStyle={[
             styles.list,
             { paddingBottom },
-            (!stores || stores.length === 0) && styles.emptyList,
+            visibleStores.length === 0 && styles.emptyList,
           ]}
-          scrollEnabled={!!(stores && stores.length > 0)}
+          scrollEnabled={visibleStores.length > 0}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            <EmptyState icon="shopping-bag" title="No stores yet" subtitle="Add a store to start tracking where you shop" />
+            <EmptyState
+              icon="shopping-bag"
+              title={query ? "No matching stores" : "No stores yet"}
+              subtitle={query ? "Try a different search." : "Add a store to start tracking where you shop"}
+            />
           }
           renderItem={({ item }) => (
             <StoreCard

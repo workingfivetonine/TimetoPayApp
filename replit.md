@@ -61,6 +61,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 
 ## Product
 
+- **List search & sort** (`components/ListControls.tsx`, generic `ListControls<K>` = search `TextInput` + "Sort" pills): every list screen has a search box and sort control. Controls render as a sibling ABOVE the list (never inside `ListHeaderComponent`/`SectionList` header) so the `TextInput` keeps focus on each keystroke. Filter/sort is client-side via `useMemo` over already-fetched data; when a non-empty query yields zero rows each screen shows a query-aware "No matching …" empty state (distinct from the true-empty state). Per screen: Receipts (search store/notes; sort Recent/Price/Store), Stores (name/address; A–Z/Delivery fee, null fees last), Shopping List (name/category; A–Z/Price/Category, shared helper applied to both Regulars + One-offs sections), Admin Global prices (name/store; A–Z/Price/Recent), Admin Manage catalog (canonicalName/category/member names; A–Z/Most used, query resets on items↔stores tab switch). Browse Catalog (`/catalog`) had its own search+sort already and is the styling reference.
 - **Receipts tab**: list of all receipts, tap to see line items, edit item names/notes, delete items
 - **Scan**: camera viewfinder with AI extraction — point at receipt, tap capture; also supports gallery upload
 - **Stores tab**: add/edit stores with delivery fee and minimum order tracking; tap for cost-benefit analysis. Edit modal has a "Delete Store" button (confirmation warns it also removes that store's receipts/line items via DB cascade)
