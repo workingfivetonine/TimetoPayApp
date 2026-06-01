@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   Image,
+  type ImageSourcePropType,
   Linking,
   Platform,
   ScrollView,
@@ -51,6 +52,13 @@ const FEATURES: { icon: FeatherName; title: string; body: string }[] = [
   },
 ];
 
+const SHOWCASE: { img: ImageSourcePropType; caption: string }[] = [
+  { img: require("@/assets/images/guide/scan.jpg"), caption: "Scan any receipt" },
+  { img: require("@/assets/images/guide/catalog.jpg"), caption: "Compare store prices" },
+  { img: require("@/assets/images/guide/shopping.jpg"), caption: "Smart shopping list" },
+  { img: require("@/assets/images/guide/analytics.jpg"), caption: "Spending insights" },
+];
+
 const STEPS: { n: string; title: string; body: string }[] = [
   {
     n: "1",
@@ -76,6 +84,18 @@ export default function LandingPage() {
   const isWide = Platform.OS === "web" && width >= 900;
 
   const styles = makeStyles(colors, isWide);
+
+  const renderPhone = (s: (typeof SHOWCASE)[number]) => (
+    <View key={s.caption} style={styles.showcaseItem}>
+      <View style={styles.phoneFrame}>
+        <View style={styles.phoneScreen}>
+          <Image source={s.img} style={styles.phoneImage} resizeMode="cover" />
+        </View>
+        <View style={styles.phoneNotch} />
+      </View>
+      <Text style={styles.showcaseCaption}>{s.caption}</Text>
+    </View>
+  );
 
   return (
     <ScrollView
@@ -144,6 +164,22 @@ export default function LandingPage() {
               <Text style={styles.featureBody}>{f.body}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Showcase */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>See it in action</Text>
+          {isWide ? (
+            <View style={styles.showcaseRow}>{SHOWCASE.map(renderPhone)}</View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.showcaseScrollContent}
+            >
+              {SHOWCASE.map(renderPhone)}
+            </ScrollView>
+          )}
         </View>
 
         {/* How it works */}
@@ -372,6 +408,57 @@ function makeStyles(colors: ReturnType<typeof useColors>, isWide: boolean) {
       fontSize: 15,
       lineHeight: 23,
       color: colors.mutedForeground,
+    },
+    showcaseRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      gap: 28,
+    },
+    showcaseScrollContent: {
+      flexDirection: "row",
+      gap: 20,
+      paddingHorizontal: 4,
+      paddingVertical: 8,
+    },
+    showcaseItem: {
+      alignItems: "center",
+      gap: 14,
+      width: isWide ? 200 : 210,
+    },
+    phoneFrame: {
+      width: isWide ? 200 : 210,
+      backgroundColor: "#0B0B0F",
+      borderRadius: 34,
+      padding: 7,
+      shadowColor: "#000",
+      shadowOpacity: 0.18,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 14 },
+      elevation: 8,
+    },
+    phoneScreen: {
+      width: "100%",
+      aspectRatio: 402 / 860,
+      borderRadius: 28,
+      overflow: "hidden",
+      backgroundColor: colors.card,
+    },
+    phoneImage: { width: "100%", height: "100%" },
+    phoneNotch: {
+      position: "absolute",
+      top: 16,
+      alignSelf: "center",
+      width: 84,
+      height: 20,
+      borderRadius: 11,
+      backgroundColor: "#0B0B0F",
+    },
+    showcaseCaption: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+      color: colors.text,
+      textAlign: "center",
     },
     section: { marginBottom: isWide ? 72 : 48 },
     sectionTitle: {
