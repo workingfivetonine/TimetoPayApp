@@ -170,3 +170,10 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
+  # Security: CVE-2026-41305 — postcss <8.5.10 XSS via unescaped </style>
+  postcss: ">=8.5.10"
+  # Security: CVE-2026-8723 — qs >=6.11.1 <=6.15.1 DoS via TypeError on null in comma arrays
+  qs: ">=6.15.2"
+  # Security: CVE-2026-41907 — uuid <11.1.1 missing buffer bounds check in v3/v5/v6
+  # Pin to ^11.1.1 (not >=): uuid v12+ drops CommonJS; xcode and @expo/ngrok use require('uuid')
+  uuid: "^11.1.1"
