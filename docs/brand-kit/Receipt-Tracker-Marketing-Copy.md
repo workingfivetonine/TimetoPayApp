@@ -138,3 +138,28 @@ Drop-in copy for a landing page, app-store description, or pitch — grouped by 
 ### Use it anywhere
 - 📱 **Mobile + web** — native iOS and Android apps plus a full web app in any browser, all on the same account.
 - 🎁 **Free 30-day trial**, then simple affordable pricing. Pay with card or PayPal.
+
+---
+
+## 5. What your subscription unlocks
+
+Subscriber-facing copy. Start with a **free 30-day trial**, then keep everything for **$5.99/month** (cancel anytime, card or PayPal).
+
+**Your TimetoPay subscription gives you:**
+
+- 📸 **Unlimited AI receipt scanning** — snap a photo and AI pulls out every item, price, and store. No typing, no limits.
+- 🖼️📄 **Every way to add a receipt** — camera, gallery upload, and PDF import all included.
+- 💰 **Full price history** — track how the prices of everything you buy move over time.
+- 🥇 **Best price & best store** — always know where each item is cheapest based on your own shopping.
+- 🛒 **Your self-building shopping list** — regulars and one-offs detected automatically, with the lowest price next to each item.
+- 🏪 **Store cost-benefit analysis** — weigh delivery fees and minimum orders to pick the smartest store.
+- 🌐 **Community price catalog** — see typical prices other shoppers pay, fully anonymized.
+- 📊 **Spending analytics** — weekly spend trends with automatic high/low flags.
+- 📈 **Per-item insights** — lowest, average, and highest price for every item you've bought.
+- 📝 **Printable & shareable shopping lists** — clean store-by-store PDFs with checkboxes.
+- 🔍 **Search & sort across everything** — find any item, store, or receipt instantly.
+- 🔒 **Total privacy** — your receipts and prices stay private to your account, always.
+- 📱 **One account, every device** — pick up where you left off on web, iOS, or Android.
+- 🆕 **All future updates included** — every new feature we ship, at no extra cost.
+
+> **Cancel anytime.** Your trial runs for 30 days with full access — no charge until it ends.
