@@ -83,3 +83,15 @@ id = "ZyvrhQqo0-fMz7o0yG-VC"
 uri = "file://docs/appstore/listing.md"
 type = "text"
 title = "App Store Listing Copy (promo text + description)"
+
+[[outputs]]
+id = "d392pVdI0t8aHRqm68XIa"
+uri = "file://attached_assets/generated_audio/music_receipt_tracker_showcase_bed.mp3"
+type = "audio"
+title = "receipt tracker showcase bed"
+
+[[outputs]]
+id = "KvRPHv_zJ37_VixDqcucE"
+uri = "file://exports/receipt-tracker-cover.jpg"
+type = "image"
+title = "Receipt Tracker — Ko-Fi Cover Image (1920×1080)"

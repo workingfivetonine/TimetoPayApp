@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1920, initial-scale=1" />
+    <title>Receipt Tracker — Cover</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary: #7c3aed;
+        --primary-light: #8b5cf6;
+        --accent: #c4b5fd;
+        --bg: #faf8ff;
+        --ink: #1e1b4b;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: "Plus Jakarta Sans", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .stage {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        background: var(--bg);
+        overflow: hidden;
+      }
+      .glow {
+        position: absolute;
+        border-radius: 9999px;
+        filter: blur(110px);
+        mix-blend-mode: multiply;
+      }
+      .glow-1 {
+        width: 900px;
+        height: 900px;
+        background: var(--primary);
+        opacity: 0.35;
+        top: -220px;
+        left: -160px;
+      }
+      .glow-2 {
+        width: 760px;
+        height: 760px;
+        background: var(--accent);
+        opacity: 0.4;
+        bottom: -260px;
+        right: 380px;
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.04;
+        background-image: linear-gradient(var(--primary) 1px, transparent 1px),
+          linear-gradient(90deg, var(--primary) 1px, transparent 1px);
+        background-size: 48px 48px;
+      }
+      .content {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 130px;
+      }
+      .left {
+        width: 56%;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        background: #fff;
+        border: 1px solid rgba(124, 58, 237, 0.12);
+        box-shadow: 0 12px 30px -12px rgba(124, 58, 237, 0.3);
+        padding: 14px 22px 14px 16px;
+        border-radius: 9999px;
+        margin-bottom: 36px;
+      }
+      .badge img {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        object-fit: cover;
+      }
+      .badge span {
+        font-weight: 700;
+        font-size: 26px;
+        color: var(--primary);
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-weight: 800;
+        font-size: 118px;
+        line-height: 0.95;
+        letter-spacing: -0.03em;
+        color: var(--ink);
+      }
+      h1 .accent {
+        color: var(--primary);
+      }
+      .tagline {
+        font-weight: 600;
+        font-size: 40px;
+        color: #6b7280;
+        margin-top: 34px;
+      }
+      .pills {
+        display: flex;
+        gap: 16px;
+        margin-top: 48px;
+        flex-wrap: wrap;
+      }
+      .pill {
+        font-weight: 600;
+        font-size: 26px;
+        color: var(--ink);
+        background: #f3e8ff;
+        border: 1px solid rgba(124, 58, 237, 0.14);
+        padding: 16px 28px;
+        border-radius: 9999px;
+      }
+      .kofi {
+        margin-top: 56px;
+        display: inline-flex;
+        align-items: center;
+        gap: 16px;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 700;
+        font-size: 34px;
+        padding: 24px 46px;
+        border-radius: 9999px;
+        box-shadow: 0 26px 50px -14px rgba(124, 58, 237, 0.55);
+      }
+      .kofi .cup {
+        font-size: 40px;
+      }
+      .right {
+        width: 44%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        height: 100%;
+        perspective: 1400px;
+      }
+      .phone {
+        position: absolute;
+        border: 14px solid #fff;
+        border-radius: 56px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 50px 90px -30px rgba(124, 58, 237, 0.45),
+          0 0 0 1px rgba(124, 58, 237, 0.08);
+      }
+      .phone img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .notch {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 150px;
+        height: 30px;
+        background: #fff;
+        border-bottom-left-radius: 18px;
+        border-bottom-right-radius: 18px;
+        z-index: 5;
+      }
+      .phone-back {
+        width: 360px;
+        height: 770px;
+        transform: rotate(-9deg) translate(-150px, 18px);
+        opacity: 0.92;
+      }
+      .phone-front {
+        width: 392px;
+        height: 838px;
+        transform: rotate(5deg) translate(80px, 0);
+        z-index: 3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="glow glow-1"></div>
+      <div class="glow glow-2"></div>
+      <div class="grid"></div>
+
+      <div class="content">
+        <div class="left">
+          <div class="badge">
+            <img src="screens/app-icon.png" alt="Receipt Tracker icon" />
+            <span>Receipt Tracker</span>
+          </div>
+          <h1>Scan smarter.<br /><span class="accent">Spend less.</span></h1>
+          <p class="tagline">
+            AI scans your receipts, tracks prices, and builds a smart
+            shopping list.
+          </p>
+          <div class="pills">
+            <div class="pill">📸 AI receipt scan</div>
+            <div class="pill">📈 Price history</div>
+            <div class="pill">🛒 Best price &amp; store</div>
+          </div>
+          <div class="kofi">
+            <span class="cup">☕</span> Support us on Ko-fi
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="phone phone-back">
+            <div class="notch"></div>
+            <img src="screens/analytics.jpg" alt="Analytics screen" />
+          </div>
+          <div class="phone phone-front">
+            <div class="notch"></div>
+            <img src="screens/shopping.jpg" alt="Shopping list screen" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

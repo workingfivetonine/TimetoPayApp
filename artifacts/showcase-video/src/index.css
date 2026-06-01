@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #7c3aed;
+  --color-primary-light: #8b5cf6;
+  --color-secondary: #f3f4f6;
+  --color-accent: #c4b5fd;
+
+  --color-bg-light: #faf8ff;
+  --color-bg-dark: #1e1b4b;
+  --color-bg-muted: #f3e8ff;
+
+  --color-text-primary: #1e1b4b;
+  --color-text-secondary: #4c1d95;
+  --color-text-muted: #7c3aed;
+  --color-text-inverse: #ffffff;
+
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+}
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-primary-light: var(--color-primary-light);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  --color-bg-light: var(--color-bg-light);
+  --color-bg-dark: var(--color-bg-dark);
+  --color-bg-muted: var(--color-bg-muted);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-bg-light);
+}
+
+/* Phone Mockup Frame */
+.phone-frame {
+  border: 12px solid #ffffff;
+  border-radius: 40px;
+  box-shadow: 0 25px 50px -12px rgba(124, 58, 237, 0.25), 0 0 0 1px rgba(124, 58, 237, 0.1);
+  overflow: hidden;
+  position: relative;
+  background: white;
+}
+.phone-notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 25px;
+  background: #ffffff;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  z-index: 50;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
