@@ -16,6 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { fetch as expoFetch } from "expo/fetch";
+import { useAuth } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
@@ -52,6 +53,7 @@ export default function ImageEditor({
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
 
   // Track current image state in a ref (avoids stale closures in async handlers)
@@ -272,11 +274,15 @@ export default function ImageEditor({
     setAutoFraming(true);
     try {
       const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const token = await getToken();
       const response = await expoFetch(
         `https://${domain}/api/receipts/detect-bounds`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ imageBase64: imgRef.current.uri.startsWith("data:")
             ? imgRef.current.uri.split(",")[1]
             : await uriToBase64(imgRef.current.uri)
@@ -352,13 +358,27 @@ export default function ImageEditor({
         Math.abs(cropWidth - curImgW) <= 4 &&
         Math.abs(cropHeight - curImgH) <= 4;
 
-      const result = await manipulateAsync(
-        curUri,
-        isFullImage
-          ? []
-          : [{ crop: { originX, originY, width: cropWidth, height: cropHeight } }],
-        { format: SaveFormat.JPEG, base64: true }
-      );
+      const finalWidth = isFullImage ? curImgW : cropWidth;
+      const finalHeight = isFullImage ? curImgH : cropHeight;
+      const actions: Parameters<typeof manipulateAsync>[1] = isFullImage
+        ? []
+        : [{ crop: { originX, originY, width: cropWidth, height: cropHeight } }];
+      // Cap the longest edge so large HDR phone photos upload quickly while
+      // keeping enough detail for OCR. Receipts are usually portrait, so resize
+      // by whichever dimension is dominant rather than width alone.
+      if (Math.max(finalWidth, finalHeight) > 2000) {
+        actions.push(
+          finalWidth >= finalHeight
+            ? { resize: { width: 2000 } }
+            : { resize: { height: 2000 } }
+        );
+      }
+
+      const result = await manipulateAsync(curUri, actions, {
+        format: SaveFormat.JPEG,
+        compress: 0.7,
+        base64: true,
+      });
 
       onConfirm(result.base64!);
     } catch {

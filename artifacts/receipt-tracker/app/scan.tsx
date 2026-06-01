@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { fetch as expoFetch } from "expo/fetch";
+import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import {
   getGetShoppingListQueryKey,
@@ -37,6 +38,7 @@ export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [scanning, setScanning] = useState(false);
   const [scanningLabel, setScanningLabel] = useState("");
@@ -53,9 +55,13 @@ export default function ScanScreen() {
   const callApi = async (path: string, body: object) => {
     const domain = process.env.EXPO_PUBLIC_DOMAIN;
     const url = `https://${domain}/api/receipts/${path}`;
+    const token = await getToken();
     const response = await expoFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error(`API error ${response.status}`);
@@ -87,9 +93,13 @@ export default function ScanScreen() {
     try {
       const domain = process.env.EXPO_PUBLIC_DOMAIN;
       const url = `https://${domain}/api/receipts/parse`;
+      const token = await getToken();
       const response = await expoFetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ imageBase64: editedBase64 }),
       });
       if (!response.ok) throw new Error(`API error ${response.status}`);

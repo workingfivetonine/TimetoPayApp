@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { fetch as expoFetch } from "expo/fetch";
+import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -59,6 +60,7 @@ function toIso(dateStr: string): string {
 }
 
 export default function ReviewReceiptScreen() {
+  const { getToken } = useAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -107,9 +109,13 @@ export default function ReviewReceiptScreen() {
     try {
       const domain = process.env.EXPO_PUBLIC_DOMAIN;
       const url = `https://${domain}/api/receipts/save-parsed`;
+      const token = await getToken();
       const response = await expoFetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           storeName: receipt.storeName,
           purchasedAt: toIso(receipt.purchasedAt),

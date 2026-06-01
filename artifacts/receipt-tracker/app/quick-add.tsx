@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { fetch as expoFetch } from "expo/fetch";
+import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListStores,
@@ -48,6 +49,7 @@ function makeRow(): LineItemRow {
 }
 
 export default function QuickAddScreen() {
+  const { getToken } = useAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -135,9 +137,13 @@ export default function QuickAddScreen() {
         })),
       };
 
+      const token = await getToken();
       const response = await expoFetch(`https://${domain}/api/receipts/manual-entry`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(body),
       });
 
