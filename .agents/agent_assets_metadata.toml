@@ -156,3 +156,9 @@ id = "PwsrYqos2KQKUJFBWZT1u"
 uri = "file://.local/outputs/pitch-deck-png/slide-7.png"
 type = "image"
 title = "Slide 7 — Support (new logo)"
+
+[[outputs]]
+id = "pxZpjq2y5iFMr_cW5TflX"
+uri = "file://.local/outputs/TimetoPay-Assets.zip"
+type = "unspecified"
+title = "TimetoPay-Assets.zip — all images, videos, graphics & guides"
