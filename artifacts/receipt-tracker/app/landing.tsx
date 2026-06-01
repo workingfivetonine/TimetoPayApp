@@ -19,11 +19,11 @@ type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
 // Privacy / Support are standalone server-rendered pages (see server/serve.js),
 // not in-app routes — open them as full web pages.
-function openLegalPage(page: "privacy" | "support") {
+function openLegalPage(page: "privacy" | "support" | "donate") {
   if (Platform.OS === "web") {
     window.location.href = `/${page}`;
   } else {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.9to5shopping.com";
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
     void Linking.openURL(`https://${domain}/${page}`);
   }
 }
@@ -90,7 +90,7 @@ export default function LandingPage() {
               source={require("@/assets/images/icon.png")}
               style={styles.brandLogo}
             />
-            <Text style={styles.brandName}>Receipt Tracker</Text>
+            <Text style={styles.brandName}>TimetoPay</Text>
           </View>
           <TouchableOpacity
             onPress={() => router.push("/(auth)/sign-in")}
@@ -110,7 +110,7 @@ export default function LandingPage() {
             Turn your receipts into real grocery savings
           </Text>
           <Text style={styles.subtitle}>
-            Scan any receipt and Receipt Tracker reads every item and price,
+            Scan any receipt and TimetoPay reads every item and price,
             tracks how they change over time, and builds a smart shopping list
             that always points you to the cheapest store.
           </Text>
@@ -162,6 +162,25 @@ export default function LandingPage() {
           </View>
         </View>
 
+        {/* Donate */}
+        <View style={styles.donateWrap}>
+          <View style={styles.donateInner}>
+            <Feather name="heart" size={28} color={colors.primary} style={styles.donateIcon} />
+            <Text style={styles.donateTitle}>Support our work</Text>
+            <Text style={styles.donateBody}>
+              TimetoPay is built by a small team passionate about helping families spend less on groceries. If it saves you money, consider buying us a coffee — every contribution keeps the servers running and new features coming.
+            </Text>
+            <TouchableOpacity
+              style={styles.donateBtn}
+              onPress={() => openLegalPage("donate")}
+              accessibilityRole="button"
+            >
+              <Feather name="heart" size={16} color={colors.primaryForeground} />
+              <Text style={styles.donateBtnText}>Donate</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Closing CTA */}
         <View style={styles.closing}>
           <Text style={styles.closingTitle}>
@@ -195,9 +214,16 @@ export default function LandingPage() {
             >
               <Text style={styles.footerLink}>Support</Text>
             </TouchableOpacity>
+            <Text style={styles.footerDot}>·</Text>
+            <TouchableOpacity
+              onPress={() => openLegalPage("donate")}
+              accessibilityRole="link"
+            >
+              <Text style={styles.footerLink}>Donate</Text>
+            </TouchableOpacity>
           </View>
           <Text style={styles.footer}>
-            © {new Date().getFullYear()} Receipt Tracker
+            © {new Date().getFullYear()} TimetoPay
           </Text>
         </View>
       </View>
@@ -416,6 +442,51 @@ function makeStyles(colors: ReturnType<typeof useColors>, isWide: boolean) {
       textAlign: "center",
       maxWidth: 480,
       marginBottom: 22,
+    },
+    donateWrap: {
+      marginBottom: isWide ? 72 : 48,
+    },
+    donateInner: {
+      alignItems: "center",
+      backgroundColor: colors.card,
+      borderRadius: colors.radius + 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: isWide ? 48 : 32,
+    },
+    donateIcon: {
+      marginBottom: 14,
+    },
+    donateTitle: {
+      fontFamily: "Inter_700Bold",
+      fontSize: isWide ? 26 : 22,
+      color: colors.text,
+      textAlign: "center",
+      marginBottom: 10,
+    },
+    donateBody: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 15,
+      lineHeight: 24,
+      color: colors.mutedForeground,
+      textAlign: "center",
+      maxWidth: 540,
+      marginBottom: 24,
+    },
+    donateBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 28,
+      paddingVertical: 14,
+      borderRadius: colors.radius,
+    },
+    donateBtnText: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 16,
+      color: colors.primaryForeground,
     },
     footerWrap: {
       alignItems: "center",

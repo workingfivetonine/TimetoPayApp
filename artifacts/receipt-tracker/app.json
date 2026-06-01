@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Receipt Tracker",
-    "slug": "receipt-tracker",
+    "name": "TimetoPay",
+    "slug": "timetopay",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "receipt-tracker",
+    "scheme": "timetopay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {

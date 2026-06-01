@@ -55,7 +55,7 @@ function serveRobots(req, res) {
 
 function serveSitemap(req, res) {
   const baseUrl = getBaseUrl(req);
-  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${baseUrl}/</loc>\n    <changefreq>weekly</changefreq>\n  </url>\n  <url>\n    <loc>${baseUrl}/privacy</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${baseUrl}/support</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n</urlset>\n`;
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${CANONICAL_ORIGIN}/</loc>\n    <changefreq>weekly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/privacy</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/support</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/donate</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n</urlset>\n`;
   res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
   res.end(body);
 }
@@ -64,7 +64,8 @@ function serveSitemap(req, res) {
 // These are real HTML documents (not the SPA shell) so the App Store reviewer,
 // search crawlers, and any browser get actual content with no JS required.
 
-const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@9to5shopping.com";
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@5to9shopping.com";
+const CANONICAL_ORIGIN = process.env.CANONICAL_ORIGIN || "https://5to9shopping.com";
 const LEGAL_UPDATED = "June 1, 2026";
 
 function escapeHtml(str) {
@@ -89,8 +90,9 @@ function renderBlocks(blocks) {
     .join("\n        ");
 }
 
-function buildLegalPage({ baseUrl, appName, title, intro, sections }) {
+function buildLegalPage({ baseUrl, appName, title, slug, intro, sections }) {
   const safeBase = escapeHtml(baseUrl);
+  const safeCanonical = escapeHtml(CANONICAL_ORIGIN);
   const sectionsHtml = sections
     .map(
       (s) => `<section>
@@ -107,7 +109,7 @@ function buildLegalPage({ baseUrl, appName, title, intro, sections }) {
   <title>${escapeHtml(title)} — ${escapeHtml(appName)}</title>
   <meta name="description" content="${escapeHtml(title)} for ${escapeHtml(appName)}." />
   <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="${safeBase}/${title === "Privacy Policy" ? "privacy" : "support"}" />
+  <link rel="canonical" href="${safeCanonical}/${escapeHtml(slug)}" />
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
@@ -178,6 +180,7 @@ function servePrivacy(req, res, appName) {
     baseUrl,
     appName,
     title: "Privacy Policy",
+    slug: "privacy",
     intro: `${escapeHtml(appName)} ("we", "us") helps you scan grocery receipts, track prices over time, and build a smart shopping list. This policy explains what information the app collects, how it is used, and the choices you have. Your data is private to your account.`,
     sections: [
       {
@@ -284,12 +287,70 @@ function servePrivacy(req, res, appName) {
   res.end(html);
 }
 
+const DONATE_URL = process.env.DONATE_URL || "https://ko-fi.com/timetopay";
+
+function serveDonate(req, res, appName) {
+  const baseUrl = getBaseUrl(req);
+  const html = buildLegalPage({
+    baseUrl,
+    appName,
+    title: "Support Our Work",
+    slug: "donate",
+    intro: `${escapeHtml(appName)} is built by a small team passionate about helping families spend less on groceries. If it saves you money, a small donation goes a long way — thank you!`,
+    sections: [
+      {
+        heading: "Why Donate?",
+        blocks: [
+          {
+            list: [
+              "<strong>Keep the servers running</strong> — AI receipt scanning and price tracking cost real money to operate.",
+              "<strong>Fund new features</strong> — your support lets us build smarter price alerts, store comparisons, and more.",
+              "<strong>Support an indie project</strong> — TimetoPay has no investors or ads. It's just us, trying to help people save money.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "How to Donate",
+        blocks: [
+          {
+            p: `We accept one-time and recurring donations via Ko-fi. Any amount is deeply appreciated. <a href="${DONATE_URL}" target="_blank" rel="noopener">Donate on Ko-fi &rarr;</a>`,
+          },
+        ],
+      },
+      {
+        heading: "Other Ways to Help",
+        blocks: [
+          {
+            list: [
+              "Tell a friend or family member about TimetoPay.",
+              "Share it on social media.",
+              "Send us feedback — it helps us improve the app for everyone.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Contact",
+        blocks: [
+          {
+            p: `Have questions or want to get in touch? Email us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`,
+          },
+        ],
+      },
+    ],
+  });
+  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  res.end(html);
+}
+
 function serveSupport(req, res, appName) {
   const baseUrl = getBaseUrl(req);
   const html = buildLegalPage({
     baseUrl,
     appName,
     title: "Support",
+    slug: "support",
     intro: `Need help with ${escapeHtml(appName)}? You'll find answers to common questions below. If you're still stuck, email us — we're happy to help.`,
     sections: [
       {
@@ -400,11 +461,12 @@ function buildSeoHead(baseUrl, appName) {
   const tags = [
     `<meta name="description" content="${desc}" />`,
     `<meta name="robots" content="index, follow" />`,
-    `<link rel="canonical" href="${baseUrl}/" />`,
+    `<link rel="canonical" href="${CANONICAL_ORIGIN}/" />`,
     `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="${appName}" />`,
     `<meta property="og:title" content="${appName} — Scan receipts, track prices, smart shopping list" />`,
     `<meta property="og:description" content="${ogDesc}" />`,
-    `<meta property="og:url" content="${baseUrl}/" />`,
+    `<meta property="og:url" content="${CANONICAL_ORIGIN}/" />`,
     `<meta name="twitter:card" content="summary" />`,
     `<meta name="twitter:title" content="${appName}" />`,
     `<meta name="twitter:description" content="${ogDesc}" />`,
@@ -494,6 +556,10 @@ const server = http.createServer((req, res) => {
 
   if (pathname === "/support") {
     return serveSupport(req, res, appName);
+  }
+
+  if (pathname === "/donate") {
+    return serveDonate(req, res, appName);
   }
 
   if (pathname === "/" || pathname === "/manifest") {
