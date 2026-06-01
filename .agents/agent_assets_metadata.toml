@@ -114,3 +114,45 @@ id = "TNetGdMIWO80UBCybX98x"
 uri = "file://.local/outputs/TimetoPay.pdf"
 type = "pdf"
 title = "TimetoPay.pdf"
+
+[[outputs]]
+id = "qXd48Zm_bFawvakGi1xci"
+uri = "file://.local/outputs/pitch-deck-png/slide-1.png"
+type = "image"
+title = "Slide 1 — Cover"
+
+[[outputs]]
+id = "13G1GI2OHofAwLlk9djWS"
+uri = "file://.local/outputs/pitch-deck-png/slide-2.png"
+type = "image"
+title = "Slide 2"
+
+[[outputs]]
+id = "ZlX0MKCPlQ130TlSPXLY2"
+uri = "file://.local/outputs/pitch-deck-png/slide-3.png"
+type = "image"
+title = "Slide 3"
+
+[[outputs]]
+id = "TnjiTM997QqpOgO5JycAk"
+uri = "file://.local/outputs/pitch-deck-png/slide-4.png"
+type = "image"
+title = "Slide 4"
+
+[[outputs]]
+id = "zGVM-4IDkyYJNk8pMxLSU"
+uri = "file://.local/outputs/pitch-deck-png/slide-5.png"
+type = "image"
+title = "Slide 5"
+
+[[outputs]]
+id = "c9Rmye-oDGbW7f_nbWpCg"
+uri = "file://.local/outputs/pitch-deck-png/slide-6.png"
+type = "image"
+title = "Slide 6"
+
+[[outputs]]
+id = "PwsrYqos2KQKUJFBWZT1u"
+uri = "file://.local/outputs/pitch-deck-png/slide-7.png"
+type = "image"
+title = "Slide 7"
