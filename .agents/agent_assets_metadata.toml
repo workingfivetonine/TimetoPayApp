@@ -47,3 +47,39 @@ id = "Ri_Ixhh11iBwrHl5be6BT"
 uri = "file://screenshots/appstore/05-catalog.png"
 type = "image"
 title = "5 — Catalog (Real prices)"
+
+[[outputs]]
+id = "nha8oCf38TYLmwFFOzfNf"
+uri = "file://screenshots/appstore-ipad/01-receipts.png"
+type = "image"
+title = "iPad 12.9\" — Receipts"
+
+[[outputs]]
+id = "P2UhXWrfNNZjjlDaSQ979"
+uri = "file://screenshots/appstore-ipad/02-stores.png"
+type = "image"
+title = "iPad 12.9\" — Stores"
+
+[[outputs]]
+id = "Hlvb_QnPGz5EpJ2Bz4kGu"
+uri = "file://screenshots/appstore-ipad/03-shopping.png"
+type = "image"
+title = "iPad 12.9\" — Shopping List"
+
+[[outputs]]
+id = "fUGYqgFgViyzwgrc5ic2x"
+uri = "file://screenshots/appstore-ipad/04-analytics.png"
+type = "image"
+title = "iPad 12.9\" — Analytics"
+
+[[outputs]]
+id = "4sfN2eJ7L_ZUsafNAcAjI"
+uri = "file://screenshots/appstore-ipad/05-catalog.png"
+type = "image"
+title = "iPad 12.9\" — Browse Catalog"
+
+[[outputs]]
+id = "ZyvrhQqo0-fMz7o0yG-VC"
+uri = "file://docs/appstore/listing.md"
+type = "text"
+title = "App Store Listing Copy (promo text + description)"
