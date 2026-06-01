@@ -3,6 +3,7 @@ export interface ParsedLineItem {
   price: number;
   quantity: number;
   icon?: string | null;
+  category?: string | null;
   nameUncertain?: boolean;
   priceUncertain?: boolean;
 }
