@@ -3,13 +3,17 @@ import { eq } from "drizzle-orm";
 import {
   db,
   itemsTable,
-  catalogItemsTable,
   catalogItemAliasesTable,
   lineItemsTable,
   receiptsTable,
 } from "@workspace/db";
 import { AddCatalogItemToListBody } from "@workspace/api-zod";
-import { ensureCatalog, computeGlobalPrices, normalizeName } from "../lib/catalog";
+import {
+  ensureCatalog,
+  computeGlobalPrices,
+  normalizeName,
+  CATALOG_MIN_CONTRIBUTORS,
+} from "../lib/catalog";
 import { categoryOrder } from "../lib/categories";
 
 const router = Router();
@@ -36,7 +40,13 @@ async function aliasNormsByItem(): Promise<Map<number, string[]>> {
 router.get("/browse", async (req, res): Promise<void> => {
   const userId = req.userId!;
   await ensureCatalog();
-  const global = await computeGlobalPrices();
+  // Privacy-thresholded view: only surface items/store prices backed by at least
+  // CATALOG_MIN_CONTRIBUTORS distinct OTHER users, so a regular account can't
+  // read back another person's singleton purchases from the "shared" catalog.
+  const global = await computeGlobalPrices({
+    minDistinctUsers: CATALOG_MIN_CONTRIBUTORS,
+    excludeUserId: userId,
+  });
 
   // The user's items plus their latest purchase date, to determine which
   // items are CURRENTLY on the shopping list. Membership mirrors the shopping
@@ -144,19 +154,21 @@ router.post("/add-to-list", async (req, res): Promise<void> => {
   }
   await ensureCatalog();
 
-  const [canonical] = await db
-    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon, category: catalogItemsTable.category })
-    .from(catalogItemsTable)
-    .where(eq(catalogItemsTable.id, parsed.data.catalogItemId));
-  if (!canonical) {
+  // Resolve the target item ONLY through the user's privacy-thresholded catalog
+  // view (same threshold as browse). This both snapshots a privacy-safe price
+  // and gates the route to the caller's visible set: a suppressed item returns
+  // 404 (indistinguishable from "doesn't exist"), so sequential id probing
+  // can't be used to disclose hidden canonical item names.
+  const global = await computeGlobalPrices({
+    minDistinctUsers: CATALOG_MIN_CONTRIBUTORS,
+    excludeUserId: userId,
+  });
+  const entry = global.find((g) => g.catalogItemId === parsed.data.catalogItemId);
+  if (!entry) {
     res.status(404).json({ error: "Catalog item not found" });
     return;
   }
-
-  // Snapshot the current global best price/store for this canonical item.
-  const global = await computeGlobalPrices();
-  const entry = global.find((g) => g.catalogItemId === canonical.id);
-  const best = entry && entry.stores.length ? entry.stores[0] : null;
+  const best = entry.stores.length ? entry.stores[0] : null;
   const globalPrice = best ? String(best.latestPrice) : null;
   const globalStoreName = best ? best.storeName : null;
 
@@ -166,8 +178,8 @@ router.post("/add-to-list", async (req, res): Promise<void> => {
   // canonical item (not just the canonical name), so we update/reuse rather
   // than creating a duplicate when the user already owns a spelling variant.
   const normsByItem = await aliasNormsByItem();
-  const candidateNorms = new Set(normsByItem.get(canonical.id) ?? []);
-  candidateNorms.add(normalizeName(canonical.name));
+  const candidateNorms = new Set(normsByItem.get(entry.catalogItemId) ?? []);
+  candidateNorms.add(normalizeName(entry.name));
 
   const userItems = await db
     .select()
@@ -182,8 +194,8 @@ router.post("/add-to-list", async (req, res): Promise<void> => {
       .set({
         addedToListAt: now,
         dismissedAt: null,
-        icon: existing.icon ?? canonical.icon ?? null,
-        category: existing.category ?? canonical.category ?? null,
+        icon: existing.icon ?? entry.icon ?? null,
+        category: existing.category ?? entry.category ?? null,
         globalPrice,
         globalStoreName,
       })
@@ -194,9 +206,9 @@ router.post("/add-to-list", async (req, res): Promise<void> => {
       .insert(itemsTable)
       .values({
         userId,
-        name: canonical.name,
-        icon: canonical.icon ?? null,
-        category: canonical.category ?? null,
+        name: entry.name,
+        icon: entry.icon ?? null,
+        category: entry.category ?? null,
         addedToListAt: now,
         globalPrice,
         globalStoreName,

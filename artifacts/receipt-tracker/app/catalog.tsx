@@ -224,8 +224,8 @@ export default function CatalogBrowseScreen() {
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <Text style={[styles.caption, { color: colors.mutedForeground }]}>
-              Prices seen across everyone's receipts (we never show whose). Tap + to add an item to
-              your shopping list, or the check to remove it.
+              Prices from items multiple shoppers have bought (we never show whose). Tap + to add an
+              item to your shopping list, or the check to remove it.
             </Text>
           }
           ListEmptyComponent={

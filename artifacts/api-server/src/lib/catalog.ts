@@ -151,11 +151,38 @@ export type GlobalItem = {
   stores: GlobalStorePrice[];
 };
 
-// Aggregate the most-recent price per canonical item across ALL users, plus the
+// k-anonymity threshold for the NON-admin browse catalog. An item (and each of
+// its per-store prices) is only shown to a regular user when at least this many
+// DISTINCT users have bought it, so the "aggregated" catalog can never be used
+// to read back a single (or near-single) person's purchase. The threat model
+// calls out "singleton OR near-singleton" activity, so we require >2. The
+// trusted admin view is exempt (called with no options).
+export const CATALOG_MIN_CONTRIBUTORS = 3;
+
+export type GlobalPricesOptions = {
+  // k-anonymity threshold. When > 1, suppress any per-store price (and any item
+  // then left with no surviving store) backed by fewer than this many DISTINCT
+  // non-null user contributors. Omit (or <= 1) for the trusted admin view,
+  // which sees the full cross-user catalog with no suppression.
+  minDistinctUsers?: number;
+  // When set, this user's own rows are dropped before counting/aggregating, so
+  // the threshold counts only OTHER users and the catalog never just echoes the
+  // requester's own purchases back to them.
+  excludeUserId?: string | null;
+};
+
+// Aggregate the most-recent price per canonical item across users, plus the
 // most-recent price per store. Never exposes who bought what. Shared by the
-// admin global view and the all-user browse endpoint. Caller should run
-// `ensureCatalog()` first.
-export async function computeGlobalPrices(): Promise<GlobalItem[]> {
+// admin global view (no options => full visibility) and the all-user browse
+// endpoint (privacy-thresholded via `opts`). Caller should run `ensureCatalog()`
+// first.
+export async function computeGlobalPrices(
+  opts: GlobalPricesOptions = {},
+): Promise<GlobalItem[]> {
+  const minDistinctUsers = opts.minDistinctUsers ?? 1;
+  const excludeUserId = opts.excludeUserId ?? null;
+  const suppress = minDistinctUsers > 1;
+
   const rows = await db
     .select({
       catalogItemId: catalogItemAliasesTable.catalogItemId,
@@ -163,6 +190,7 @@ export async function computeGlobalPrices(): Promise<GlobalItem[]> {
       price: lineItemsTable.price,
       purchasedAt: receiptsTable.purchasedAt,
       createdAt: receiptsTable.createdAt,
+      userId: receiptsTable.userId,
     })
     .from(lineItemsTable)
     .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
@@ -187,6 +215,7 @@ export async function computeGlobalPrices(): Promise<GlobalItem[]> {
       price: Number(r.price),
       purchasedAt: r.purchasedAt,
       createdAt: r.createdAt,
+      userId: r.userId,
     }))
     .sort((a, b) => {
       const t = b.purchasedAt.getTime() - a.purchasedAt.getTime();
@@ -194,57 +223,86 @@ export async function computeGlobalPrices(): Promise<GlobalItem[]> {
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
 
-  type StoreAgg = { catalogStoreId: number; storeName: string; latestPrice: number; latestDate: Date };
-  type ItemAgg = {
-    overallLatestPrice: number;
-    overallLatestStoreId: number;
-    overallLatestDate: Date;
-    stores: Map<number, StoreAgg>;
+  type StoreAgg = {
+    catalogStoreId: number;
+    storeName: string;
+    latestPrice: number;
+    latestDate: Date;
+    latestCreatedAt: Date;
+    users: Set<string>;
   };
+  type ItemAgg = { stores: Map<number, StoreAgg> };
   const agg = new Map<number, ItemAgg>();
 
   for (const r of sorted) {
+    // Privacy: never let the requester's own purchases drive (or unlock) the
+    // catalog they see.
+    if (excludeUserId && r.userId === excludeUserId) continue;
     let a = agg.get(r.catalogItemId);
     if (!a) {
-      a = {
-        overallLatestPrice: r.price,
-        overallLatestStoreId: r.catalogStoreId,
-        overallLatestDate: r.purchasedAt,
-        stores: new Map(),
-      };
+      a = { stores: new Map() };
       agg.set(r.catalogItemId, a);
     }
-    if (!a.stores.has(r.catalogStoreId)) {
-      a.stores.set(r.catalogStoreId, {
+    let s = a.stores.get(r.catalogStoreId);
+    if (!s) {
+      // First (most-recent) row for this store sets the displayed latest price.
+      s = {
         catalogStoreId: r.catalogStoreId,
         storeName: storeMap.get(r.catalogStoreId) ?? "Unknown",
         latestPrice: r.price,
         latestDate: r.purchasedAt,
-      });
+        latestCreatedAt: r.createdAt,
+        users: new Set<string>(),
+      };
+      a.stores.set(r.catalogStoreId, s);
     }
+    // Only NON-NULL owners count toward the k-anonymity threshold. Ownerless
+    // (anonymized legacy) rows contribute price data but never unlock an entry.
+    if (r.userId) s.users.add(r.userId);
   }
 
   return Array.from(agg.entries())
-    .map(([catalogItemId, a]) => {
+    .map(([catalogItemId, a]): GlobalItem | null => {
       const item = itemMap.get(catalogItemId);
+      const stores = Array.from(a.stores.values())
+        .filter((s) => !suppress || s.users.size >= minDistinctUsers)
+        .sort((x, y) => x.latestPrice - y.latestPrice);
+      // Suppressed down to nothing => omit the item entirely (don't even leak
+      // that it exists).
+      if (stores.length === 0) return null;
+      // Overall latest = the surviving store with the most recent purchase,
+      // using the same (purchasedAt desc, then createdAt desc) ordering as the
+      // global sort so the no-suppression (admin) result matches the
+      // pre-thresholding "most recent row overall" behavior. The final
+      // catalogStoreId tiebreak makes selection fully deterministic and
+      // independent of the (price-based) `stores` ordering on exact timestamp
+      // ties (the old path was DB-row-order dependent here).
+      const overall = stores.reduce((acc, s) => {
+        const t = s.latestDate.getTime() - acc.latestDate.getTime();
+        if (t > 0) return s;
+        if (t < 0) return acc;
+        const c = s.latestCreatedAt.getTime() - acc.latestCreatedAt.getTime();
+        if (c > 0) return s;
+        if (c < 0) return acc;
+        return s.catalogStoreId < acc.catalogStoreId ? s : acc;
+      });
       return {
         catalogItemId,
         name: item?.name ?? "Unknown",
         icon: item?.icon ?? null,
         category: item?.category ?? null,
-        overallLatestPrice: a.overallLatestPrice,
-        overallLatestStoreId: a.overallLatestStoreId,
-        overallLatestStoreName: storeMap.get(a.overallLatestStoreId) ?? "Unknown",
-        overallLatestDate: a.overallLatestDate.toISOString(),
-        stores: Array.from(a.stores.values())
-          .sort((x, y) => x.latestPrice - y.latestPrice)
-          .map((s) => ({
-            catalogStoreId: s.catalogStoreId,
-            storeName: s.storeName,
-            latestPrice: s.latestPrice,
-            latestDate: s.latestDate.toISOString(),
-          })),
+        overallLatestPrice: overall.latestPrice,
+        overallLatestStoreId: overall.catalogStoreId,
+        overallLatestStoreName: overall.storeName,
+        overallLatestDate: overall.latestDate.toISOString(),
+        stores: stores.map((s) => ({
+          catalogStoreId: s.catalogStoreId,
+          storeName: s.storeName,
+          latestPrice: s.latestPrice,
+          latestDate: s.latestDate.toISOString(),
+        })),
       };
     })
+    .filter((x): x is GlobalItem => x !== null)
     .sort((x, y) => x.name.localeCompare(y.name));
 }
