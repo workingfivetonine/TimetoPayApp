@@ -21,7 +21,7 @@
     },
     "android": {},
     "web": {
-      "favicon": "./assets/images/icon.png",
+      "favicon": "./assets/images/favicon.png",
       "bundler": "metro",
       "output": "single"
     },
