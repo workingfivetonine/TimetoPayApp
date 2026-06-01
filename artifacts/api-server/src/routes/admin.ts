@@ -1,18 +1,65 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   usersTable,
   storesTable,
   itemsTable,
   receiptsTable,
+  lineItemsTable,
 } from "@workspace/db";
+import { AdminSetUserRoleBody, AdminMergeUsersBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
+import { normalizeName } from "../lib/catalog";
 
 const router = Router();
 
 // All admin routes require an admin user.
 router.use(requireAdmin);
+
+// Best-effort deletion of a Clerk user. Swallows "already gone" so DB cleanup
+// can still proceed; rethrows nothing (logged by caller via return value).
+async function deleteClerkUser(userId: string, log?: { warn: (o: object, m: string) => void }): Promise<void> {
+  try {
+    await clerkClient.users.deleteUser(userId);
+  } catch (err) {
+    // The Clerk account may already be gone; proceed with local cleanup.
+    log?.warn({ err, userId }, "Failed to delete Clerk user (continuing)");
+  }
+}
+
+// Compute the AdminUser summary shape for a single user.
+async function buildAdminUser(userId: string) {
+  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!u) return null;
+  const [r] = await db
+    .select({
+      receiptCount: sql<number>`count(*)::int`,
+      totalSpend: sql<string>`coalesce(sum(${receiptsTable.total}), 0)`,
+    })
+    .from(receiptsTable)
+    .where(eq(receiptsTable.userId, userId));
+  const [s] = await db
+    .select({ storeCount: sql<number>`count(*)::int` })
+    .from(storesTable)
+    .where(eq(storesTable.userId, userId));
+  const [i] = await db
+    .select({ itemCount: sql<number>`count(*)::int` })
+    .from(itemsTable)
+    .where(eq(itemsTable.userId, userId));
+  return {
+    id: u.id,
+    email: u.email,
+    isAdmin: u.isAdmin,
+    role: u.role,
+    createdAt: u.createdAt.toISOString(),
+    storeCount: s?.storeCount ?? 0,
+    itemCount: i?.itemCount ?? 0,
+    receiptCount: r?.receiptCount ?? 0,
+    totalSpend: Math.round(Number(r?.totalSpend ?? 0) * 100) / 100,
+  };
+}
 
 // List all users with a summary of their data.
 router.get("/users", async (_req, res): Promise<void> => {
@@ -46,6 +93,7 @@ router.get("/users", async (_req, res): Promise<void> => {
       id: u.id,
       email: u.email,
       isAdmin: u.isAdmin,
+      role: u.role,
       createdAt: u.createdAt.toISOString(),
       storeCount: storeMap.get(u.id) ?? 0,
       itemCount: itemMap.get(u.id) ?? 0,
@@ -53,6 +101,215 @@ router.get("/users", async (_req, res): Promise<void> => {
       totalSpend: Math.round(Number(receiptMap.get(u.id)?.totalSpend ?? 0) * 100) / 100,
     })),
   );
+});
+
+// Set a user's type/role. Assigning "master_admin" transfers admin rights:
+// the current master admin is demoted to "general" and the target becomes the
+// single master admin (kept in lockstep with the is_admin power flag).
+router.patch("/users/:userId/role", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+  const parsed = AdminSetUserRoleBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid role" });
+    return;
+  }
+  const { role } = parsed.data;
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (role === "master_admin") {
+    if (target.isAdmin) {
+      // Already the master admin — nothing to transfer.
+      res.json(await buildAdminUser(userId));
+      return;
+    }
+    // Transfer: demote the current master(s), then promote the target. Order
+    // matters — clearing is_admin first keeps the single-admin unique index
+    // happy. We lock the target row up front and assert the promote actually
+    // updated it, so a concurrent delete of the target can never leave the app
+    // with zero admins (the whole transfer rolls back instead).
+    const ok = await db.transaction(async (tx) => {
+      const locked = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .for("update");
+      if (locked.length === 0) return false;
+
+      await tx
+        .update(usersTable)
+        .set({ isAdmin: false, role: "general" })
+        .where(eq(usersTable.isAdmin, true));
+      const promoted = await tx
+        .update(usersTable)
+        .set({ isAdmin: true, role: "master_admin" })
+        .where(eq(usersTable.id, userId))
+        .returning({ id: usersTable.id });
+      if (promoted.length !== 1) {
+        throw new Error("Admin transfer failed to promote target");
+      }
+      return true;
+    });
+    if (!ok) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json(await buildAdminUser(userId));
+    return;
+  }
+
+  // Demoting to family/general. Refuse to demote the current master admin
+  // directly — that would leave the app with no admin. Transfer master_admin to
+  // another user first.
+  if (target.isAdmin) {
+    res.status(400).json({
+      error:
+        "Can't change the master admin's type. Assign master admin to another user to transfer it first.",
+    });
+    return;
+  }
+
+  await db.update(usersTable).set({ role }).where(eq(usersTable.id, userId));
+  res.json(await buildAdminUser(userId));
+});
+
+// Merge one user's data into another, then delete the source user. Stores and
+// items are deduplicated by normalized name so the target never ends up with
+// duplicate personal rows.
+router.post("/users/merge", async (req, res): Promise<void> => {
+  const parsed = AdminMergeUsersBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const { sourceUserId, targetUserId } = parsed.data;
+
+  if (sourceUserId === targetUserId) {
+    res.status(400).json({ error: "Cannot merge a user into themselves" });
+    return;
+  }
+
+  const [source] = await db.select().from(usersTable).where(eq(usersTable.id, sourceUserId));
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, targetUserId));
+  if (!source || !target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (source.isAdmin) {
+    res.status(400).json({
+      error: "Can't merge the master admin. Transfer master admin to another user first.",
+    });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [receiptCountRow] = await tx
+      .select({ c: sql<number>`count(*)::int` })
+      .from(receiptsTable)
+      .where(eq(receiptsTable.userId, sourceUserId));
+    const movedReceipts = receiptCountRow?.c ?? 0;
+
+    // --- Stores: dedup by normalized name ---
+    const targetStores = await tx
+      .select({ id: storesTable.id, name: storesTable.name })
+      .from(storesTable)
+      .where(eq(storesTable.userId, targetUserId));
+    const storeByNorm = new Map<string, number>();
+    for (const s of targetStores) storeByNorm.set(normalizeName(s.name), s.id);
+
+    const sourceStores = await tx
+      .select({ id: storesTable.id, name: storesTable.name })
+      .from(storesTable)
+      .where(eq(storesTable.userId, sourceUserId));
+    for (const s of sourceStores) {
+      const norm = normalizeName(s.name);
+      const existingId = storeByNorm.get(norm);
+      if (existingId) {
+        // Repoint this source store's receipts to the target's store, drop dup.
+        await tx
+          .update(receiptsTable)
+          .set({ storeId: existingId })
+          .where(eq(receiptsTable.storeId, s.id));
+        await tx.delete(storesTable).where(eq(storesTable.id, s.id));
+      } else {
+        await tx.update(storesTable).set({ userId: targetUserId }).where(eq(storesTable.id, s.id));
+        storeByNorm.set(norm, s.id);
+      }
+    }
+    const movedStores = sourceStores.length;
+
+    // --- Items: dedup by normalized name (merge purchase counts) ---
+    const targetItems = await tx
+      .select({ id: itemsTable.id, name: itemsTable.name, purchaseCount: itemsTable.purchaseCount })
+      .from(itemsTable)
+      .where(eq(itemsTable.userId, targetUserId));
+    const itemByNorm = new Map<string, { id: number; purchaseCount: number }>();
+    for (const i of targetItems) itemByNorm.set(normalizeName(i.name), { id: i.id, purchaseCount: i.purchaseCount });
+
+    const sourceItems = await tx
+      .select({ id: itemsTable.id, name: itemsTable.name, purchaseCount: itemsTable.purchaseCount })
+      .from(itemsTable)
+      .where(eq(itemsTable.userId, sourceUserId));
+    for (const i of sourceItems) {
+      const norm = normalizeName(i.name);
+      const existing = itemByNorm.get(norm);
+      if (existing) {
+        await tx
+          .update(lineItemsTable)
+          .set({ itemId: existing.id })
+          .where(eq(lineItemsTable.itemId, i.id));
+        const newCount = existing.purchaseCount + i.purchaseCount;
+        await tx.update(itemsTable).set({ purchaseCount: newCount }).where(eq(itemsTable.id, existing.id));
+        existing.purchaseCount = newCount;
+        await tx.delete(itemsTable).where(eq(itemsTable.id, i.id));
+      } else {
+        await tx.update(itemsTable).set({ userId: targetUserId }).where(eq(itemsTable.id, i.id));
+        itemByNorm.set(norm, { id: i.id, purchaseCount: i.purchaseCount });
+      }
+    }
+    const movedItems = sourceItems.length;
+
+    // Move any remaining source receipts to the target, then drop the source user.
+    await tx.update(receiptsTable).set({ userId: targetUserId }).where(eq(receiptsTable.userId, sourceUserId));
+    await tx.delete(usersTable).where(eq(usersTable.id, sourceUserId));
+
+    return { movedStores, movedItems, movedReceipts };
+  });
+
+  await deleteClerkUser(sourceUserId, req.log);
+
+  res.json({ targetUserId, ...result });
+});
+
+// Delete a user and all their data (cascade removes stores/items/receipts).
+router.delete("/users/:userId", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+
+  if (userId === req.userId) {
+    res.status(400).json({ error: "You can't delete your own account" });
+    return;
+  }
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (target.isAdmin) {
+    res.status(400).json({
+      error: "Can't delete the master admin. Transfer master admin to another user first.",
+    });
+    return;
+  }
+
+  await deleteClerkUser(userId, req.log);
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+
+  res.json({ success: true });
 });
 
 // Read-only view of a specific user's receipts.

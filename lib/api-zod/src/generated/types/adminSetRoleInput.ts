@@ -7,10 +7,6 @@
  */
 import type { UserRole } from './userRole';
 
-export interface CurrentUser {
-  id: string;
-  /** @nullable */
-  email?: string | null;
-  isAdmin: boolean;
+export interface AdminSetRoleInput {
   role: UserRole;
 }

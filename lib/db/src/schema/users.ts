@@ -9,6 +9,10 @@ export const usersTable = pgTable(
     id: text("id").primaryKey(),
     email: text("email"),
     isAdmin: boolean("is_admin").notNull().default(false),
+    // User type label. "master_admin" mirrors isAdmin=true (the single elected
+    // admin with cross-user powers). "family" and "general" are label-only and
+    // carry identical permissions / privacy — no data sharing between users.
+    role: text("role").notNull().default("general"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

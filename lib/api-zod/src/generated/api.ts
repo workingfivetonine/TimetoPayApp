@@ -620,7 +620,8 @@ export const ParsePdfReceiptBody = zod.object({
 export const GetCurrentUserResponse = zod.object({
   "id": zod.string(),
   "email": zod.string().nullish(),
-  "isAdmin": zod.boolean()
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general'])
 })
 
 
@@ -631,6 +632,7 @@ export const AdminListUsersResponseItem = zod.object({
   "id": zod.string(),
   "email": zod.string().nullish(),
   "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
   "createdAt": zod.string(),
   "storeCount": zod.number(),
   "itemCount": zod.number(),
@@ -638,6 +640,58 @@ export const AdminListUsersResponseItem = zod.object({
   "totalSpend": zod.number()
 })
 export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
+
+
+/**
+ * @summary Set a user's type/role (admin only)
+ */
+export const AdminSetUserRoleParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminSetUserRoleBody = zod.object({
+  "role": zod.enum(['master_admin', 'family', 'general'])
+})
+
+export const AdminSetUserRoleResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "createdAt": zod.string(),
+  "storeCount": zod.number(),
+  "itemCount": zod.number(),
+  "receiptCount": zod.number(),
+  "totalSpend": zod.number()
+})
+
+
+/**
+ * @summary Merge one user's data into another, then delete the source (admin only)
+ */
+export const AdminMergeUsersBody = zod.object({
+  "sourceUserId": zod.string(),
+  "targetUserId": zod.string()
+})
+
+export const AdminMergeUsersResponse = zod.object({
+  "targetUserId": zod.string(),
+  "movedStores": zod.number(),
+  "movedItems": zod.number(),
+  "movedReceipts": zod.number()
+})
+
+
+/**
+ * @summary Delete a user and all their data (admin only)
+ */
+export const AdminDeleteUserParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminDeleteUserResponse = zod.object({
+  "success": zod.boolean()
+})
 
 
 /**

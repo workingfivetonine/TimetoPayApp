@@ -15,6 +15,12 @@ import { useAdminListUsers } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 
+function roleLabel(role: string): string {
+  if (role === "master_admin") return "Master admin";
+  if (role === "family") return "Family";
+  return "General";
+}
+
 export default function AdminScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -57,11 +63,9 @@ export default function AdminScreen() {
                 <Text style={[styles.email, { color: colors.foreground }]} numberOfLines={1}>
                   {item.email ?? "(no email)"}
                 </Text>
-                {item.isAdmin ? (
-                  <View style={[styles.badge, { backgroundColor: colors.accent }]}>
-                    <Text style={[styles.badgeText, { color: colors.accentForeground }]}>Admin</Text>
-                  </View>
-                ) : null}
+                <View style={[styles.badge, { backgroundColor: colors.accent }]}>
+                  <Text style={[styles.badgeText, { color: colors.accentForeground }]}>{roleLabel(item.role)}</Text>
+                </View>
               </View>
               <View style={styles.stats}>
                 <Stat label="Receipts" value={String(item.receiptCount)} colors={colors} />

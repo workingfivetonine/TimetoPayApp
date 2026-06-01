@@ -1,3 +1,4 @@
 - [Shopping-list membership logic](shopping-list-membership.md) — membership/dismissal rule is duplicated across two routes; they must stay in sync or browse and the list diverge.
 - [Single @types/react across workspace](types-react-dedup.md) — pnpm override pins one @types/react; two versions cause "VoidOrUndefinedOnly"/ref typecheck errors via hoisting.
 - [RN Web destructive confirmations](rn-web-alert.md) — Alert.alert no-ops on React Native Web; use @/lib/confirm confirmDestructive for confirm-before-destroy flows.
+- [Single-admin invariant](admin-single-admin-invariant.md) — always exactly one master admin; transfers roll back if target vanishes; startup self-heals zero-admin state.

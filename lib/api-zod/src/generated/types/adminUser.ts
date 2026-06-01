@@ -5,12 +5,14 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserRole } from './userRole';
 
 export interface AdminUser {
   id: string;
   /** @nullable */
   email?: string | null;
   isAdmin: boolean;
+  role: UserRole;
   createdAt: string;
   storeCount: number;
   itemCount: number;

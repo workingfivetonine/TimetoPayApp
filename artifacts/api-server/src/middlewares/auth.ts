@@ -1,14 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { and, eq, sql, isNull } from "drizzle-orm";
-import {
-  db,
-  usersTable,
-  storesTable,
-  itemsTable,
-  receiptsTable,
-  type User,
-} from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import { db, usersTable, type User } from "@workspace/db";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -18,12 +11,6 @@ declare global {
       isAdmin?: boolean;
     }
   }
-}
-
-async function backfillLegacyData(userId: string): Promise<void> {
-  await db.update(storesTable).set({ userId }).where(isNull(storesTable.userId));
-  await db.update(itemsTable).set({ userId }).where(isNull(itemsTable.userId));
-  await db.update(receiptsTable).set({ userId }).where(isNull(receiptsTable.userId));
 }
 
 async function ensureUser(userId: string): Promise<User> {
@@ -55,21 +42,19 @@ async function ensureUser(userId: string): Promise<User> {
   // is_admin = true guarantees at most one admin even if two brand-new
   // users sign in concurrently (the loser's UPDATE raises a unique
   // violation, which we swallow so they remain a normal user).
+  // The elected admin becomes the master_admin role. We deliberately do NOT
+  // claim pre-existing ownerless data — the admin starts with a clean personal
+  // account and only sees the cross-user admin views.
   try {
-    const claimed = await db
+    await db
       .update(usersTable)
-      .set({ isAdmin: true })
+      .set({ isAdmin: true, role: "master_admin" })
       .where(
         and(
           eq(usersTable.id, userId),
           sql`NOT EXISTS (SELECT 1 FROM users u WHERE u.is_admin = true)`,
         ),
-      )
-      .returning();
-    if (claimed.length > 0) {
-      // This account won the election: claim all pre-existing ownerless data.
-      await backfillLegacyData(userId);
-    }
+      );
   } catch {
     // Lost the admin race — remain a normal user.
   }

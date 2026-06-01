@@ -680,6 +680,81 @@ paths:
                 items:
                   $ref: "#/components/schemas/AdminUser"
 
+  /admin/users/{userId}/role:
+    patch:
+      operationId: adminSetUserRole
+      tags: [admin]
+      summary: Set a user's type/role (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSetRoleInput"
+      responses:
+        "200":
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          description: Invalid request
+        "404":
+          description: User not found
+
+  /admin/users/merge:
+    post:
+      operationId: adminMergeUsers
+      tags: [admin]
+      summary: Merge one user's data into another, then delete the source (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminMergeUsersInput"
+      responses:
+        "200":
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMergeResult"
+        "400":
+          description: Invalid request
+        "404":
+          description: User not found
+
+  /admin/users/{userId}:
+    delete:
+      operationId: adminDeleteUser
+      tags: [admin]
+      summary: Delete a user and all their data (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActionResult"
+        "400":
+          description: Invalid request
+        "404":
+          description: User not found
+
   /admin/users/{userId}/receipts:
     get:
       operationId: adminGetUserReceipts
@@ -1055,9 +1130,13 @@ components:
         status:
           type: string
 
+    UserRole:
+      type: string
+      enum: [master_admin, family, general]
+
     CurrentUser:
       type: object
-      required: [id, isAdmin]
+      required: [id, isAdmin, role]
       properties:
         id:
           type: string
@@ -1065,10 +1144,12 @@ components:
           type: ["string", "null"]
         isAdmin:
           type: boolean
+        role:
+          $ref: "#/components/schemas/UserRole"
 
     AdminUser:
       type: object
-      required: [id, isAdmin, createdAt, storeCount, itemCount, receiptCount, totalSpend]
+      required: [id, isAdmin, role, createdAt, storeCount, itemCount, receiptCount, totalSpend]
       properties:
         id:
           type: string
@@ -1076,6 +1157,8 @@ components:
           type: ["string", "null"]
         isAdmin:
           type: boolean
+        role:
+          $ref: "#/components/schemas/UserRole"
         createdAt:
           type: string
         storeCount:
@@ -1086,6 +1169,42 @@ components:
           type: integer
         totalSpend:
           type: number
+
+    AdminSetRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+
+    AdminMergeUsersInput:
+      type: object
+      required: [sourceUserId, targetUserId]
+      properties:
+        sourceUserId:
+          type: string
+        targetUserId:
+          type: string
+
+    AdminMergeResult:
+      type: object
+      required: [targetUserId, movedStores, movedItems, movedReceipts]
+      properties:
+        targetUserId:
+          type: string
+        movedStores:
+          type: integer
+        movedItems:
+          type: integer
+        movedReceipts:
+          type: integer
+
+    AdminActionResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
 
     AdminReceiptSummary:
       type: object

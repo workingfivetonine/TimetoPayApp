@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { runStartupReconciliations } from "./lib/bootstrap";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Fire-and-forget one-time data reconciliations (idempotent).
+  void runStartupReconciliations();
 });

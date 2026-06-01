@@ -12,7 +12,7 @@ router.get("/", async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json({ id: user.id, email: user.email, isAdmin: user.isAdmin });
+  res.json({ id: user.id, email: user.email, isAdmin: user.isAdmin, role: user.role });
 });
 
 export default router;

@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminActionResult';
+export * from './adminMergeResult';
+export * from './adminMergeUsersInput';
 export * from './adminReceiptSummary';
+export * from './adminSetRoleInput';
 export * from './adminUser';
 export * from './adminUserReceipts';
 export * from './catalogAddToListInput';
@@ -60,4 +64,5 @@ export * from './storeUpdate';
 export * from './storeVisit';
 export * from './storeVisitItem';
 export * from './storeVisitsReport';
+export * from './userRole';
 export * from './weeklySpend';

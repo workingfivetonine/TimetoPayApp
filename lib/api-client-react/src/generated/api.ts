@@ -20,6 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminActionResult,
+  AdminMergeResult,
+  AdminMergeUsersInput,
+  AdminSetRoleInput,
   AdminUser,
   AdminUserReceipts,
   CatalogAddToListInput,
@@ -2724,6 +2728,219 @@ export function useAdminListUsers<TData = Awaited<ReturnType<typeof adminListUse
 
 
 
+
+export const getAdminSetUserRoleUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/role`
+}
+
+/**
+ * @summary Set a user's type/role (admin only)
+ */
+export const adminSetUserRole = async (userId: string,
+    adminSetRoleInput: AdminSetRoleInput, options?: RequestInit): Promise<AdminUser> => {
+
+  return customFetch<AdminUser>(getAdminSetUserRoleUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminSetRoleInput,)
+  }
+);}
+
+
+
+
+export const getAdminSetUserRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetUserRole>>, TError,{userId: string;data: BodyType<AdminSetRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSetUserRole>>, TError,{userId: string;data: BodyType<AdminSetRoleInput>}, TContext> => {
+
+const mutationKey = ['adminSetUserRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSetUserRole>>, {userId: string;data: BodyType<AdminSetRoleInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  adminSetUserRole(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSetUserRoleMutationResult = NonNullable<Awaited<ReturnType<typeof adminSetUserRole>>>
+    export type AdminSetUserRoleMutationBody = BodyType<AdminSetRoleInput>
+    export type AdminSetUserRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Set a user's type/role (admin only)
+ */
+export const useAdminSetUserRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSetUserRole>>, TError,{userId: string;data: BodyType<AdminSetRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSetUserRole>>,
+        TError,
+        {userId: string;data: BodyType<AdminSetRoleInput>},
+        TContext
+      > => {
+      return useMutation(getAdminSetUserRoleMutationOptions(options));
+    }
+
+export const getAdminMergeUsersUrl = () => {
+
+
+
+
+  return `/api/admin/users/merge`
+}
+
+/**
+ * @summary Merge one user's data into another, then delete the source (admin only)
+ */
+export const adminMergeUsers = async (adminMergeUsersInput: AdminMergeUsersInput, options?: RequestInit): Promise<AdminMergeResult> => {
+
+  return customFetch<AdminMergeResult>(getAdminMergeUsersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminMergeUsersInput,)
+  }
+);}
+
+
+
+
+export const getAdminMergeUsersMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMergeUsers>>, TError,{data: BodyType<AdminMergeUsersInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminMergeUsers>>, TError,{data: BodyType<AdminMergeUsersInput>}, TContext> => {
+
+const mutationKey = ['adminMergeUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminMergeUsers>>, {data: BodyType<AdminMergeUsersInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminMergeUsers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminMergeUsersMutationResult = NonNullable<Awaited<ReturnType<typeof adminMergeUsers>>>
+    export type AdminMergeUsersMutationBody = BodyType<AdminMergeUsersInput>
+    export type AdminMergeUsersMutationError = ErrorType<void>
+
+    /**
+ * @summary Merge one user's data into another, then delete the source (admin only)
+ */
+export const useAdminMergeUsers = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMergeUsers>>, TError,{data: BodyType<AdminMergeUsersInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminMergeUsers>>,
+        TError,
+        {data: BodyType<AdminMergeUsersInput>},
+        TContext
+      > => {
+      return useMutation(getAdminMergeUsersMutationOptions(options));
+    }
+
+export const getAdminDeleteUserUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}`
+}
+
+/**
+ * @summary Delete a user and all their data (admin only)
+ */
+export const adminDeleteUser = async (userId: string, options?: RequestInit): Promise<AdminActionResult> => {
+
+  return customFetch<AdminActionResult>(getAdminDeleteUserUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeleteUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteUser>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteUser>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['adminDeleteUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteUser>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  adminDeleteUser(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteUserMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteUser>>>
+
+    export type AdminDeleteUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a user and all their data (admin only)
+ */
+export const useAdminDeleteUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteUser>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteUser>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteUserMutationOptions(options));
+    }
 
 export const getAdminGetUserReceiptsUrl = (userId: string,) => {
 

@@ -80,11 +80,21 @@ export interface HealthStatus {
   status: string;
 }
 
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+
+export const UserRole = {
+  master_admin: 'master_admin',
+  family: 'family',
+  general: 'general',
+} as const;
+
 export interface CurrentUser {
   id: string;
   /** @nullable */
   email?: string | null;
   isAdmin: boolean;
+  role: UserRole;
 }
 
 export interface AdminUser {
@@ -92,11 +102,32 @@ export interface AdminUser {
   /** @nullable */
   email?: string | null;
   isAdmin: boolean;
+  role: UserRole;
   createdAt: string;
   storeCount: number;
   itemCount: number;
   receiptCount: number;
   totalSpend: number;
+}
+
+export interface AdminSetRoleInput {
+  role: UserRole;
+}
+
+export interface AdminMergeUsersInput {
+  sourceUserId: string;
+  targetUserId: string;
+}
+
+export interface AdminMergeResult {
+  targetUserId: string;
+  movedStores: number;
+  movedItems: number;
+  movedReceipts: number;
+}
+
+export interface AdminActionResult {
+  success: boolean;
 }
 
 export interface AdminReceiptSummary {
