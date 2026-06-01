@@ -5,6 +5,7 @@ import {
   storesTable,
   receiptsTable,
   lineItemsTable,
+  usersTable,
   catalogItemsTable,
   catalogItemAliasesTable,
   catalogStoresTable,
@@ -159,6 +160,27 @@ export type GlobalItem = {
 // trusted admin view is exempt (called with no options).
 export const CATALOG_MIN_CONTRIBUTORS = 3;
 
+// Account-tenure gate for catalog CONTRIBUTORS (non-admin thresholded view
+// only). A user's purchases only count toward the k-anonymity threshold once
+// their account is at least this many days old. Raw distinct-userId counting is
+// trivially defeated by Sybil/sockpuppet accounts on a public self-service
+// deployment: an attacker can create throwaway accounts + fabricated receipts to
+// satisfy CATALOG_MIN_CONTRIBUTORS *on demand* and confirm a target's purchase.
+// Requiring tenure removes the "on demand" property (fresh accounts contribute
+// price data like ownerless rows, but never unlock an entry), so an attacker can
+// no longer manufacture qualifying contributors at probe time — they would have
+// to pre-provision and age accounts, which is far costlier and not real-time.
+// This does NOT make the catalog fully Sybil-proof (a patient attacker can still
+// age sockpuppets); full resistance would need identity attestation, which is out
+// of scope. Configurable via CATALOG_CONTRIBUTOR_MIN_AGE_DAYS; default 7. Set to
+// 0 to disable the gate.
+export const CATALOG_CONTRIBUTOR_MIN_AGE_DAYS = (() => {
+  const raw = process.env.CATALOG_CONTRIBUTOR_MIN_AGE_DAYS;
+  if (raw === undefined) return 7;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 7;
+})();
+
 export type GlobalPricesOptions = {
   // k-anonymity threshold. When > 1, suppress any per-store price (and any item
   // then left with no surviving store) backed by fewer than this many DISTINCT
@@ -193,6 +215,24 @@ export async function computeGlobalPrices(
   // match too. Admin passes neither, so filterCountry stays null (no filtering).
   const filterCountry = opts.countryCode ?? null;
   const filterState = opts.stateCode ?? null;
+
+  // Sybil-resistance: in the thresholded (non-admin) view, only accounts that
+  // have existed for at least CATALOG_CONTRIBUTOR_MIN_AGE_DAYS may count toward
+  // the k-anonymity threshold. Fresh accounts (the cheap, on-demand sockpuppets
+  // an attacker spins up to probe a target) behave like ownerless rows: their
+  // prices can still feed the aggregate, but they never unlock an entry. The
+  // admin view (no suppression) is exempt — admin is trusted and sees everyone.
+  let matureUserIds: Set<string> | null = null;
+  if (suppress && CATALOG_CONTRIBUTOR_MIN_AGE_DAYS > 0) {
+    const cutoff = new Date(
+      Date.now() - CATALOG_CONTRIBUTOR_MIN_AGE_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const matureRows = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(sql`${usersTable.createdAt} <= ${cutoff}`);
+    matureUserIds = new Set(matureRows.map((r) => r.id));
+  }
 
   const rows = await db
     .select({
@@ -278,8 +318,12 @@ export async function computeGlobalPrices(
       a.stores.set(r.catalogStoreId, s);
     }
     // Only NON-NULL owners count toward the k-anonymity threshold. Ownerless
-    // (anonymized legacy) rows contribute price data but never unlock an entry.
-    if (r.userId) s.users.add(r.userId);
+    // (anonymized legacy) rows — AND, in the thresholded view, accounts too new
+    // to have cleared the tenure gate — contribute price data but never unlock
+    // an entry, so on-demand sockpuppets can't satisfy the threshold.
+    if (r.userId && (!matureUserIds || matureUserIds.has(r.userId))) {
+      s.users.add(r.userId);
+    }
   }
 
   return Array.from(agg.entries())
