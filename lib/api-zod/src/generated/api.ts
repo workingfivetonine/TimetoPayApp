@@ -637,7 +637,13 @@ export const GetCurrentUserResponse = zod.object({
   "isAdmin": zod.boolean(),
   "role": zod.enum(['master_admin', 'family', 'general']),
   "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"')
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
+  "entitlement": zod.object({
+  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
+  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+})
 })
 
 
@@ -655,7 +661,83 @@ export const UpdateMyRegionResponse = zod.object({
   "isAdmin": zod.boolean(),
   "role": zod.enum(['master_admin', 'family', 'general']),
   "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"')
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
+  "entitlement": zod.object({
+  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
+  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+})
+})
+
+
+/**
+ * @summary Start a subscription checkout with the chosen provider
+ */
+export const CreateBillingCheckoutBody = zod.object({
+  "provider": zod.enum(['stripe', 'paypal'])
+})
+
+export const CreateBillingCheckoutResponse = zod.object({
+  "url": zod.string().describe('Provider redirect URL to complete checkout\/approval'),
+  "provider": zod.enum(['stripe', 'paypal'])
+})
+
+
+/**
+ * @summary Get a provider URL to manage or cancel the current subscription
+ */
+export const ManageBillingSubscriptionResponse = zod.object({
+  "url": zod.string().describe('Provider management\/portal URL')
+})
+
+
+/**
+ * @summary Finalize a PayPal subscription after approval (server reads it from PayPal)
+ */
+export const FinalizePaypalSubscriptionBody = zod.object({
+  "subscriptionId": zod.string()
+})
+
+export const FinalizePaypalSubscriptionResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
+  "entitlement": zod.object({
+  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
+  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+})
+})
+
+
+/**
+ * @summary Redeem a promo code for complimentary full access
+ */
+
+
+
+export const RedeemPromoCodeBody = zod.object({
+  "code": zod.string().min(1).describe('A promo code granting complimentary full access')
+})
+
+export const RedeemPromoCodeResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
+  "entitlement": zod.object({
+  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
+  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+})
 })
 
 

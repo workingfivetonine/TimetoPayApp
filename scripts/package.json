@@ -7,10 +7,14 @@
     "hello": "tsx ./src/hello.ts",
     "generate-guide": "tsx ./src/generate-guide.ts",
     "generate-guide:check": "tsx ./src/generate-guide.ts --check",
+    "seed-stripe-price": "tsx ./src/seed-stripe-price.ts",
+    "seed-paypal-plan": "tsx ./src/seed-paypal-plan.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workspace/guide-content": "workspace:*"
+    "@workspace/guide-content": "workspace:*",
+    "stripe": "^22.2.0",
+    "stripe-replit-sync": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

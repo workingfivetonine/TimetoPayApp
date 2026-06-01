@@ -3,19 +3,9 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { UpdateMyRegionBody } from "@workspace/api-zod";
 import { validateRegion } from "@workspace/geo";
+import { formatCurrentUser } from "../lib/billing/entitlement";
 
 const router = Router();
-
-function formatUser(user: typeof usersTable.$inferSelect) {
-  return {
-    id: user.id,
-    email: user.email,
-    isAdmin: user.isAdmin,
-    role: user.role,
-    countryCode: user.countryCode,
-    stateCode: user.stateCode,
-  };
-}
 
 // Returns the currently authenticated user (provisioned by requireAuth).
 router.get("/", async (req, res): Promise<void> => {
@@ -25,7 +15,7 @@ router.get("/", async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(formatUser(user));
+  res.json(formatCurrentUser(user));
 });
 
 // Set the authenticated user's region. Country must be a known ISO-3166 alpha-2
@@ -52,7 +42,7 @@ router.patch("/region", async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(formatUser(user));
+  res.json(formatCurrentUser(user));
 });
 
 export default router;

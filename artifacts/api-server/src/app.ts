@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { stripeWebhookHandler } from "./routes/stripeWebhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -37,6 +38,16 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
+
+// Stripe webhook needs the raw body for signature verification, so it must be
+// registered BEFORE the JSON body parser. It is public (Stripe-signed) — auth is
+// the signature check inside the handler.
+app.post(
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json", limit: "5mb" }),
+  stripeWebhookHandler,
+);
+
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 

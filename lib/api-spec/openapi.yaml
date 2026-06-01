@@ -26,6 +26,8 @@ tags:
     description: Admin cross-user views
   - name: users
     description: Current user
+  - name: billing
+    description: Subscription billing (Stripe / PayPal)
 
 security:
   - bearerAuth: []
@@ -684,6 +686,86 @@ paths:
               schema:
                 $ref: "#/components/schemas/CurrentUser"
 
+  /billing/checkout:
+    post:
+      operationId: createBillingCheckout
+      tags: [billing]
+      summary: Start a subscription checkout with the chosen provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingCheckoutInput"
+      responses:
+        "200":
+          description: A provider redirect URL to complete checkout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingCheckoutResponse"
+        "400":
+          description: Invalid request or provider not configured
+
+  /billing/manage:
+    post:
+      operationId: manageBillingSubscription
+      tags: [billing]
+      summary: Get a provider URL to manage or cancel the current subscription
+      responses:
+        "200":
+          description: A provider management/portal URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingManageResponse"
+        "404":
+          description: No active subscription to manage
+
+  /billing/paypal/finalize:
+    post:
+      operationId: finalizePaypalSubscription
+      tags: [billing]
+      summary: Finalize a PayPal subscription after approval (server reads it from PayPal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaypalFinalizeInput"
+      responses:
+        "200":
+          description: The updated current user with refreshed entitlement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "400":
+          description: Invalid request
+        "404":
+          description: Subscription not found
+
+  /billing/redeem:
+    post:
+      operationId: redeemPromoCode
+      tags: [billing]
+      summary: Redeem a promo code for complimentary full access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemPromoCodeInput"
+      responses:
+        "200":
+          description: The updated current user with refreshed entitlement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "400":
+          description: Invalid or missing promo code
+
   /admin/users:
     get:
       operationId: adminListUsers
@@ -1240,7 +1322,7 @@ components:
 
     CurrentUser:
       type: object
-      required: [id, isAdmin, role]
+      required: [id, isAdmin, role, entitlement]
       properties:
         id:
           type: string
@@ -1256,6 +1338,69 @@ components:
         stateCode:
           type: ["string", "null"]
           description: USPS 2-letter state code; only set when countryCode is "US"
+        entitlement:
+          $ref: "#/components/schemas/UserEntitlement"
+
+    UserEntitlement:
+      type: object
+      required: [entitled, status, provider, currentPeriodEnd]
+      properties:
+        entitled:
+          type: boolean
+          description: Whether the user currently has access to gated features
+        status:
+          type: string
+          enum: [trialing, active, past_due, canceled, comped, none]
+        provider:
+          type: ["string", "null"]
+          enum: [stripe, paypal, null]
+          description: Which provider backs the subscription, if any
+        currentPeriodEnd:
+          type: ["string", "null"]
+          description: ISO timestamp the current paid/trial period ends, if known
+
+    BillingCheckoutInput:
+      type: object
+      required: [provider]
+      properties:
+        provider:
+          type: string
+          enum: [stripe, paypal]
+
+    BillingCheckoutResponse:
+      type: object
+      required: [url, provider]
+      properties:
+        url:
+          type: string
+          description: Provider redirect URL to complete checkout/approval
+        provider:
+          type: string
+          enum: [stripe, paypal]
+
+    BillingManageResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: Provider management/portal URL
+
+    PaypalFinalizeInput:
+      type: object
+      required: [subscriptionId]
+      properties:
+        subscriptionId:
+          type: string
+
+    RedeemPromoCodeInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: A promo code granting complimentary full access
 
     RegionInput:
       type: object

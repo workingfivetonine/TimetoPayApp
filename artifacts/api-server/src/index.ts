@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runStartupReconciliations } from "./lib/bootstrap";
+import { initStripe } from "./lib/billing/stripeSync";
 
 const rawPort = process.env["PORT"];
 
@@ -26,4 +27,10 @@ app.listen(port, (err) => {
 
   // Fire-and-forget one-time data reconciliations (idempotent).
   void runStartupReconciliations();
+
+  // One-time Stripe sync setup (schema + managed webhook + backfill). No-op when
+  // Stripe isn't connected.
+  void initStripe().catch((err) =>
+    logger.error({ err }, "Stripe init failed"),
+  );
 });

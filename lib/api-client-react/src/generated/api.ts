@@ -26,6 +26,9 @@ import type {
   AdminSetRoleInput,
   AdminUser,
   AdminUserReceipts,
+  BillingCheckoutInput,
+  BillingCheckoutResponse,
+  BillingManageResponse,
   CatalogAddToListInput,
   CatalogBrowse,
   CatalogCategorySuggestInput,
@@ -55,11 +58,13 @@ import type {
   ParsePdfInput,
   ParseReceiptInput,
   ParsedReceipt,
+  PaypalFinalizeInput,
   RanOutResponse,
   Receipt,
   ReceiptBounds,
   ReceiptDetail,
   ReceiptInput,
+  RedeemPromoCodeInput,
   RegionInput,
   ShoppingList,
   SpendAnalytics,
@@ -2725,6 +2730,289 @@ export const useUpdateMyRegion = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateMyRegionMutationOptions(options));
+    }
+
+export const getCreateBillingCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/checkout`
+}
+
+/**
+ * @summary Start a subscription checkout with the chosen provider
+ */
+export const createBillingCheckout = async (billingCheckoutInput: BillingCheckoutInput, options?: RequestInit): Promise<BillingCheckoutResponse> => {
+
+  return customFetch<BillingCheckoutResponse>(getCreateBillingCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      billingCheckoutInput,)
+  }
+);}
+
+
+
+
+export const getCreateBillingCheckoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext> => {
+
+const mutationKey = ['createBillingCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBillingCheckout>>, {data: BodyType<BillingCheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBillingCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBillingCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createBillingCheckout>>>
+    export type CreateBillingCheckoutMutationBody = BodyType<BillingCheckoutInput>
+    export type CreateBillingCheckoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Start a subscription checkout with the chosen provider
+ */
+export const useCreateBillingCheckout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBillingCheckout>>,
+        TError,
+        {data: BodyType<BillingCheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBillingCheckoutMutationOptions(options));
+    }
+
+export const getManageBillingSubscriptionUrl = () => {
+
+
+
+
+  return `/api/billing/manage`
+}
+
+/**
+ * @summary Get a provider URL to manage or cancel the current subscription
+ */
+export const manageBillingSubscription = async ( options?: RequestInit): Promise<BillingManageResponse> => {
+
+  return customFetch<BillingManageResponse>(getManageBillingSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getManageBillingSubscriptionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manageBillingSubscription>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof manageBillingSubscription>>, TError,void, TContext> => {
+
+const mutationKey = ['manageBillingSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof manageBillingSubscription>>, void> = () => {
+
+
+          return  manageBillingSubscription(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ManageBillingSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof manageBillingSubscription>>>
+
+    export type ManageBillingSubscriptionMutationError = ErrorType<void>
+
+    /**
+ * @summary Get a provider URL to manage or cancel the current subscription
+ */
+export const useManageBillingSubscription = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manageBillingSubscription>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof manageBillingSubscription>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getManageBillingSubscriptionMutationOptions(options));
+    }
+
+export const getFinalizePaypalSubscriptionUrl = () => {
+
+
+
+
+  return `/api/billing/paypal/finalize`
+}
+
+/**
+ * @summary Finalize a PayPal subscription after approval (server reads it from PayPal)
+ */
+export const finalizePaypalSubscription = async (paypalFinalizeInput: PaypalFinalizeInput, options?: RequestInit): Promise<CurrentUser> => {
+
+  return customFetch<CurrentUser>(getFinalizePaypalSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      paypalFinalizeInput,)
+  }
+);}
+
+
+
+
+export const getFinalizePaypalSubscriptionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizePaypalSubscription>>, TError,{data: BodyType<PaypalFinalizeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof finalizePaypalSubscription>>, TError,{data: BodyType<PaypalFinalizeInput>}, TContext> => {
+
+const mutationKey = ['finalizePaypalSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizePaypalSubscription>>, {data: BodyType<PaypalFinalizeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  finalizePaypalSubscription(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinalizePaypalSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof finalizePaypalSubscription>>>
+    export type FinalizePaypalSubscriptionMutationBody = BodyType<PaypalFinalizeInput>
+    export type FinalizePaypalSubscriptionMutationError = ErrorType<void>
+
+    /**
+ * @summary Finalize a PayPal subscription after approval (server reads it from PayPal)
+ */
+export const useFinalizePaypalSubscription = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizePaypalSubscription>>, TError,{data: BodyType<PaypalFinalizeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof finalizePaypalSubscription>>,
+        TError,
+        {data: BodyType<PaypalFinalizeInput>},
+        TContext
+      > => {
+      return useMutation(getFinalizePaypalSubscriptionMutationOptions(options));
+    }
+
+export const getRedeemPromoCodeUrl = () => {
+
+
+
+
+  return `/api/billing/redeem`
+}
+
+/**
+ * @summary Redeem a promo code for complimentary full access
+ */
+export const redeemPromoCode = async (redeemPromoCodeInput: RedeemPromoCodeInput, options?: RequestInit): Promise<CurrentUser> => {
+
+  return customFetch<CurrentUser>(getRedeemPromoCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      redeemPromoCodeInput,)
+  }
+);}
+
+
+
+
+export const getRedeemPromoCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemPromoCode>>, TError,{data: BodyType<RedeemPromoCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof redeemPromoCode>>, TError,{data: BodyType<RedeemPromoCodeInput>}, TContext> => {
+
+const mutationKey = ['redeemPromoCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof redeemPromoCode>>, {data: BodyType<RedeemPromoCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  redeemPromoCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RedeemPromoCodeMutationResult = NonNullable<Awaited<ReturnType<typeof redeemPromoCode>>>
+    export type RedeemPromoCodeMutationBody = BodyType<RedeemPromoCodeInput>
+    export type RedeemPromoCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Redeem a promo code for complimentary full access
+ */
+export const useRedeemPromoCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemPromoCode>>, TError,{data: BodyType<RedeemPromoCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof redeemPromoCode>>,
+        TError,
+        {data: BodyType<RedeemPromoCodeInput>},
+        TContext
+      > => {
+      return useMutation(getRedeemPromoCodeMutationOptions(options));
     }
 
 export const getAdminListUsersUrl = () => {

@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -18,6 +18,7 @@ import { tokenCache } from "@clerk/expo/token-cache";
 import {
   setAuthTokenGetter,
   setBaseUrl,
+  setClientPlatform,
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
@@ -31,6 +32,10 @@ import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
 // domain (baked absolute URLs would be cross-origin on the other domain and
 // break Clerk's session — blank screen). Native/dev use the build-time domain.
 setBaseUrl(getApiOrigin());
+
+// Declare the platform so the server can enforce the web-only paywall (native
+// clients are intentionally never paywalled to avoid app-store IAP policy).
+setClientPlatform(Platform.OS);
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 // Same-origin Clerk proxy on production web (works on any serving domain);
@@ -55,6 +60,7 @@ function RootLayoutNav() {
       <Stack.Screen name="catalog" options={{ headerShown: false }} />
       <Stack.Screen name="region-setup" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
+      <Stack.Screen name="paywall" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="help" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="admin/[userId]" options={{ headerShown: false }} />
@@ -92,6 +98,8 @@ function InitialLayout() {
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
   const onRegionSetup = segments[0] === "region-setup";
+  const onPaywall = segments[0] === "paywall";
+  const onAccount = segments[0] === "account";
   const isPublicRoute = inAuthGroup || onLanding;
 
   // Region gate: a signed-in user must pick a region before using the app, since
@@ -101,6 +109,16 @@ function InitialLayout() {
   });
   const needsRegion = isSignedIn && me != null && !me.countryCode;
 
+  // Paywall gate (web only — native clients are never paywalled). A signed-in
+  // web user whose trial/subscription has lapsed is sent to /paywall. We allow
+  // them to stay on /account so they can still manage/cancel their subscription.
+  const needsPaywall =
+    Platform.OS === "web" &&
+    isSignedIn &&
+    me != null &&
+    me.entitlement != null &&
+    !me.entitlement.entitled;
+
   useEffect(() => {
     if (!isLoaded) return;
     if (!isSignedIn && !isPublicRoute) {
@@ -109,10 +127,22 @@ function InitialLayout() {
       router.replace("/");
     } else if (needsRegion && !onRegionSetup) {
       router.replace("/region-setup");
+    } else if (needsPaywall && !onPaywall && !onAccount) {
+      router.replace("/paywall");
     }
     // Note: we do NOT bounce users who already have a region off /region-setup —
     // that screen doubles as the "edit my region" settings screen.
-  }, [isLoaded, isSignedIn, isPublicRoute, needsRegion, onRegionSetup, router]);
+  }, [
+    isLoaded,
+    isSignedIn,
+    isPublicRoute,
+    needsRegion,
+    onRegionSetup,
+    needsPaywall,
+    onPaywall,
+    onAccount,
+    router,
+  ]);
 
   if (!isLoaded) {
     return (

@@ -5,6 +5,7 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserEntitlement } from './userEntitlement';
 import type { UserRole } from './userRole';
 
 export interface CurrentUser {
@@ -23,4 +24,5 @@ export interface CurrentUser {
      * @nullable
      */
   stateCode?: string | null;
+  entitlement: UserEntitlement;
 }

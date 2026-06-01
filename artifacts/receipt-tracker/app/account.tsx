@@ -6,6 +6,7 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,9 +15,43 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGetCurrentUser } from "@workspace/api-client-react";
+import {
+  useGetCurrentUser,
+  useManageBillingSubscription,
+} from "@workspace/api-client-react";
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
+
+type EntitlementStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "comped"
+  | "none";
+
+function subscriptionLabel(
+  status: EntitlementStatus | undefined,
+  currentPeriodEnd: string | null | undefined,
+): string {
+  const end = currentPeriodEnd
+    ? new Date(currentPeriodEnd).toLocaleDateString()
+    : null;
+  switch (status) {
+    case "trialing":
+      return end ? `Free trial · renews ${end}` : "Free trial";
+    case "active":
+      return end ? `Active · renews ${end}` : "Active";
+    case "past_due":
+      return "Payment past due";
+    case "comped":
+      return "Complimentary access";
+    case "canceled":
+      return "Canceled";
+    default:
+      return "No active subscription";
+  }
+}
 
 export default function AccountScreen() {
   const colors = useColors();
@@ -26,6 +61,34 @@ export default function AccountScreen() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const { data: me, isLoading } = useGetCurrentUser();
+  const manage = useManageBillingSubscription();
+
+  const entitlement = me?.entitlement ?? null;
+  const isWeb = Platform.OS === "web";
+  // Only show the billing UI to web users with a real provider subscription
+  // (native is never paywalled; admins/comped users have no provider record).
+  const hasProviderSub =
+    entitlement?.provider === "stripe" || entitlement?.provider === "paypal";
+
+  const handleManage = () => {
+    manage.mutate(
+      undefined,
+      {
+        onSuccess: (res) => {
+          if (res.url) {
+            if (Platform.OS === "web") {
+              window.location.assign(res.url);
+            } else {
+              void Linking.openURL(res.url);
+            }
+          }
+        },
+        onError: () => {
+          Alert.alert("Error", "Couldn't open subscription management. Please try again.");
+        },
+      },
+    );
+  };
 
   const email =
     me?.email ?? user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? "—";
@@ -105,6 +168,44 @@ export default function AccountScreen() {
           <Text style={[styles.rowText, { color: colors.foreground }]}>How-to guide</Text>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
+
+        {isWeb && entitlement ? (
+          <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="credit-card" size={18} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Subscription</Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+                {subscriptionLabel(entitlement.status as EntitlementStatus, entitlement.currentPeriodEnd)}
+              </Text>
+            </View>
+            {hasProviderSub ? (
+              <TouchableOpacity
+                onPress={handleManage}
+                disabled={manage.isPending}
+                style={[styles.manageBtn, { backgroundColor: colors.accent }]}
+                activeOpacity={0.8}
+              >
+                {manage.isPending ? (
+                  <ActivityIndicator size="small" color={colors.accentForeground} />
+                ) : (
+                  <Text style={[styles.manageBtnText, { color: colors.accentForeground }]}>
+                    Manage
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : !entitlement.entitled ? (
+              <TouchableOpacity
+                onPress={() => router.push("/paywall")}
+                style={[styles.manageBtn, { backgroundColor: colors.primary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.manageBtnText, { color: colors.primaryForeground }]}>
+                  Subscribe
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
 
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -202,6 +303,15 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   rowSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  manageBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 76,
+  },
+  manageBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   signOut: {
     flexDirection: "row",
     alignItems: "center",

@@ -18,6 +18,26 @@ export const usersTable = pgTable(
     // when countryCode is "US". Null until the user picks a region at first run.
     countryCode: text("country_code"),
     stateCode: text("state_code"),
+    // Provider-agnostic subscription state, driven ONLY by verified provider
+    // webhooks / provider API reads — never by client-reported success.
+    //   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled" | "none" (null = never subscribed)
+    //   subscriptionProvider: "stripe" | "paypal" (null = never subscribed)
+    // A null status falls back to the implicit app trial (30 days from createdAt)
+    // so existing users and brand-new accounts are never instantly locked out.
+    subscriptionStatus: text("subscription_status"),
+    subscriptionProvider: text("subscription_provider"),
+    subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end", {
+      withTimezone: true,
+    }),
+    // Provider-side identifiers used to reconcile webhook events back to a user.
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    paypalSubscriptionId: text("paypal_subscription_id"),
+    // Complimentary access flag set when a user redeems a valid promo code
+    // (the "secret override"). When true the user is entitled regardless of
+    // subscription state. A deployer-controlled email allowlist
+    // (COMP_ACCESS_EMAILS) is a second, env-driven comp mechanism.
+    compAccess: boolean("comp_access").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

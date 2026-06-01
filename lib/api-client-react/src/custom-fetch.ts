@@ -17,6 +17,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _clientPlatform: string | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +43,16 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Declare the client platform (e.g. "ios", "android", "web"). When set, an
+ * `X-Client-Platform` header is attached to every request so the server can
+ * apply platform-specific behavior (e.g. the web-only subscription paywall is
+ * NOT enforced for native clients). Pass `null` to clear.
+ */
+export function setClientPlatform(platform: string | null): void {
+  _clientPlatform = platform ? platform.toLowerCase() : null;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -347,6 +358,12 @@ export async function customFetch<T = unknown>(
 
   if (responseType === "json" && !headers.has("accept")) {
     headers.set("accept", DEFAULT_JSON_ACCEPT);
+  }
+
+  // Declare the client platform so the server can apply platform-specific
+  // behavior (e.g. web-only paywall enforcement).
+  if (_clientPlatform && !headers.has("x-client-platform")) {
+    headers.set("x-client-platform", _clientPlatform);
   }
 
   // Attach bearer token when an auth getter is configured and no
