@@ -1055,6 +1055,8 @@ components:
           type: ["string", "null"]
         category:
           type: ["string", "null"]
+        logo:
+          type: ["string", "null"]
         members:
           type: array
           items:
@@ -1115,6 +1117,8 @@ components:
       properties:
         canonicalName:
           type: string
+        logo:
+          type: ["string", "null"]
 
     CatalogSplitInput:
       type: object

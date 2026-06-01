@@ -40,6 +40,8 @@ export interface CatalogEntry {
   icon?: string | null;
   /** @nullable */
   category?: string | null;
+  /** @nullable */
+  logo?: string | null;
   members: CatalogMember[];
   totalCount: number;
 }
@@ -70,6 +72,8 @@ export interface CatalogItemUpdate {
 
 export interface CatalogStoreUpdate {
   canonicalName: string;
+  /** @nullable */
+  logo?: string | null;
 }
 
 export interface CatalogSplitInput {

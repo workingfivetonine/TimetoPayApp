@@ -14,6 +14,8 @@ export interface CatalogEntry {
   icon?: string | null;
   /** @nullable */
   category?: string | null;
+  /** @nullable */
+  logo?: string | null;
   members: CatalogMember[];
   totalCount: number;
 }

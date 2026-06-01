@@ -1,9 +1,12 @@
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import React from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Modal,
   Platform,
   StyleSheet,
@@ -145,6 +148,38 @@ export default function AdminCatalogScreen() {
     }
   };
 
+  const onUploadLogo = async (entry: CatalogEntry) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 1.0,
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setBusy(true);
+    try {
+      const resized = await manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 256 } }],
+        { compress: 0.85, format: SaveFormat.PNG, base64: true },
+      );
+      if (!resized.base64) return;
+      const logo = `data:image/png;base64,${resized.base64}`;
+      await updateStore.mutateAsync({ id: entry.id, data: { canonicalName: entry.canonicalName, logo } });
+      refetch();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemoveLogo = async (entry: CatalogEntry) => {
+    setBusy(true);
+    try {
+      await updateStore.mutateAsync({ id: entry.id, data: { canonicalName: entry.canonicalName, logo: null } });
+      refetch();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
 
   return (
@@ -205,6 +240,8 @@ export default function AdminCatalogScreen() {
               entry={item}
               colors={colors}
               showCategory={tab === "items"}
+              showLogo={tab === "stores"}
+              busy={busy}
               onRename={() => {
                 setRenameTarget(item);
                 setRenameText(item.canonicalName);
@@ -212,6 +249,8 @@ export default function AdminCatalogScreen() {
               onMerge={() => setMergeSource(item)}
               onSplit={(norm) => onSplit(item, norm)}
               onEditCategory={() => setCategoryTarget(item)}
+              onUploadLogo={() => onUploadLogo(item)}
+              onRemoveLogo={() => onRemoveLogo(item)}
             />
           )}
         />
@@ -365,24 +404,42 @@ function EntryCard({
   entry,
   colors,
   showCategory,
+  showLogo,
+  busy,
   onRename,
   onMerge,
   onSplit,
   onEditCategory,
+  onUploadLogo,
+  onRemoveLogo,
 }: {
   entry: CatalogEntry;
   colors: ReturnType<typeof useColors>;
   showCategory: boolean;
+  showLogo: boolean;
+  busy: boolean;
   onRename: () => void;
   onMerge: () => void;
   onSplit: (normalizedName: string) => void;
   onEditCategory: () => void;
+  onUploadLogo: () => void;
+  onRemoveLogo: () => void;
 }) {
   const canSplit = entry.members.length > 1;
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.cardTop}>
-        {entry.icon ? <Text style={styles.icon}>{entry.icon}</Text> : null}
+        {showLogo ? (
+          entry.logo ? (
+            <Image source={{ uri: entry.logo }} style={styles.logo} resizeMode="contain" />
+          ) : (
+            <View style={[styles.logo, styles.logoPlaceholder, { borderColor: colors.border }]}>
+              <Feather name="image" size={18} color={colors.mutedForeground} />
+            </View>
+          )
+        ) : entry.icon ? (
+          <Text style={styles.icon}>{entry.icon}</Text>
+        ) : null}
         <View style={{ flex: 1 }}>
           <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
             {entry.canonicalName}
@@ -399,6 +456,33 @@ function EntryCard({
           <Feather name="git-merge" size={16} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
+
+      {showLogo ? (
+        <View style={styles.logoActions}>
+          <TouchableOpacity
+            style={[styles.logoBtn, { borderColor: colors.border }]}
+            onPress={onUploadLogo}
+            disabled={busy}
+            activeOpacity={0.7}
+          >
+            <Feather name="upload" size={13} color={colors.foreground} />
+            <Text style={[styles.logoBtnText, { color: colors.foreground }]}>
+              {entry.logo ? "Replace logo" : "Upload logo"}
+            </Text>
+          </TouchableOpacity>
+          {entry.logo ? (
+            <TouchableOpacity
+              style={[styles.logoBtn, { borderColor: colors.border }]}
+              onPress={onRemoveLogo}
+              disabled={busy}
+              activeOpacity={0.7}
+            >
+              <Feather name="trash-2" size={13} color={colors.destructive} />
+              <Text style={[styles.logoBtnText, { color: colors.destructive }]}>Remove</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
       {showCategory ? (
         <TouchableOpacity
@@ -468,6 +552,11 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 14 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
   icon: { fontSize: 22 },
+  logo: { width: 40, height: 40, borderRadius: 8 },
+  logoPlaceholder: { borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  logoActions: { flexDirection: "row", gap: 8, marginTop: 12 },
+  logoBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 },
+  logoBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   sub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   iconBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },

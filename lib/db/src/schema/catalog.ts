@@ -8,6 +8,8 @@ import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
 export const catalogStoresTable = pgTable("catalog_stores", {
   id: serial("id").primaryKey(),
   canonicalName: text("canonical_name").notNull(),
+  // Optional store logo as a base64 data URI (admin-uploaded, resized client-side).
+  logo: text("logo"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -65,7 +65,7 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - **Analytics tab**: weekly spend bars with HIGH/LOW flags at ±1 std dev; per-item price history (lowest/avg/highest)
 - **Browse Catalog** (`/catalog`): available to EVERY user (grid button in Shopping List header). Global price catalog grouped by category (most-recent price per canonical item, aggregated across all users without exposing who bought what). Each row has an add/check button to add the item to the user's shopping list. Items already active on the user's list show as checked; dismissed items show as addable again
 - **Admin: Global prices** (`/admin/global`): admin-only cross-user catalog showing the most-recent price per canonical item (overall + per-store, lowest highlighted), aggregated across ALL users without exposing who bought what
-- **Admin: Manage catalog** (`/admin/catalog`): admin-only tool to merge/rename/split spelling variants of item and store names into canonical entries. Surfaces auto-suggested merges (names that differ only by case/spaces/punctuation). Never mutates users' private rows — only the catalog mapping layer
+- **Admin: Manage catalog** (`/admin/catalog`): admin-only tool to merge/rename/split spelling variants of item and store names into canonical entries. Surfaces auto-suggested merges (names that differ only by case/spaces/punctuation). Never mutates users' private rows — only the catalog mapping layer. Store entries also support an uploaded **logo**: stored as a base64 data URI on `catalogStoresTable.logo`, resized client-side (width 256 PNG via `expo-image-manipulator`) before upload, set/replaced/removed via `PATCH /admin/catalog/stores/:id` (which validates the data-URI MIME + ~1MB cap server-side)
 
 ## Gotchas
 

@@ -38,6 +38,7 @@ type Entry = {
   canonicalName: string;
   icon: string | null;
   category: string | null;
+  logo: string | null;
   members: Member[];
   totalCount: number;
 };
@@ -118,6 +119,7 @@ router.get("/items", async (_req, res): Promise<void> => {
         canonicalName: c.name,
         icon: c.icon ?? null,
         category: c.category ?? null,
+        logo: null,
         members,
         totalCount: members.reduce((sum, m) => sum + m.count, 0),
       };
@@ -131,7 +133,7 @@ router.get("/stores", async (_req, res): Promise<void> => {
   await ensureCatalog();
 
   const catStores = await db
-    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName })
+    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName, logo: catalogStoresTable.logo })
     .from(catalogStoresTable);
 
   const aliases = await db
@@ -170,6 +172,7 @@ router.get("/stores", async (_req, res): Promise<void> => {
         canonicalName: c.name,
         icon: null,
         category: null,
+        logo: c.logo ?? null,
         members,
         totalCount: members.reduce((sum, m) => sum + m.count, 0),
       };
@@ -196,12 +199,12 @@ async function buildItemEntry(id: number): Promise<Entry | null> {
     displayName: a.displayName,
     count: 0,
   }));
-  return { id: c.id, canonicalName: c.name, icon: c.icon ?? null, category: c.category ?? null, members, totalCount: 0 };
+  return { id: c.id, canonicalName: c.name, icon: c.icon ?? null, category: c.category ?? null, logo: null, members, totalCount: 0 };
 }
 
 async function buildStoreEntry(id: number): Promise<Entry | null> {
   const [c] = await db
-    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName })
+    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName, logo: catalogStoresTable.logo })
     .from(catalogStoresTable)
     .where(eq(catalogStoresTable.id, id));
   if (!c) return null;
@@ -214,7 +217,7 @@ async function buildStoreEntry(id: number): Promise<Entry | null> {
     displayName: a.displayName,
     count: 0,
   }));
-  return { id: c.id, canonicalName: c.name, icon: null, category: null, members, totalCount: 0 };
+  return { id: c.id, canonicalName: c.name, icon: null, category: null, logo: c.logo ?? null, members, totalCount: 0 };
 }
 
 // ---- Merge ----------------------------------------------------------------
@@ -325,9 +328,30 @@ router.patch("/stores/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const update: { canonicalName: string; logo?: string | null } = {
+    canonicalName: parsed.data.canonicalName,
+  };
+  if (parsed.data.logo !== undefined) {
+    const logo = parsed.data.logo;
+    if (logo !== null) {
+      // Logos are small client-resized images stored inline as base64 data
+      // URIs. Guard against oversized / non-image payloads even though this is
+      // an admin-only route (keeps DB + list responses bounded).
+      if (!/^data:image\/(png|jpeg|jpg|webp);base64,/.test(logo)) {
+        res.status(400).json({ error: "Logo must be a base64 image data URI" });
+        return;
+      }
+      const MAX_LOGO_BYTES = 1_000_000; // ~1MB of base64 text
+      if (logo.length > MAX_LOGO_BYTES) {
+        res.status(400).json({ error: "Logo image is too large" });
+        return;
+      }
+    }
+    update.logo = logo;
+  }
   const [updated] = await db
     .update(catalogStoresTable)
-    .set({ canonicalName: parsed.data.canonicalName })
+    .set(update)
     .where(eq(catalogStoresTable.id, id))
     .returning({ id: catalogStoresTable.id });
   if (!updated) {
