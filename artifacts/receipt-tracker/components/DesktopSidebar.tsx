@@ -23,7 +23,7 @@ export function DesktopSidebar() {
         <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
           <Feather name="file-text" size={18} color={colors.primary} />
         </View>
-        <Text style={[styles.brandName, { color: colors.foreground }]}>Receipt Tracker</Text>
+        <Text style={[styles.brandName, { color: colors.foreground }]}>TimetoPay</Text>
       </View>
 
       {/* Nav links */}

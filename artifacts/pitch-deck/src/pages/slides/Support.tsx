@@ -19,7 +19,7 @@ export default function Support() {
           </h2>
 
           <p className="mt-[3.5vh] text-white/80 text-[2vw] leading-relaxed max-w-[42vw] text-pretty">
-            Receipt Tracker is free to use. If it saves you money at the till,
+            TimetoPay is free to use. If it saves you money at the till,
             support development on Ko-fi — every coffee helps ship the next
             feature.
           </p>
@@ -36,20 +36,14 @@ export default function Support() {
         </div>
 
         <div className="w-[40%] h-full flex flex-col items-center justify-center pr-[5vw]">
-          <div className="rounded-[3.5vh] overflow-hidden w-[17vw] h-[17vw] shadow-[0_5vh_11vh_-3vh_rgba(0,0,0,0.45)]">
+          <div className="rounded-[4vh] bg-white w-[26vw] h-[26vw] flex items-center justify-center p-[3.5vh] shadow-[0_5vh_11vh_-3vh_rgba(0,0,0,0.45)]">
             <img
-              src={`${base}screens/app-icon.png`}
+              src={`${base}screens/logo-lockup.png`}
               crossOrigin="anonymous"
-              className="w-full h-full object-cover"
-              alt="Receipt Tracker app icon"
+              className="w-full h-full object-contain"
+              alt="TimetoPay — Keep the receipt"
             />
           </div>
-          <p className="mt-[3vh] font-display font-extrabold text-white text-[2.6vw] tracking-tight">
-            Receipt Tracker
-          </p>
-          <p className="mt-[1vh] text-white/70 text-[1.5vw] font-bold">
-            Scan smarter. Spend less.
-          </p>
         </div>
       </div>
     </div>

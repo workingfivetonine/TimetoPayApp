@@ -16,7 +16,7 @@ export default function Cover() {
           </div>
 
           <h1 className="mt-[3.5vh] font-display font-extrabold text-ink text-[7vw] leading-[0.92] tracking-tight text-balance">
-            Receipt Tracker
+            TimetoPay
           </h1>
 
           <p className="mt-[3vh] font-display font-bold text-primary text-[2.9vw] leading-tight">
@@ -35,7 +35,7 @@ export default function Cover() {
               src={`${base}screens/scan.jpg`}
               crossOrigin="anonymous"
               className="rounded-[3.3vh] h-[78vh] w-auto block"
-              alt="Receipt Tracker scan screen"
+              alt="TimetoPay scan screen"
             />
           </div>
         </div>

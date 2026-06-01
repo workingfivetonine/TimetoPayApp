@@ -48,7 +48,7 @@ export function Scene6_Outro() {
         </motion.div>
 
         <h1 className="text-[5.5vw] font-black leading-none text-[var(--color-text-primary)] tracking-tight">
-          Receipt Tracker
+          TimetoPay
         </h1>
 
         <motion.p
