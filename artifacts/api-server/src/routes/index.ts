@@ -13,7 +13,6 @@ import meRouter from "./me";
 import billingRouter from "./billing";
 import { paypalWebhookHandler } from "./paypalWebhook";
 import { requireAuth } from "../middlewares/auth";
-import { requireEntitlement } from "../middlewares/requireEntitlement";
 
 const router: IRouter = Router();
 
@@ -31,9 +30,12 @@ router.use(requireAuth);
 router.use("/me", meRouter);
 router.use("/billing", billingRouter);
 
-// Entitlement gate: web clients without an active trial/subscription get 402.
-// Native clients and admins pass through (see requireEntitlement).
-router.use(requireEntitlement);
+// Freemium model: data routes below are FREE for any signed-in user (free web
+// users keep full access to their own data). Premium surfaces are gated
+// per-route with `requirePremium` (403) inside their own routers — the AI
+// receipt endpoints (receipts.ts), the global catalog (catalog.ts), and the
+// deeper per-item price-history analytics (analytics.ts). Native clients and
+// admins/trial/comp users bypass the premium gate.
 router.use("/stores", storesRouter);
 router.use("/items", itemsRouter);
 router.use("/receipts", receiptsRouter);

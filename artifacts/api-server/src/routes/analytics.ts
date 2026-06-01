@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq, sql, and, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { receiptsTable, storesTable, lineItemsTable, itemsTable } from "@workspace/db";
+import { requirePremium } from "../middlewares/requireEntitlement";
 
 const router = Router();
 
@@ -72,10 +73,10 @@ router.get("/spend", async (req, res): Promise<void> => {
   });
 });
 
-// Item price history
-router.get("/items/:id/price-history", async (req, res): Promise<void> => {
+// Item price history — the deeper analytics insight, gated as premium on web.
+router.get("/items/:id/price-history", requirePremium, async (req, res): Promise<void> => {
   const userId = req.userId!;
-  const itemId = parseInt(req.params.id);
+  const itemId = parseInt(String(req.params.id));
   const [item] = await db
     .select()
     .from(itemsTable)

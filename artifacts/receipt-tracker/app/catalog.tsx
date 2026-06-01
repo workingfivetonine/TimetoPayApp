@@ -25,6 +25,8 @@ import { countryName, usStateName } from "@workspace/geo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
+import { usePremiumLock } from "@/hooks/usePremiumLock";
+import { PremiumUpsell } from "@/components/PremiumUpsell";
 
 type SortKey = "category" | "az" | "price" | "store";
 type FilterKey = "all" | "history";
@@ -56,7 +58,10 @@ export default function CatalogBrowseScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useBrowseCatalog();
+  const locked = usePremiumLock();
+  const { data, isLoading, error } = useBrowseCatalog({
+    query: { queryKey: getBrowseCatalogQueryKey(), enabled: !locked },
+  });
   const { data: me } = useGetCurrentUser();
   const regionLabel = (() => {
     const country = countryName(me?.countryCode);
@@ -148,6 +153,14 @@ export default function CatalogBrowseScreen() {
         <View style={styles.backBtn} />
       </View>
 
+      {locked ? (
+        <PremiumUpsell
+          icon="grid"
+          title="Global price catalog"
+          subtitle="See what items cost across stores, aggregated from shoppers near you. Subscribe to browse the catalog and add items to your list."
+        />
+      ) : (
+        <>
       {/* Search */}
       <View style={[styles.searchBar, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
         <Feather name="search" size={16} color={colors.mutedForeground} />
@@ -275,6 +288,8 @@ export default function CatalogBrowseScreen() {
             />
           )}
         />
+      )}
+        </>
       )}
     </View>
   );

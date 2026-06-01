@@ -98,8 +98,6 @@ function InitialLayout() {
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
   const onRegionSetup = segments[0] === "region-setup";
-  const onPaywall = segments[0] === "paywall";
-  const onAccount = segments[0] === "account";
   const isPublicRoute = inAuthGroup || onLanding;
 
   // Region gate: a signed-in user must pick a region before using the app, since
@@ -109,15 +107,10 @@ function InitialLayout() {
   });
   const needsRegion = isSignedIn && me != null && !me.countryCode;
 
-  // Paywall gate (web only — native clients are never paywalled). A signed-in
-  // web user whose trial/subscription has lapsed is sent to /paywall. We allow
-  // them to stay on /account so they can still manage/cancel their subscription.
-  const needsPaywall =
-    Platform.OS === "web" &&
-    isSignedIn &&
-    me != null &&
-    me.entitlement != null &&
-    !me.entitlement.entitled;
+  // Freemium model: we no longer redirect lapsed web users to the paywall.
+  // Free users keep full access to their own data; premium surfaces (AI scan,
+  // global catalog, deep price-history analytics) are gated in-place with an
+  // upsell (see usePremiumLock) and the server returns 403 on those routes.
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -127,8 +120,6 @@ function InitialLayout() {
       router.replace("/");
     } else if (needsRegion && !onRegionSetup) {
       router.replace("/region-setup");
-    } else if (needsPaywall && !onPaywall && !onAccount) {
-      router.replace("/paywall");
     }
     // Note: we do NOT bounce users who already have a region off /region-setup —
     // that screen doubles as the "edit my region" settings screen.
@@ -138,9 +129,6 @@ function InitialLayout() {
     isPublicRoute,
     needsRegion,
     onRegionSetup,
-    needsPaywall,
-    onPaywall,
-    onAccount,
     router,
   ]);
 

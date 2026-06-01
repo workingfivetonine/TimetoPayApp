@@ -27,6 +27,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 import { getApiOrigin } from "@/lib/apiBase";
+import { usePremiumLock } from "@/hooks/usePremiumLock";
+import { PremiumUpsell } from "@/components/PremiumUpsell";
 
 interface PendingImage {
   uri: string;
@@ -41,6 +43,7 @@ export default function ScanScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
+  const locked = usePremiumLock();
   const [scanning, setScanning] = useState(false);
   const [scanningLabel, setScanningLabel] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
@@ -51,6 +54,22 @@ export default function ScanScreen() {
     queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+  };
+
+  // Thrown when the server returns 403 (premium feature, free web user). Lets
+  // the call sites show an upsell + route to the paywall instead of a generic
+  // "could not read" error.
+  class PremiumRequiredError extends Error {
+    constructor() {
+      super("premium_required");
+    }
+  }
+
+  const promptUpgrade = () => {
+    Alert.alert("Subscribe for access to premium AI features", undefined, [
+      { text: "Not now", style: "cancel" },
+      { text: "Subscribe", onPress: () => router.push("/paywall") },
+    ]);
   };
 
   const callApi = async (path: string, body: object) => {
@@ -64,6 +83,7 @@ export default function ScanScreen() {
       },
       body: JSON.stringify(body),
     });
+    if (response.status === 403) throw new PremiumRequiredError();
     if (!response.ok) throw new Error(`API error ${response.status}`);
     return response.json() as Promise<{ id: number }>;
   };
@@ -101,12 +121,14 @@ export default function ScanScreen() {
         },
         body: JSON.stringify({ imageBase64: editedBase64 }),
       });
+      if (response.status === 403) throw new PremiumRequiredError();
       if (!response.ok) throw new Error(`API error ${response.status}`);
       const parsed = (await response.json()) as ParsedReceiptData;
       setPendingReceipt(parsed, editedBase64);
       router.push("/review-receipt");
-    } catch {
-      Alert.alert("Error", "Could not read this receipt image. Please try again.");
+    } catch (err) {
+      if (err instanceof PremiumRequiredError) promptUpgrade();
+      else Alert.alert("Error", "Could not read this receipt image. Please try again.");
     } finally {
       setScanning(false);
     }
@@ -155,11 +177,15 @@ export default function ScanScreen() {
         reader.onerror = () => reject(new Error("FileReader error"));
         reader.readAsDataURL(blob);
       });
-    } catch {
-      Alert.alert(
-        "Error",
-        "Could not process this PDF. Make sure it's a text-based order confirmation."
-      );
+    } catch (err) {
+      if (err instanceof PremiumRequiredError) {
+        promptUpgrade();
+      } else {
+        Alert.alert(
+          "Error",
+          "Could not process this PDF. Make sure it's a text-based order confirmation."
+        );
+      }
     } finally {
       setScanning(false);
     }
@@ -187,40 +213,55 @@ export default function ScanScreen() {
         </View>
 
         <Text style={[styles.headline, { color: colors.foreground }]}>
-          Upload a receipt
+          {locked ? "AI receipt scanning" : "Upload a receipt"}
         </Text>
         <Text style={[styles.subtext, { color: colors.mutedForeground }]}>
-          AI extracts the store, items, and prices automatically
+          {locked
+            ? "Subscribe to scan photos and PDFs — AI extracts the store, items, and prices for you. You can still add receipts manually below for free."
+            : "AI extracts the store, items, and prices automatically"}
         </Text>
 
-        {/* Upload buttons */}
-        <View style={styles.buttons}>
+        {locked ? (
           <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-            onPress={handlePickImage}
-            disabled={scanning}
-            activeOpacity={0.8}
+            style={[styles.primaryBtn, styles.upgradeBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push("/paywall")}
+            activeOpacity={0.85}
           >
-            <Feather name="image" size={20} color="#fff" />
-            <Text style={styles.primaryBtnText}>Choose Photo</Text>
+            <Feather name="zap" size={18} color="#fff" />
+            <Text style={styles.primaryBtnText}>Subscribe to unlock</Text>
           </TouchableOpacity>
+        ) : (
+          <>
+            {/* Upload buttons */}
+            <View style={styles.buttons}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+                onPress={handlePickImage}
+                disabled={scanning}
+                activeOpacity={0.8}
+              >
+                <Feather name="image" size={20} color="#fff" />
+                <Text style={styles.primaryBtnText}>Choose Photo</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={handlePickPdf}
-            disabled={scanning}
-            activeOpacity={0.8}
-          >
-            <Feather name="file-text" size={20} color={colors.foreground} />
-            <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
-              Upload PDF
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={handlePickPdf}
+                disabled={scanning}
+                activeOpacity={0.8}
+              >
+                <Feather name="file-text" size={20} color={colors.foreground} />
+                <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
+                  Upload PDF
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+              PDFs work best for online order confirmations
             </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-          PDFs work best for online order confirmations
-        </Text>
+          </>
+        )}
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
@@ -343,6 +384,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
+  },
+  upgradeBtn: {
+    width: "100%",
+    marginTop: 8,
   },
   secondaryBtn: {
     flexDirection: "row",

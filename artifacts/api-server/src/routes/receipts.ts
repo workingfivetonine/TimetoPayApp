@@ -18,6 +18,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
 import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
+import { requirePremium } from "../middlewares/requireEntitlement.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (
@@ -313,7 +314,7 @@ router.post("/:id/line-items", async (req, res): Promise<void> => {
 });
 
 // Detect receipt bounding box in a photo using AI
-router.post("/detect-bounds", imageGuard, async (req, res): Promise<void> => {
+router.post("/detect-bounds", requirePremium, imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -374,7 +375,7 @@ Rules:
 });
 
 // Parse receipt image with AI
-router.post("/parse", imageGuard, async (req, res): Promise<void> => {
+router.post("/parse", requirePremium, imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -534,7 +535,7 @@ async function persistParsedReceipt(userId: string, parsed: {
 }
 
 // Parse and save receipt
-router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
+router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -593,7 +594,7 @@ router.post("/save-parsed", async (req, res): Promise<void> => {
 });
 
 // Parse and save a PDF receipt — handles text-based and image-based (scanned) PDFs
-router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
+router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
     res.status(400).json({ error: "pdfBase64 is required" });

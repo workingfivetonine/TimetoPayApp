@@ -17,6 +17,7 @@ import {
   CATALOG_MIN_CONTRIBUTORS,
 } from "../lib/catalog";
 import { categoryOrder } from "../lib/categories";
+import { requirePremium } from "../middlewares/requireEntitlement";
 
 const router = Router();
 
@@ -55,7 +56,7 @@ async function aliasNormsByItem(): Promise<Map<number, string[]>> {
 
 // Browse the global price catalog, grouped by category. Available to every
 // authenticated user (not just admin). Never exposes who bought what.
-router.get("/browse", async (req, res): Promise<void> => {
+router.get("/browse", requirePremium, async (req, res): Promise<void> => {
   const userId = req.userId!;
   await ensureCatalog();
   const region = await userRegion(userId);
@@ -185,7 +186,7 @@ router.get("/browse", async (req, res): Promise<void> => {
 
 // Add a catalog item to the current user's shopping list. Finds or creates the
 // user's own item (by normalized name) and snapshots the global price/store.
-router.post("/add-to-list", async (req, res): Promise<void> => {
+router.post("/add-to-list", requirePremium, async (req, res): Promise<void> => {
   const userId = req.userId!;
   const parsed = AddCatalogItemToListBody.safeParse(req.body);
   if (!parsed.success) {

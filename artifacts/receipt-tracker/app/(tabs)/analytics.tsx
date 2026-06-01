@@ -31,6 +31,8 @@ import type { DaySpend, Item } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
+import { usePremiumLock } from "@/hooks/usePremiumLock";
+import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { WeeklySpendBar } from "@/components/WeeklySpendBar";
 import { EmptyState } from "@/components/EmptyState";
 import { SpendCalendar } from "@/components/SpendCalendar";
@@ -100,6 +102,7 @@ export default function AnalyticsScreen() {
   const mergeItem = useMergeItem();
 
   const isDesktop = useDesktop();
+  const locked = usePremiumLock();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
   const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
 
@@ -256,7 +259,15 @@ export default function AnalyticsScreen() {
           )}
 
           {/* Items tab */}
-          {activeTab === "items" && (
+          {activeTab === "items" && locked && (
+            <PremiumUpsell
+              icon="trending-up"
+              title="Per-item price history"
+              subtitle="Track how each item's price changes over time — lowest, average, and highest across your receipts. Subscribe to unlock deep price insights."
+              compact
+            />
+          )}
+          {activeTab === "items" && !locked && (
             <>
               {itemsWithHistory.length === 0 ? (
                 <View style={styles.emptyItems}>
