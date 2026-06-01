@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetCurrentUser } from "@workspace/api-client-react";
+import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
 
 export default function AccountScreen() {
@@ -28,6 +29,14 @@ export default function AccountScreen() {
 
   const email =
     me?.email ?? user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? "—";
+
+  const country = countryName(me?.countryCode);
+  const state = usStateName(me?.stateCode);
+  const regionLabel = country
+    ? state
+      ? `${state}, ${country}`
+      : country
+    : "Not set";
 
   const handleSignOut = async () => {
     const doSignOut = async () => {
@@ -71,6 +80,21 @@ export default function AccountScreen() {
             </View>
           ) : null}
         </View>
+
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => router.push("/region-setup")}
+          activeOpacity={0.7}
+        >
+          <Feather name="map-pin" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowText, { color: colors.foreground }]}>Region</Text>
+            <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+              {regionLabel}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -177,6 +201,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   rowText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  rowSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   signOut: {
     flexDirection: "row",
     alignItems: "center",

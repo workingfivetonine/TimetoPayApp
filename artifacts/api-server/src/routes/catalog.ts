@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import {
   db,
   itemsTable,
+  usersTable,
   catalogItemAliasesTable,
   lineItemsTable,
   receiptsTable,
 } from "@workspace/db";
+import { isStateScoped } from "@workspace/geo";
 import { AddCatalogItemToListBody } from "@workspace/api-zod";
 import {
   ensureCatalog,
@@ -17,6 +19,22 @@ import {
 import { categoryOrder } from "../lib/categories";
 
 const router = Router();
+
+// Load the requester's region for scoping the catalog. Returns null country when
+// the user hasn't picked a region yet (in which case the region-scoped view is
+// empty — they must set a region first, which the client gates on). State is
+// only meaningful for the US.
+async function userRegion(
+  userId: string,
+): Promise<{ countryCode: string | null; stateCode: string | null }> {
+  const [u] = await db
+    .select({ countryCode: usersTable.countryCode, stateCode: usersTable.stateCode })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  const countryCode = u?.countryCode ?? null;
+  const stateCode = countryCode && isStateScoped(countryCode) ? u?.stateCode ?? null : null;
+  return { countryCode, stateCode };
+}
 
 // Map a catalog item id -> the set of its alias normalized names.
 async function aliasNormsByItem(): Promise<Map<number, string[]>> {
@@ -40,12 +58,24 @@ async function aliasNormsByItem(): Promise<Map<number, string[]>> {
 router.get("/browse", async (req, res): Promise<void> => {
   const userId = req.userId!;
   await ensureCatalog();
+  const region = await userRegion(userId);
+  // A region is required to see any cross-user catalog data. Without one we
+  // cannot scope by country/state, so returning unfiltered (global) results
+  // would leak out-of-region activity. The client gates on this, but enforce it
+  // server-side too: a region-less requester sees an empty catalog.
+  if (!region.countryCode) {
+    res.json({ categories: [] });
+    return;
+  }
   // Privacy-thresholded view: only surface items/store prices backed by at least
   // CATALOG_MIN_CONTRIBUTORS distinct OTHER users, so a regular account can't
   // read back another person's singleton purchases from the "shared" catalog.
+  // Region-scoped: only stores in the user's own country (and US state) appear.
   const global = await computeGlobalPrices({
     minDistinctUsers: CATALOG_MIN_CONTRIBUTORS,
     excludeUserId: userId,
+    countryCode: region.countryCode,
+    stateCode: region.stateCode,
   });
 
   // The user's items plus their latest purchase date, to determine which
@@ -153,15 +183,25 @@ router.post("/add-to-list", async (req, res): Promise<void> => {
     return;
   }
   await ensureCatalog();
+  const region = await userRegion(userId);
+  // Region-less requester has no visible catalog (see /browse); 404 keeps this
+  // indistinguishable from a suppressed/out-of-region id.
+  if (!region.countryCode) {
+    res.status(404).json({ error: "Catalog item not found" });
+    return;
+  }
 
   // Resolve the target item ONLY through the user's privacy-thresholded catalog
-  // view (same threshold as browse). This both snapshots a privacy-safe price
-  // and gates the route to the caller's visible set: a suppressed item returns
-  // 404 (indistinguishable from "doesn't exist"), so sequential id probing
-  // can't be used to disclose hidden canonical item names.
+  // view (same threshold AND region scope as browse). This both snapshots a
+  // privacy-safe price and gates the route to the caller's visible set: a
+  // suppressed OR out-of-region item returns 404 (indistinguishable from
+  // "doesn't exist"), so sequential id probing can't be used to disclose hidden
+  // canonical item names or cross-region activity.
   const global = await computeGlobalPrices({
     minDistinctUsers: CATALOG_MIN_CONTRIBUTORS,
     excludeUserId: userId,
+    countryCode: region.countryCode,
+    stateCode: region.stateCode,
   });
   const entry = global.find((g) => g.catalogItemId === parsed.data.catalogItemId);
   if (!entry) {

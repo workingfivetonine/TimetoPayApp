@@ -116,6 +116,26 @@ export interface CurrentUser {
   email?: string | null;
   isAdmin: boolean;
   role: UserRole;
+  /**
+     * ISO-3166 alpha-2 country code; null until the user picks a region
+     * @nullable
+     */
+  countryCode?: string | null;
+  /**
+     * USPS 2-letter state code; only set when countryCode is "US"
+     * @nullable
+     */
+  stateCode?: string | null;
+}
+
+export interface RegionInput {
+  /** ISO-3166 alpha-2 country code */
+  countryCode: string;
+  /**
+     * USPS 2-letter state code; required when countryCode is "US", ignored otherwise
+     * @nullable
+     */
+  stateCode?: string | null;
 }
 
 export interface AdminUser {
@@ -171,6 +191,16 @@ export interface AdminUserReceipts {
 export interface Store {
   id: number;
   name: string;
+  /**
+     * ISO-3166 alpha-2 country code
+     * @nullable
+     */
+  countryCode?: string | null;
+  /**
+     * USPS 2-letter state code; only set when countryCode is "US"
+     * @nullable
+     */
+  stateCode?: string | null;
   /** @nullable */
   address?: string | null;
   /** @nullable */
@@ -189,6 +219,16 @@ export interface Store {
 
 export interface StoreInput {
   name: string;
+  /**
+     * ISO-3166 alpha-2 country code
+     * @nullable
+     */
+  countryCode?: string | null;
+  /**
+     * USPS 2-letter state code; only honored when countryCode is "US"
+     * @nullable
+     */
+  stateCode?: string | null;
   /** @nullable */
   address?: string | null;
   /** @nullable */
@@ -206,6 +246,16 @@ export interface StoreInput {
 
 export interface StoreUpdate {
   name?: string;
+  /**
+     * ISO-3166 alpha-2 country code
+     * @nullable
+     */
+  countryCode?: string | null;
+  /**
+     * USPS 2-letter state code; only honored when countryCode is "US"
+     * @nullable
+     */
+  stateCode?: string | null;
   /** @nullable */
   address?: string | null;
   /** @nullable */
@@ -553,6 +603,16 @@ export interface ParsedReceiptLineItem {
 export interface ParsedReceipt {
   storeName: string;
   storeNameUncertain?: boolean;
+  /**
+     * ISO-3166 alpha-2 country code detected from the receipt, if any
+     * @nullable
+     */
+  storeCountryCode?: string | null;
+  /**
+     * USPS 2-letter state code detected from a US receipt, if any
+     * @nullable
+     */
+  storeStateCode?: string | null;
   purchasedAt: string;
   dateUncertain?: boolean;
   total: number;

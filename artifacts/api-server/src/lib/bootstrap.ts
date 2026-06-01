@@ -58,6 +58,22 @@ async function releaseLegacyAdminData(): Promise<void> {
   }
 }
 
+// Region scoping was added after stores already existed. Stores predating the
+// feature have a NULL countryCode. Per the product decision, assume those legacy
+// stores are US (the original user base), so they remain visible in the
+// region-scoped catalog instead of silently disappearing. Idempotent: once
+// backfilled the rows no longer match (countryCode is non-null).
+async function backfillStoreRegions(): Promise<void> {
+  const updated = await db
+    .update(storesTable)
+    .set({ countryCode: "US" })
+    .where(sql`${storesTable.countryCode} is null`)
+    .returning({ id: storesTable.id });
+  if (updated.length > 0) {
+    logger.info({ count: updated.length }, "Backfilled legacy stores to countryCode=US");
+  }
+}
+
 // Keep the `role` label in sync with the `isAdmin` power flag for the elected
 // admin. Backfills role='master_admin' for the existing admin after the role
 // column is introduced. Idempotent (no-op once roles agree).
@@ -158,6 +174,7 @@ export async function runStartupReconciliations(): Promise<void> {
     await reconcileAdminRole();
     await ensureAdminExists();
     await releaseLegacyAdminData();
+    await backfillStoreRegions();
   } catch (err) {
     logger.error({ err }, "Startup reconciliation failed");
   }

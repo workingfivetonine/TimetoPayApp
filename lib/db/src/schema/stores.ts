@@ -7,6 +7,11 @@ export const storesTable = pgTable("stores", {
   id: serial("id").primaryKey(),
   userId: text("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  // Region scoping for the cross-user catalog. countryCode is ISO-3166 alpha-2
+  // (uppercase); stateCode is a USPS 2-letter code, only set when countryCode
+  // is "US". Both nullable for legacy rows (backfilled to "US" at startup).
+  countryCode: text("country_code"),
+  stateCode: text("state_code"),
   address: text("address"),
   phone: text("phone"),
   openTimes: text("open_times"),

@@ -6,8 +6,50 @@ import {
   CreateStoreBody,
   UpdateStoreBody,
 } from "@workspace/api-zod";
+import { isValidCountry, isValidUsState, isStateScoped, normalizeRegionCode } from "@workspace/geo";
 
 const router = Router();
+
+// Resolve the region columns to persist from a (partial) store body. Region
+// fields are independent of the rest of the body: only the keys actually present
+// are touched. countryCode must be a known country (or null to clear); a US
+// store may carry a valid state, every other country forces state to null.
+type RegionFields = { countryCode?: string | null; stateCode?: string | null };
+function resolveStoreRegion(
+  data: { countryCode?: string | null; stateCode?: string | null },
+): { ok: true; fields: RegionFields } | { ok: false; error: string } {
+  const fields: RegionFields = {};
+  if (data.countryCode !== undefined) {
+    if (data.countryCode === null) {
+      // Clearing the country also clears the (now-meaningless) state.
+      fields.countryCode = null;
+      fields.stateCode = null;
+      return { ok: true, fields };
+    }
+    if (!isValidCountry(data.countryCode)) {
+      return { ok: false, error: "Invalid or unsupported countryCode" };
+    }
+    const countryCode = normalizeRegionCode(data.countryCode)!;
+    fields.countryCode = countryCode;
+    if (isStateScoped(countryCode)) {
+      if (data.stateCode != null) {
+        if (!isValidUsState(data.stateCode)) {
+          return { ok: false, error: "Invalid US stateCode" };
+        }
+        fields.stateCode = normalizeRegionCode(data.stateCode);
+      } else {
+        fields.stateCode = null;
+      }
+    } else {
+      // Non-US: never persist a state.
+      fields.stateCode = null;
+    }
+    return { ok: true, fields };
+  }
+  // Country not being changed; a lone state change is only valid for a US store,
+  // which we can't verify here without a read, so ignore a state-only payload.
+  return { ok: true, fields };
+}
 
 router.get("/", async (req, res): Promise<void> => {
   const userId = req.userId!;
@@ -33,8 +75,15 @@ router.post("/", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const region = resolveStoreRegion(parsed.data);
+  if (!region.ok) {
+    res.status(400).json({ error: region.error });
+    return;
+  }
+  const { countryCode: _c, stateCode: _s, ...rest } = parsed.data;
   const [store] = await db.insert(storesTable).values({
-    ...parsed.data,
+    ...rest,
+    ...region.fields,
     userId,
     deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : null,
     minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : null,
@@ -74,10 +123,17 @@ router.patch("/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const region = resolveStoreRegion(parsed.data);
+  if (!region.ok) {
+    res.status(400).json({ error: region.error });
+    return;
+  }
+  const { countryCode: _c, stateCode: _s, ...rest } = parsed.data;
   const [store] = await db
     .update(storesTable)
     .set({
-      ...parsed.data,
+      ...rest,
+      ...region.fields,
       deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : parsed.data.deliveryFee,
       minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : parsed.data.minimumOrderAmount,
     })

@@ -57,6 +57,7 @@ export * from './receipt';
 export * from './receiptBounds';
 export * from './receiptDetail';
 export * from './receiptInput';
+export * from './regionInput';
 export * from './shoppingList';
 export * from './shoppingListItem';
 export * from './shoppingListItemPriceSource';

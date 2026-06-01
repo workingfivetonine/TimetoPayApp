@@ -169,6 +169,12 @@ export type GlobalPricesOptions = {
   // the threshold counts only OTHER users and the catalog never just echoes the
   // requester's own purchases back to them.
   excludeUserId?: string | null;
+  // Region scoping for the non-admin browse/add-to-list view. When set, only
+  // stores in this country contribute (and are shown). When stateCode is also
+  // set (US only), the store's state must match too. Omit both for the trusted
+  // admin view, which sees every region.
+  countryCode?: string | null;
+  stateCode?: string | null;
 };
 
 // Aggregate the most-recent price per canonical item across users, plus the
@@ -182,6 +188,11 @@ export async function computeGlobalPrices(
   const minDistinctUsers = opts.minDistinctUsers ?? 1;
   const excludeUserId = opts.excludeUserId ?? null;
   const suppress = minDistinctUsers > 1;
+  // Region scoping (non-admin view only). When a country is set, a row's store
+  // must match it; when a state is also set (US only), the store's state must
+  // match too. Admin passes neither, so filterCountry stays null (no filtering).
+  const filterCountry = opts.countryCode ?? null;
+  const filterState = opts.stateCode ?? null;
 
   const rows = await db
     .select({
@@ -191,6 +202,8 @@ export async function computeGlobalPrices(
       purchasedAt: receiptsTable.purchasedAt,
       createdAt: receiptsTable.createdAt,
       userId: receiptsTable.userId,
+      storeCountryCode: storesTable.countryCode,
+      storeStateCode: storesTable.stateCode,
     })
     .from(lineItemsTable)
     .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
@@ -209,6 +222,14 @@ export async function computeGlobalPrices(
   const storeMap = new Map(catStores.map((c) => [c.id, c.name]));
 
   const sorted = rows
+    // Drop rows whose store is outside the requested region before aggregating,
+    // so out-of-region prices never count toward the threshold or appear.
+    .filter((r) => {
+      if (!filterCountry) return true;
+      if (r.storeCountryCode !== filterCountry) return false;
+      if (filterState && r.storeStateCode !== filterState) return false;
+      return true;
+    })
     .map((r) => ({
       catalogItemId: r.catalogItemId,
       catalogStoreId: r.catalogStoreId,

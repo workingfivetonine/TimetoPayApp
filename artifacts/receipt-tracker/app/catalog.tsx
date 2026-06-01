@@ -17,9 +17,11 @@ import {
   getBrowseCatalogQueryKey,
   useAddCatalogItemToList,
   useDismissItem,
+  useGetCurrentUser,
   getGetShoppingListQueryKey,
 } from "@workspace/api-client-react";
 import type { CatalogBrowseItem } from "@workspace/api-client-react";
+import { countryName, usStateName } from "@workspace/geo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
@@ -47,6 +49,13 @@ export default function CatalogBrowseScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useBrowseCatalog();
+  const { data: me } = useGetCurrentUser();
+  const regionLabel = (() => {
+    const country = countryName(me?.countryCode);
+    const state = usStateName(me?.stateCode);
+    if (!country) return null;
+    return state ? `${state}, ${country}` : country;
+  })();
   const { mutateAsync: addToList } = useAddCatalogItemToList();
   const { mutateAsync: dismissItem } = useDismissItem();
   const [pendingId, setPendingId] = React.useState<number | null>(null);
@@ -224,8 +233,9 @@ export default function CatalogBrowseScreen() {
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <Text style={[styles.caption, { color: colors.mutedForeground }]}>
-              Prices from items multiple shoppers have bought (we never show whose). Tap + to add an
-              item to your shopping list, or the check to remove it.
+              {regionLabel ? `Showing prices in ${regionLabel}. ` : ""}Prices from items multiple
+              shoppers have bought (we never show whose). Tap + to add an item to your shopping list,
+              or the check to remove it.
             </Text>
           }
           ListEmptyComponent={

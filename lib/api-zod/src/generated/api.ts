@@ -22,6 +22,8 @@ export const HealthCheckResponse = zod.object({
 export const ListStoresResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
   "address": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "openTimes": zod.string().nullish(),
@@ -39,6 +41,8 @@ export const ListStoresResponse = zod.array(ListStoresResponseItem)
  */
 export const CreateStoreBody = zod.object({
   "name": zod.string(),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only honored when countryCode is \"US\"'),
   "address": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "openTimes": zod.string().nullish(),
@@ -59,6 +63,8 @@ export const GetStoreParams = zod.object({
 export const GetStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
   "address": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "openTimes": zod.string().nullish(),
@@ -79,6 +85,8 @@ export const UpdateStoreParams = zod.object({
 
 export const UpdateStoreBody = zod.object({
   "name": zod.string().optional(),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only honored when countryCode is \"US\"'),
   "address": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "openTimes": zod.string().nullish(),
@@ -91,6 +99,8 @@ export const UpdateStoreBody = zod.object({
 export const UpdateStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
   "address": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "openTimes": zod.string().nullish(),
@@ -525,6 +535,8 @@ export const ParseReceiptImageBody = zod.object({
 export const ParseReceiptImageResponse = zod.object({
   "storeName": zod.string(),
   "storeNameUncertain": zod.boolean().optional(),
+  "storeCountryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code detected from the receipt, if any'),
+  "storeStateCode": zod.string().nullish().describe('USPS 2-letter state code detected from a US receipt, if any'),
   "purchasedAt": zod.string(),
   "dateUncertain": zod.boolean().optional(),
   "total": zod.number(),
@@ -555,6 +567,8 @@ export const ParseAndSaveReceiptBody = zod.object({
 export const SaveParsedReceiptBody = zod.object({
   "storeName": zod.string(),
   "storeNameUncertain": zod.boolean().optional(),
+  "storeCountryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code detected from the receipt, if any'),
+  "storeStateCode": zod.string().nullish().describe('USPS 2-letter state code detected from a US receipt, if any'),
   "purchasedAt": zod.string(),
   "dateUncertain": zod.boolean().optional(),
   "total": zod.number(),
@@ -621,7 +635,27 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.string(),
   "email": zod.string().nullish(),
   "isAdmin": zod.boolean(),
-  "role": zod.enum(['master_admin', 'family', 'general'])
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"')
+})
+
+
+/**
+ * @summary Set the authenticated user's region (country, and state for the US)
+ */
+export const UpdateMyRegionBody = zod.object({
+  "countryCode": zod.string().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; required when countryCode is \"US\", ignored otherwise')
+})
+
+export const UpdateMyRegionResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"')
 })
 
 

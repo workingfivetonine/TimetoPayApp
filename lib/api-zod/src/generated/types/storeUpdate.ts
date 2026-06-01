@@ -8,6 +8,16 @@
 
 export interface StoreUpdate {
   name?: string;
+  /**
+     * ISO-3166 alpha-2 country code
+     * @nullable
+     */
+  countryCode?: string | null;
+  /**
+     * USPS 2-letter state code; only honored when countryCode is "US"
+     * @nullable
+     */
+  stateCode?: string | null;
   /** @nullable */
   address?: string | null;
   /** @nullable */

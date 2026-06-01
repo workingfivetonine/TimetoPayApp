@@ -60,6 +60,7 @@ import type {
   ReceiptBounds,
   ReceiptDetail,
   ReceiptInput,
+  RegionInput,
   ShoppingList,
   SpendAnalytics,
   Store,
@@ -2654,6 +2655,77 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getUpdateMyRegionUrl = () => {
+
+
+
+
+  return `/api/me/region`
+}
+
+/**
+ * @summary Set the authenticated user's region (country, and state for the US)
+ */
+export const updateMyRegion = async (regionInput: RegionInput, options?: RequestInit): Promise<CurrentUser> => {
+
+  return customFetch<CurrentUser>(getUpdateMyRegionUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      regionInput,)
+  }
+);}
+
+
+
+
+export const getUpdateMyRegionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyRegion>>, TError,{data: BodyType<RegionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMyRegion>>, TError,{data: BodyType<RegionInput>}, TContext> => {
+
+const mutationKey = ['updateMyRegion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyRegion>>, {data: BodyType<RegionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMyRegion(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMyRegionMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyRegion>>>
+    export type UpdateMyRegionMutationBody = BodyType<RegionInput>
+    export type UpdateMyRegionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set the authenticated user's region (country, and state for the US)
+ */
+export const useUpdateMyRegion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyRegion>>, TError,{data: BodyType<RegionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMyRegion>>,
+        TError,
+        {data: BodyType<RegionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMyRegionMutationOptions(options));
+    }
 
 export const getAdminListUsersUrl = () => {
 

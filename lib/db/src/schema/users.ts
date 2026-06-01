@@ -13,6 +13,11 @@ export const usersTable = pgTable(
     // admin with cross-user powers). "family" and "general" are label-only and
     // carry identical permissions / privacy — no data sharing between users.
     role: text("role").notNull().default("general"),
+    // Region for scoping the cross-user catalog the user can see. countryCode is
+    // ISO-3166 alpha-2 (uppercase); stateCode is a USPS 2-letter code, only set
+    // when countryCode is "US". Null until the user picks a region at first run.
+    countryCode: text("country_code"),
+    stateCode: text("state_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

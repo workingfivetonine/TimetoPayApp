@@ -11,6 +11,8 @@ export interface ParsedLineItem {
 export interface ParsedReceiptData {
   storeName: string;
   storeNameUncertain?: boolean;
+  storeCountryCode?: string | null;
+  storeStateCode?: string | null;
   purchasedAt: string;
   dateUncertain?: boolean;
   total: number;

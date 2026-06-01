@@ -7,7 +7,8 @@ import { join } from "path";
 import { writeFile, readFile, unlink, readdir } from "fs/promises";
 import { randomUUID } from "crypto";
 import { db } from "@workspace/db";
-import { receiptsTable, storesTable, lineItemsTable, itemsTable } from "@workspace/db";
+import { receiptsTable, storesTable, lineItemsTable, itemsTable, usersTable } from "@workspace/db";
+import { isValidCountry, isValidUsState, isStateScoped, normalizeRegionCode } from "@workspace/geo";
 import {
   CreateReceiptBody,
   AddLineItemBody,
@@ -100,6 +101,8 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
 {
   "storeName": "Store Name",
   "storeNameUncertain": false,
+  "storeCountryCode": "GB",
+  "storeStateCode": null,
   "purchasedAt": "2024-03-14T11:42:00.000Z",
   "dateUncertain": false,
   "total": 10.23,
@@ -118,6 +121,8 @@ Now extract data from the receipt image provided and return ONLY a single valid 
 {
   "storeName": "Name of the store or retailer",
   "storeNameUncertain": <true if store name was blurry/missing/guessed, false if clearly readable>,
+  "storeCountryCode": "<ISO-3166 alpha-2 country code of the store, or null if you can't tell>",
+  "storeStateCode": "<for a US store only: the USPS 2-letter state code, else null>",
   "purchasedAt": "ISO 8601 date-time — read the date on the receipt; if unreadable use today: ${today}",
   "dateUncertain": <true if date was blurry/missing/guessed, false if clearly readable>,
   "total": <final total paid as a number>,
@@ -136,6 +141,8 @@ Now extract data from the receipt image provided and return ONLY a single valid 
 }
 
 Rules:
+- storeCountryCode: infer the store's country from the address, currency symbol, phone format, language, or tax labels (e.g. "VAT" → UK/EU, "GST" → AU/CA, "$" with a US state abbreviation → US). Return the uppercase ISO-3166 alpha-2 code (e.g. "US", "GB", "CA", "AU"). If you genuinely cannot tell, return null.
+- storeStateCode: ONLY for a US store, return the USPS 2-letter state code (e.g. "CA", "NY", "TX") read from the address. For any non-US store, or if the US state is unreadable, return null.
 - Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
 - icon must be exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots, 🍗 chicken, 🧻 paper towels). If unsure, use 🛒.
 - category MUST be EXACTLY one of these fixed values (copy verbatim): "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". Pick the single best fit; use "Other" only if nothing else fits.
@@ -405,16 +412,68 @@ router.post("/parse", imageGuard, async (req, res): Promise<void> => {
 });
 
 // Shared helper: persist a parsed receipt (store, receipt, line items) to the DB
+// Resolve the country/state to stamp on a store from AI-detected values, falling
+// back to the uploading user's own region (they scanned a local receipt). AI
+// values are validated/normalized; an invalid or missing code falls through.
+// State is only meaningful for the US.
+function resolveScanRegion(
+  ai: { country?: string | null; state?: string | null },
+  user: { countryCode: string | null; stateCode: string | null },
+): { countryCode: string | null; stateCode: string | null } {
+  const aiCountryRaw = normalizeRegionCode(ai.country);
+  const aiCountry = aiCountryRaw && isValidCountry(aiCountryRaw) ? aiCountryRaw : null;
+  const countryCode = aiCountry ?? user.countryCode ?? null;
+  if (!countryCode || !isStateScoped(countryCode)) {
+    return { countryCode, stateCode: null };
+  }
+  // US store: prefer the AI-read state; else, only if the user's own region is
+  // also US, fall back to their state.
+  const aiStateRaw = normalizeRegionCode(ai.state);
+  const aiState = aiStateRaw && isValidUsState(aiStateRaw) ? aiStateRaw : null;
+  const userState = user.countryCode === "US" ? user.stateCode : null;
+  return { countryCode, stateCode: aiState ?? userState ?? null };
+}
+
 async function persistParsedReceipt(userId: string, parsed: {
   storeName: string;
+  storeCountryCode?: string | null;
+  storeStateCode?: string | null;
   purchasedAt: string;
   total: number;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
 }) {
+  // Uploading user's own region, used as the fallback for new/unstamped stores.
+  const [u] = await db
+    .select({ countryCode: usersTable.countryCode, stateCode: usersTable.stateCode })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  const userRegion = { countryCode: u?.countryCode ?? null, stateCode: u?.stateCode ?? null };
+
   // Find or create store (scoped to this user)
   let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`)))[0];
   if (!store) {
-    [store] = await db.insert(storesTable).values({ name: parsed.storeName, userId }).returning();
+    const region = resolveScanRegion(
+      { country: parsed.storeCountryCode, state: parsed.storeStateCode },
+      userRegion,
+    );
+    [store] = await db
+      .insert(storesTable)
+      .values({ name: parsed.storeName, userId, countryCode: region.countryCode, stateCode: region.stateCode })
+      .returning();
+  } else if (!store.countryCode) {
+    // Lazy-backfill region on a pre-existing store that has none yet.
+    const region = resolveScanRegion(
+      { country: parsed.storeCountryCode, state: parsed.storeStateCode },
+      userRegion,
+    );
+    if (region.countryCode) {
+      await db
+        .update(storesTable)
+        .set({ countryCode: region.countryCode, stateCode: region.stateCode })
+        .where(eq(storesTable.id, store.id));
+      store.countryCode = region.countryCode;
+      store.stateCode = region.stateCode;
+    }
   }
 
   // Create receipt
@@ -494,7 +553,7 @@ router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
-    let parsed: { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[] };
+    let parsed: { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[] };
 
     try {
       parsed = JSON.parse(content);
@@ -513,7 +572,7 @@ router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[] };
+  const parsed = req.body as { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;
@@ -552,6 +611,8 @@ router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
 
     type ParsedReceipt = {
       storeName: string;
+      storeCountryCode?: string | null;
+      storeStateCode?: string | null;
       purchasedAt: string;
       total: number;
       lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
@@ -560,13 +621,15 @@ router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
     const today = new Date().toISOString();
     const jsonSchema = `{
   "storeName": "store or retailer name",
+  "storeCountryCode": "ISO-3166 alpha-2 country code of the store, or null if unknown",
+  "storeStateCode": "for a US store only, the USPS 2-letter state code, else null",
   "purchasedAt": "ISO 8601 date string (use today if unclear: ${today})",
   "total": total order amount as number,
   "lineItems": [
     { "name": "item name", "icon": "a single emoji best representing the product", "category": "one of the fixed categories", "price": price per unit as number, "quantity": quantity as number }
   ]
 }`;
-    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other".`;
+    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null.`;
 
     if (extractedText.length >= 50) {
       // Text-based PDF: send extracted text to language model

@@ -10,6 +10,16 @@ import type { ParsedReceiptLineItem } from './parsedReceiptLineItem';
 export interface ParsedReceipt {
   storeName: string;
   storeNameUncertain?: boolean;
+  /**
+     * ISO-3166 alpha-2 country code detected from the receipt, if any
+     * @nullable
+     */
+  storeCountryCode?: string | null;
+  /**
+     * USPS 2-letter state code detected from a US receipt, if any
+     * @nullable
+     */
+  storeStateCode?: string | null;
   purchasedAt: string;
   dateUncertain?: boolean;
   total: number;

@@ -15,7 +15,12 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
-import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import {
+  setAuthTokenGetter,
+  setBaseUrl,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DataProvider } from "@/context/DataContext";
@@ -48,6 +53,7 @@ function RootLayoutNav() {
       <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="store/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="catalog" options={{ headerShown: false }} />
+      <Stack.Screen name="region-setup" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
       <Stack.Screen name="help" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
@@ -85,7 +91,15 @@ function InitialLayout() {
 
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
+  const onRegionSetup = segments[0] === "region-setup";
   const isPublicRoute = inAuthGroup || onLanding;
+
+  // Region gate: a signed-in user must pick a region before using the app, since
+  // the catalog is scoped by it. Only fetch once signed in.
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey(), enabled: isSignedIn },
+  });
+  const needsRegion = isSignedIn && me != null && !me.countryCode;
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -93,8 +107,12 @@ function InitialLayout() {
       router.replace("/landing");
     } else if (isSignedIn && isPublicRoute) {
       router.replace("/");
+    } else if (needsRegion && !onRegionSetup) {
+      router.replace("/region-setup");
     }
-  }, [isLoaded, isSignedIn, isPublicRoute, router]);
+    // Note: we do NOT bounce users who already have a region off /region-setup —
+    // that screen doubles as the "edit my region" settings screen.
+  }, [isLoaded, isSignedIn, isPublicRoute, needsRegion, onRegionSetup, router]);
 
   if (!isLoaded) {
     return (

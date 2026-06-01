@@ -13,4 +13,14 @@ export interface CurrentUser {
   email?: string | null;
   isAdmin: boolean;
   role: UserRole;
+  /**
+     * ISO-3166 alpha-2 country code; null until the user picks a region
+     * @nullable
+     */
+  countryCode?: string | null;
+  /**
+     * USPS 2-letter state code; only set when countryCode is "US"
+     * @nullable
+     */
+  stateCode?: string | null;
 }

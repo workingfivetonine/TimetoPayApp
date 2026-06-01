@@ -35,12 +35,15 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { StoreCard } from "@/components/StoreCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
+import { RegionPicker } from "@/components/RegionPicker";
 import { confirmDestructive } from "@/lib/confirm";
 import type { Store } from "@workspace/api-client-react";
 import { useRouter } from "expo-router";
 
 interface StoreFormData {
   name: string;
+  countryCode: string | null;
+  stateCode: string | null;
   address: string;
   phone: string;
   openTimes: string;
@@ -52,6 +55,8 @@ interface StoreFormData {
 
 const defaultForm: StoreFormData = {
   name: "",
+  countryCode: null,
+  stateCode: null,
   address: "",
   phone: "",
   openTimes: "",
@@ -126,6 +131,8 @@ export default function StoresScreen() {
     setEditingStore(store);
     setForm({
       name: store.name,
+      countryCode: store.countryCode ?? null,
+      stateCode: store.stateCode ?? null,
       address: store.address ?? "",
       phone: store.phone ?? "",
       openTimes: store.openTimes ?? "",
@@ -142,6 +149,8 @@ export default function StoresScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const data = {
       name: form.name.trim(),
+      countryCode: form.countryCode,
+      stateCode: form.countryCode === "US" ? form.stateCode : null,
       address: form.address.trim() || null,
       phone: form.phone.trim() || null,
       openTimes: form.openTimes.trim() || null,
@@ -295,6 +304,13 @@ export default function StoresScreen() {
               placeholderTextColor={colors.mutedForeground}
               autoFocus
               returnKeyType="next"
+            />
+
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>REGION</Text>
+            <RegionPicker
+              countryCode={form.countryCode}
+              stateCode={form.stateCode}
+              onChange={(c, s) => setForm((f) => ({ ...f, countryCode: c, stateCode: s }))}
             />
 
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>ADDRESS</Text>
