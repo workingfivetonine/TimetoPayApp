@@ -14,6 +14,8 @@ const fs = require("fs");
 const path = require("path");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
+const WEB_ROOT = path.join(STATIC_ROOT, "web");
+const WEB_INDEX = path.join(WEB_ROOT, "index.html");
 const TEMPLATE_PATH = path.resolve(__dirname, "templates", "landing-page.html");
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
 
@@ -104,22 +106,75 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
   res.end(html);
 }
 
-function serveStaticFile(urlPath, res) {
+function buildSeoHead(baseUrl, appName) {
+  const desc = `${appName} scans your receipts with AI, tracks grocery prices over time, and builds a smart shopping list.`;
+  const ogDesc =
+    "Scan receipts with AI, track grocery prices over time, and build a smart shopping list.";
+  const tags = [
+    `<meta name="description" content="${desc}" />`,
+    `<meta name="robots" content="index, follow" />`,
+    `<link rel="canonical" href="${baseUrl}/" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:title" content="${appName} — Scan receipts, track prices, smart shopping list" />`,
+    `<meta property="og:description" content="${ogDesc}" />`,
+    `<meta property="og:url" content="${baseUrl}/" />`,
+    `<meta name="twitter:card" content="summary" />`,
+    `<meta name="twitter:title" content="${appName}" />`,
+    `<meta name="twitter:description" content="${ogDesc}" />`,
+  ];
+  return tags.join("\n    ");
+}
+
+function injectSeo(html, baseUrl, appName) {
+  const seoTitle = `${appName} — Scan receipts, track prices, smart shopping list`;
+  let out = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${seoTitle}</title>`);
+  out = out.replace(
+    /<\/head>/i,
+    `    ${buildSeoHead(baseUrl, appName)}\n  </head>`,
+  );
+  return out;
+}
+
+let _webIndexRaw = null;
+function getWebIndexRaw() {
+  if (_webIndexRaw === null && fs.existsSync(WEB_INDEX)) {
+    _webIndexRaw = fs.readFileSync(WEB_INDEX, "utf-8");
+  }
+  return _webIndexRaw;
+}
+
+// Serve the real browser web app (Expo web export) with SEO meta injected.
+// Falls back to the Expo Go QR landing page if the web build is unavailable.
+function serveWebApp(req, res, landingPageTemplate, appName) {
+  const raw = getWebIndexRaw();
+  if (!raw) {
+    return serveLandingPage(req, res, landingPageTemplate, appName);
+  }
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = forwardedProto || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  const baseUrl = `${protocol}://${host}`;
+
+  const html = injectSeo(raw, baseUrl, appName);
+  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  res.end(html);
+}
+
+// Resolve a request path to a real file, checking the web build first, then the
+// Expo Go static build (timestamped bundles/assets/manifests).
+function resolveStaticFile(urlPath) {
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, "");
-  const filePath = path.join(STATIC_ROOT, safePath);
-
-  if (!filePath.startsWith(STATIC_ROOT)) {
-    res.writeHead(403);
-    res.end("Forbidden");
-    return;
+  for (const root of [WEB_ROOT, STATIC_ROOT]) {
+    const filePath = path.join(root, safePath);
+    if (!filePath.startsWith(root)) continue;
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      return filePath;
+    }
   }
+  return null;
+}
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    res.writeHead(404);
-    res.end("Not Found");
-    return;
-  }
-
+function serveFile(filePath, res) {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   const content = fs.readFileSync(filePath);
@@ -153,11 +208,23 @@ const server = http.createServer((req, res) => {
     }
 
     if (pathname === "/") {
-      return serveLandingPage(req, res, landingPageTemplate, appName);
+      return serveWebApp(req, res, landingPageTemplate, appName);
     }
   }
 
-  serveStaticFile(pathname, res);
+  const filePath = resolveStaticFile(pathname);
+  if (filePath) {
+    return serveFile(filePath, res);
+  }
+
+  // SPA fallback: client-side routes (no file extension) render the web app
+  // shell so deep links like /catalog or /receipt/123 work on reload.
+  if (!path.extname(pathname)) {
+    return serveWebApp(req, res, landingPageTemplate, appName);
+  }
+
+  res.writeHead(404);
+  res.end("Not Found");
 });
 
 const port = parseInt(process.env.PORT || "3000", 10);

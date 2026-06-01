@@ -127,6 +127,67 @@ function getExpoPublicReplId() {
   return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
 }
 
+function buildWebExport(expoPublicDomain, expoPublicReplId) {
+  return new Promise((resolve, reject) => {
+    console.log("Building web export (real website)...");
+
+    const clerkProxyUrl = process.env.CLERK_PROXY_URL
+      ? `https://${expoPublicDomain}${process.env.CLERK_PROXY_URL}`
+      : "";
+    const env = {
+      ...process.env,
+      EXPO_PUBLIC_DOMAIN: expoPublicDomain,
+      EXPO_PUBLIC_REPL_ID: expoPublicReplId || "",
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || "",
+      EXPO_PUBLIC_CLERK_PROXY_URL: clerkProxyUrl,
+    };
+
+    const outputDir = path.join(projectRoot, "static-build", "web");
+
+    const child = spawn(
+      "pnpm",
+      [
+        "exec",
+        "expo",
+        "export",
+        "--platform",
+        "web",
+        "--output-dir",
+        outputDir,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"], cwd: projectRoot, env },
+    );
+
+    if (child.stdout) {
+      child.stdout.on("data", (data) => {
+        const output = data.toString().trim();
+        if (output) console.log(`[WebExport] ${output}`);
+      });
+    }
+    if (child.stderr) {
+      child.stderr.on("data", (data) => {
+        const output = data.toString().trim();
+        if (output) console.error(`[WebExport] ${output}`);
+      });
+    }
+
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(`Web export failed with exit code ${code}`));
+        return;
+      }
+      const indexPath = path.join(outputDir, "index.html");
+      if (!fs.existsSync(indexPath)) {
+        reject(new Error("Web export finished but index.html is missing"));
+        return;
+      }
+      console.log("Web export ready");
+      resolve();
+    });
+  });
+}
+
 async function startMetro(expoPublicDomain, expoPublicReplId) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
@@ -522,6 +583,10 @@ async function main() {
 
   prepareDirectories(timestamp);
   clearMetroCache();
+
+  // Build the browser web app first (its own bundler run), before we start the
+  // Metro server for the Expo Go bundles, to avoid port 8081 contention.
+  await buildWebExport(domain, expoPublicReplId);
 
   await startMetro(domain, expoPublicReplId);
 
