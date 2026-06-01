@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   // Find or create the product.
   const products = await listGet<{ products?: Array<{ id: string; name: string }> }>(
     t,
-    "/v1/catalogs/products?page_size=100",
+    "/v1/catalogs/products?page_size=20",
   );
   let productId = products.products?.find((p) => p.name === PRODUCT_NAME)?.id;
   if (!productId) {
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   // Find an existing active plan for this product with a matching name.
   const plans = await listGet<{ plans?: Array<{ id: string; name: string; status: string }> }>(
     t,
-    `/v1/billing/plans?product_id=${productId}&page_size=100`,
+    `/v1/billing/plans?product_id=${productId}&page_size=20`,
   );
   const existing = plans.plans?.find(
     (p) => p.name === PLAN_NAME && p.status === "ACTIVE",
