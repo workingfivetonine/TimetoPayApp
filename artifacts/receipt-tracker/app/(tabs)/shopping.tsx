@@ -8,7 +8,6 @@ import {
   Platform,
   RefreshControl,
   TouchableOpacity,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -24,10 +23,11 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
-import { downloadShoppingListPdf } from "@/lib/shoppingListPdf";
+import { ShoppingListPdfModal } from "@/components/ShoppingListPdfModal";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
+import { useUser } from "@clerk/expo";
 
 type ShoppingSort = "az" | "price" | "category";
 const SHOPPING_SORT: SortOption<ShoppingSort>[] = [
@@ -73,10 +73,11 @@ export default function ShoppingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
   const [dismissingItemId, setDismissingItemId] = useState<number | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ShoppingSort>("az");
 
+  const { user } = useUser();
   const { data: list, isLoading } = useGetShoppingList();
   const { mutateAsync: markRanOut } = useMarkRanOut();
   const { mutateAsync: dismissItem } = useDismissItem();
@@ -111,20 +112,13 @@ export default function ShoppingScreen() {
     }
   };
 
-  const handleDownload = async () => {
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      await downloadShoppingListPdf(list?.recurring ?? [], list?.oneOff ?? []);
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "Could not generate the PDF. Please try again.";
-      Alert.alert("Download failed", message);
-    } finally {
-      setDownloading(false);
-    }
+  const preparedFor =
+    user?.fullName?.trim() ||
+    user?.primaryEmailAddress?.emailAddress ||
+    "";
+
+  const handleOpenPdfModal = () => {
+    setPdfModalVisible(true);
   };
 
   const recurring = useMemo(
@@ -168,15 +162,10 @@ export default function ShoppingScreen() {
           {hasItems && (
             <TouchableOpacity
               style={[styles.downloadButton, { backgroundColor: colors.accent }]}
-              onPress={handleDownload}
-              disabled={downloading}
+              onPress={handleOpenPdfModal}
               accessibilityLabel="Download shopping list as PDF"
             >
-              {downloading ? (
-                <ActivityIndicator size="small" color={colors.accentForeground} />
-              ) : (
-                <Feather name="download" size={18} color={colors.accentForeground} />
-              )}
+              <Feather name="download" size={18} color={colors.accentForeground} />
             </TouchableOpacity>
           )}
         </View>
@@ -241,6 +230,14 @@ export default function ShoppingScreen() {
           stickySectionHeadersEnabled
         />
       )}
+
+      <ShoppingListPdfModal
+        visible={pdfModalVisible}
+        onClose={() => setPdfModalVisible(false)}
+        recurring={list?.recurring ?? []}
+        oneOff={list?.oneOff ?? []}
+        preparedFor={preparedFor}
+      />
     </View>
   );
 }

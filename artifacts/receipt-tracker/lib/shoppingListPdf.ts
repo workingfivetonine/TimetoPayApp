@@ -3,48 +3,103 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 
-type StoreGroup = {
-  store: string;
-  regulars: ShoppingListItem[];
-  oneOffs: ShoppingListItem[];
+const UNKNOWN_STORE = "Other";
+const UNKNOWN_CATEGORY = "Other";
+
+type PdfItem = {
+  itemName: string;
+  icon: string | null;
+  category: string;
+  storeName: string;
+  ranOutAt: string | null;
+  isCustom: boolean;
 };
 
-const UNKNOWN_STORE = "Other";
+type CategoryGroup = {
+  category: string;
+  items: PdfItem[];
+};
 
-function groupByStore(
-  recurring: ShoppingListItem[],
-  oneOff: ShoppingListItem[]
-): StoreGroup[] {
-  const map = new Map<string, StoreGroup>();
+type StoreGroup = {
+  store: string;
+  categories: CategoryGroup[];
+};
 
-  const ensure = (store: string): StoreGroup => {
-    let group = map.get(store);
-    if (!group) {
-      group = { store, regulars: [], oneOffs: [] };
-      map.set(store, group);
+export interface ShoppingListPdfOptions {
+  /** The curated set of real shopping-list items the user chose to include. */
+  items: ShoppingListItem[];
+  /** PDF-only custom item names typed in the review prompt. Not persisted. */
+  customItems?: string[];
+  /** Display name for the "Prepared For:" line (full name, falling back to email). */
+  preparedFor?: string | null;
+}
+
+function toPdfItems(
+  items: ShoppingListItem[],
+  customItems: string[],
+): PdfItem[] {
+  const out: PdfItem[] = items.map((item) => ({
+    itemName: item.itemName,
+    icon: item.icon ?? null,
+    category: item.category?.trim() || UNKNOWN_CATEGORY,
+    storeName: item.recommendedStoreName?.trim() || UNKNOWN_STORE,
+    ranOutAt: item.ranOutAt ?? null,
+    isCustom: false,
+  }));
+
+  for (const name of customItems) {
+    const trimmed = name.trim();
+    if (!trimmed) continue;
+    out.push({
+      itemName: trimmed,
+      icon: null,
+      category: UNKNOWN_CATEGORY,
+      storeName: UNKNOWN_STORE,
+      ranOutAt: null,
+      isCustom: true,
+    });
+  }
+
+  return out;
+}
+
+function groupByStoreAndCategory(items: PdfItem[]): StoreGroup[] {
+  const storeMap = new Map<string, Map<string, PdfItem[]>>();
+
+  for (const item of items) {
+    let catMap = storeMap.get(item.storeName);
+    if (!catMap) {
+      catMap = new Map();
+      storeMap.set(item.storeName, catMap);
     }
-    return group;
+    let bucket = catMap.get(item.category);
+    if (!bucket) {
+      bucket = [];
+      catMap.set(item.category, bucket);
+    }
+    bucket.push(item);
+  }
+
+  const sortKeepingOtherLast = (a: string, b: string): number => {
+    if (a === UNKNOWN_STORE && b !== UNKNOWN_STORE) return 1;
+    if (b === UNKNOWN_STORE && a !== UNKNOWN_STORE) return -1;
+    return a.localeCompare(b);
   };
 
-  for (const item of recurring) {
-    ensure(item.recommendedStoreName || UNKNOWN_STORE).regulars.push(item);
-  }
-  for (const item of oneOff) {
-    ensure(item.recommendedStoreName || UNKNOWN_STORE).oneOffs.push(item);
-  }
+  const groups: StoreGroup[] = Array.from(storeMap.entries())
+    .sort((a, b) => sortKeepingOtherLast(a[0], b[0]))
+    .map(([store, catMap]) => ({
+      store,
+      categories: Array.from(catMap.entries())
+        .sort((a, b) => sortKeepingOtherLast(a[0], b[0]))
+        .map(([category, bucket]) => ({
+          category,
+          items: bucket
+            .slice()
+            .sort((x, y) => x.itemName.localeCompare(y.itemName)),
+        })),
+    }));
 
-  const groups = Array.from(map.values());
-  // Sort stores alphabetically, but push the "Other" bucket to the end.
-  groups.sort((a, b) => {
-    if (a.store === UNKNOWN_STORE) return 1;
-    if (b.store === UNKNOWN_STORE) return -1;
-    return a.store.localeCompare(b.store);
-  });
-  // Sort items within each group alphabetically.
-  for (const g of groups) {
-    g.regulars.sort((a, b) => a.itemName.localeCompare(b.itemName));
-    g.oneOffs.sort((a, b) => a.itemName.localeCompare(b.itemName));
-  }
   return groups;
 }
 
@@ -57,49 +112,47 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function formatPrice(n: number): string {
-  return `$${n.toFixed(2)}`;
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-function renderItem(item: ShoppingListItem): string {
-  const ranOut = item.ranOutAt != null;
+function renderItem(item: PdfItem): string {
   const icon = escapeHtml(item.icon || "🛒");
   const name = escapeHtml(item.itemName);
-  const notes = item.notes ? `<span class="item-notes">${escapeHtml(item.notes)}</span>` : "";
-  const ranOutTag = ranOut ? `<span class="ranout-tag">ran out</span>` : "";
-  const catalogTag =
-    item.priceSource === "global" ? `<span class="catalog-tag">catalog</span>` : "";
+  const ranOut = item.ranOutAt != null;
+  const ranOutDate = ranOut ? formatDate(item.ranOutAt as string) : "";
+  const ranOutTag = ranOut
+    ? `<span class="ranout-tag">ran out${
+        ranOutDate ? ` · ${escapeHtml(ranOutDate)}` : ""
+      }</span>`
+    : "";
+  const customTag = item.isCustom
+    ? `<span class="custom-tag">added</span>`
+    : "";
   const nameClass = ranOut ? "item-name ranout" : "item-name";
-  const priceHtml =
-    item.recommendedPrice != null
-      ? `<span class="item-price">${formatPrice(item.recommendedPrice)}</span>`
-      : `<span class="item-avg">no price yet</span>`;
-  const avgHtml =
-    item.averagePrice != null
-      ? `<span class="item-avg">avg ${formatPrice(item.averagePrice)}</span>`
-      : "";
   return `
     <li class="item">
       <span class="checkbox"></span>
       <span class="item-icon">${icon}</span>
       <span class="item-main">
-        <span class="${nameClass}">${name}${ranOutTag}${catalogTag}</span>
-        ${notes}
-      </span>
-      <span class="item-pricing">
-        ${priceHtml}
-        ${avgHtml}
+        <span class="${nameClass}">${name}</span>
+        ${ranOutTag}${customTag}
       </span>
     </li>`;
 }
 
-function renderSubsection(label: string, items: ShoppingListItem[]): string {
-  if (items.length === 0) return "";
+function renderCategory(group: CategoryGroup): string {
   return `
-    <div class="subsection">
-      <div class="subsection-title">${label} <span class="count">${items.length}</span></div>
+    <div class="category">
+      <div class="category-title">${escapeHtml(group.category)} <span class="count">${group.items.length}</span></div>
       <ul class="item-list">
-        ${items.map(renderItem).join("")}
+        ${group.items.map(renderItem).join("")}
       </ul>
     </div>`;
 }
@@ -108,17 +161,16 @@ function renderStore(group: StoreGroup): string {
   return `
     <section class="store">
       <h2 class="store-name">${escapeHtml(group.store)}</h2>
-      ${renderSubsection("Regulars", group.regulars)}
-      ${renderSubsection("One-offs", group.oneOffs)}
+      ${group.categories.map(renderCategory).join("")}
     </section>`;
 }
 
-export function buildShoppingListHtml(
-  recurring: ShoppingListItem[],
-  oneOff: ShoppingListItem[]
-): string {
-  const groups = groupByStore(recurring, oneOff);
-  const totalItems = recurring.length + oneOff.length;
+export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
+  const customItems = opts.customItems ?? [];
+  const pdfItems = toPdfItems(opts.items, customItems);
+  const groups = groupByStoreAndCategory(pdfItems);
+  const totalItems = pdfItems.length;
+  const preparedFor = (opts.preparedFor ?? "").trim();
   const dateStr = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     year: "numeric",
@@ -128,7 +180,11 @@ export function buildShoppingListHtml(
 
   const body = groups.length
     ? groups.map(renderStore).join("")
-    : `<p class="empty">No items on your shopping list.</p>`;
+    : `<p class="empty">No items selected for this shopping list.</p>`;
+
+  const preparedForLine = preparedFor
+    ? `<div class="prepared">Prepared For: <strong>${escapeHtml(preparedFor)}</strong></div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html>
@@ -148,21 +204,59 @@ export function buildShoppingListHtml(
   .header {
     border-bottom: 3px solid #7c3aed;
     padding-bottom: 14px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
   }
   .title {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 700;
     margin: 0;
     color: #0f172a;
   }
+  .prepared {
+    font-size: 14px;
+    color: #334155;
+    margin-top: 8px;
+  }
+  .prepared strong { color: #6d28d9; }
   .meta {
     font-size: 12px;
     color: #64748b;
-    margin-top: 6px;
+    margin-top: 4px;
+  }
+  .layout {
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+  }
+  .main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .notes-col {
+    flex: 0 0 190px;
+    border-left: 1px solid #e2e8f0;
+    padding-left: 16px;
+  }
+  .notes-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6d28d9;
+    margin-bottom: 10px;
+  }
+  .notes-lines {
+    min-height: 920px;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 31px,
+      #cbd5e1 31px,
+      #cbd5e1 32px
+    );
   }
   .store {
-    margin-bottom: 22px;
+    margin-bottom: 18px;
     page-break-inside: avoid;
   }
   .store-name {
@@ -174,8 +268,8 @@ export function buildShoppingListHtml(
     border-radius: 8px;
     margin: 0 0 10px;
   }
-  .subsection { margin: 0 0 12px; padding-left: 2px; }
-  .subsection-title {
+  .category { margin: 0 0 12px; padding-left: 2px; }
+  .category-title {
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
@@ -183,7 +277,7 @@ export function buildShoppingListHtml(
     color: #64748b;
     margin-bottom: 6px;
   }
-  .subsection-title .count {
+  .category-title .count {
     color: #94a3b8;
     font-weight: 600;
   }
@@ -201,10 +295,10 @@ export function buildShoppingListHtml(
   }
   .checkbox {
     flex: 0 0 auto;
-    width: 15px;
-    height: 15px;
-    border: 1.5px solid #94a3b8;
-    border-radius: 4px;
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #64748b;
+    border-radius: 3px;
     margin-right: 12px;
   }
   .item-icon {
@@ -215,7 +309,9 @@ export function buildShoppingListHtml(
   .item-main {
     flex: 1 1 auto;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
     min-width: 0;
   }
   .item-name {
@@ -224,24 +320,6 @@ export function buildShoppingListHtml(
   .item-name.ranout {
     font-style: italic;
     color: #64748b;
-  }
-  .item-notes {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-top: 1px;
-  }
-  .item-pricing {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    margin-left: 12px;
-  }
-  .item-avg {
-    font-size: 11px;
-    color: #94a3b8;
-    font-weight: 400;
-    margin-top: 1px;
   }
   .ranout-tag {
     display: inline-block;
@@ -257,7 +335,7 @@ export function buildShoppingListHtml(
     margin-left: 8px;
     vertical-align: middle;
   }
-  .catalog-tag {
+  .custom-tag {
     display: inline-block;
     font-style: normal;
     font-size: 10px;
@@ -271,30 +349,32 @@ export function buildShoppingListHtml(
     margin-left: 8px;
     vertical-align: middle;
   }
-  .item-price {
-    flex: 0 0 auto;
-    font-weight: 600;
-    color: #7c3aed;
-    margin-left: 12px;
-  }
   .empty { color: #64748b; font-size: 14px; }
 </style>
 </head>
 <body>
   <div class="header">
     <h1 class="title">Shopping List</h1>
+    ${preparedForLine}
     <div class="meta">${dateStr} · ${totalItems} item${totalItems !== 1 ? "s" : ""}</div>
   </div>
-  ${body}
+  <div class="layout">
+    <div class="main">
+      ${body}
+    </div>
+    <div class="notes-col">
+      <div class="notes-title">Notes</div>
+      <div class="notes-lines"></div>
+    </div>
+  </div>
 </body>
 </html>`;
 }
 
 export async function downloadShoppingListPdf(
-  recurring: ShoppingListItem[],
-  oneOff: ShoppingListItem[]
+  opts: ShoppingListPdfOptions,
 ): Promise<void> {
-  const html = buildShoppingListHtml(recurring, oneOff);
+  const html = buildShoppingListHtml(opts);
 
   if (Platform.OS === "web") {
     // On web, open the system print dialog (user can save as PDF).
