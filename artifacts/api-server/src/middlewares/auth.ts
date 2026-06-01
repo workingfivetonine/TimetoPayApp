@@ -72,7 +72,11 @@ export async function requireAuth(
   next: NextFunction,
 ): Promise<void> {
   const auth = getAuth(req);
-  const userId = auth?.userId;
+  let userId = auth?.userId;
+  // TEMP_SCREENSHOT_BYPASS: dev-only fallback user for App Store screenshots
+  if (!userId && process.env.NODE_ENV !== "production") {
+    userId = "user_3EWGRQbXZiKH7wDO0BQwYknT9wh";
+  }
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
