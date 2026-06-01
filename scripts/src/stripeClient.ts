@@ -20,8 +20,19 @@ async function getStripeCredentials(): Promise<{ secretKey: string }> {
 
   // The Stripe connector exposes separate development/production connections;
   // pick the one matching this runtime (matches the Replit Stripe blueprint).
+  // Override with STRIPE_CONNECTOR_ENVIRONMENT so a deployer can seed the LIVE
+  // price from the dev workspace (where REPLIT_DEPLOYMENT is unset), e.g.
+  //   STRIPE_CONNECTOR_ENVIRONMENT=production pnpm ... run seed-stripe-price
+  const override = process.env.STRIPE_CONNECTOR_ENVIRONMENT;
+  if (override && override !== "production" && override !== "development") {
+    throw new Error(
+      `Invalid STRIPE_CONNECTOR_ENVIRONMENT="${override}" ` +
+        `(expected "production" or "development").`,
+    );
+  }
   const isProduction = process.env.REPLIT_DEPLOYMENT === "1";
-  const targetEnvironment = isProduction ? "production" : "development";
+  const targetEnvironment =
+    override ?? (isProduction ? "production" : "development");
 
   const url = new URL(`https://${hostname}/api/v2/connection`);
   url.searchParams.set("include_secrets", "true");

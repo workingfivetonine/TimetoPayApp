@@ -4,6 +4,12 @@ import { getUncachableStripeClient } from "./stripeClient";
 // price. Re-running reuses the existing product/price instead of duplicating.
 // Prints the price id to stdout (set it as STRIPE_PRICE_ID, or let the billing
 // route auto-discover the active recurring price).
+//
+// By default this targets the DEVELOPMENT (test-mode) Stripe connection when run
+// from the workspace. To seed the LIVE price after activating a live Stripe
+// account, run against the production connection:
+//   STRIPE_CONNECTOR_ENVIRONMENT=production pnpm --filter @workspace/scripts run seed-stripe-price
+// then set the printed STRIPE_PRICE_ID as the PRODUCTION secret.
 
 const PRODUCT_NAME = "Receipt Tracker Pro";
 const UNIT_AMOUNT = 599; // $5.99 in cents
