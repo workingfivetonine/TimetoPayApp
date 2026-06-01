@@ -83,16 +83,18 @@ function InitialLayout() {
     setAuthTokenGetter(() => getToken());
   }, [getToken]);
 
+  const inAuthGroup = segments[0] === "(auth)";
+  const onLanding = segments[0] === "landing";
+  const isPublicRoute = inAuthGroup || onLanding;
+
   useEffect(() => {
     if (!isLoaded) return;
-    const inAuthGroup = segments[0] === "(auth)";
-    const onLanding = segments[0] === "landing";
-    if (!isSignedIn && !inAuthGroup && !onLanding) {
+    if (!isSignedIn && !isPublicRoute) {
       router.replace("/landing");
-    } else if (isSignedIn && (inAuthGroup || onLanding)) {
+    } else if (isSignedIn && isPublicRoute) {
       router.replace("/");
     }
-  }, [isLoaded, isSignedIn, segments, router]);
+  }, [isLoaded, isSignedIn, isPublicRoute, router]);
 
   if (!isLoaded) {
     return (

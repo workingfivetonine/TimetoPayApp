@@ -118,7 +118,7 @@ export default function SignInPage() {
             <>
               <Text style={[styles.title, { color: colors.foreground }]}>Welcome back</Text>
               <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-                Sign in to your Receipt Tracker
+                Sign in to your TimetoPay account
               </Text>
 
               <Text style={[styles.label, { color: colors.foreground }]}>Email</Text>

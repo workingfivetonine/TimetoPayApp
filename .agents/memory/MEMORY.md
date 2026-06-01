@@ -1,1 +1,2 @@
 - [Custom-domain Clerk white screen](clerk-custom-domain-white-screen.md) — Expo RN-web prod bundle must use the live serving origin for API base + Clerk proxy, not a baked single domain.
+- [Expo-router auth redirect navigator](expo-router-auth-redirect-navigator.md) — never return a spinner instead of the <Stack>; guard protected layouts with <Redirect> so the navigator stays mounted and the redirect fires.

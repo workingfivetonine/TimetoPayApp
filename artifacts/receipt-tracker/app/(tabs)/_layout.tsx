@@ -1,8 +1,9 @@
 import { BlurView } from "expo-blur";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useAuth } from "@clerk/expo";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
@@ -14,6 +15,24 @@ export default function TabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const isDesktop = useDesktop();
+  const { isLoaded, isSignedIn } = useAuth();
+
+  // The app root "/" resolves to this protected group. Guard it declaratively
+  // so signed-out users never mount the authed tab screens (which call
+  // protected APIs and blanked the page on production web — read as "sign-in
+  // does nothing"). <Redirect> fires from inside the mounted root navigator,
+  // so the redirect is reliable (unlike unmounting the navigator for a
+  // spinner, which leaves router navigation with nothing to act on).
+  if (!isLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  if (!isSignedIn) {
+    return <Redirect href="/landing" />;
+  }
 
   const tabs = (
     <Tabs
