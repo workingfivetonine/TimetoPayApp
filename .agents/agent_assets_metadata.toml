@@ -101,3 +101,9 @@ id = "borcPjripO6AyloiUntNK"
 uri = "file://docs/brand-kit/Receipt-Tracker-Brand-Kit.md"
 type = "text"
 title = "TimetoPay Brand Kit (for Canva)"
+
+[[outputs]]
+id = "t0pY5V-Dj34Tdd4tZ2vvi"
+uri = "file://docs/brand-kit/Receipt-Tracker-Marketing-Copy.md"
+type = "text"
+title = "TimetoPay Marketing Copy & Taglines"
