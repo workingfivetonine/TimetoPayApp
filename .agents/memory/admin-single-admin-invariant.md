@@ -24,5 +24,12 @@ can't recover it.
   returned exactly 1 row (throw to roll back otherwise; 404 if target gone).
 - Never demote/delete/merge the current master directly — must transfer
   master_admin first (guards live in `admin.ts`).
+- **Every user-removal path needs the guard, not just transfer.** A plain
+  `if (target.isAdmin) 400` check followed by an unconditional delete is racy: a
+  concurrent transfer can promote that user between check and delete, leaving
+  zero admins. Both `DELETE /admin/users/:id` and `POST /admin/users/merge` must
+  delete conditionally — `where id=:id AND isAdmin=false` and assert the affected
+  row count (merge also locks the source `FOR UPDATE` inside its txn). Any future
+  bulk/cascade user-deletion must do the same.
 - Startup safety net `ensureAdminExists()` in `bootstrap.ts`: if users exist but
   none is admin, promote the earliest-created user to master_admin. Idempotent.

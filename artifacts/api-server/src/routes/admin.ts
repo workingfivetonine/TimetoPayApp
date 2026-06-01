@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
@@ -17,6 +17,10 @@ const router = Router();
 
 // All admin routes require an admin user.
 router.use(requireAdmin);
+
+// Thrown inside a transaction when a guard fails (e.g. attempting to delete the
+// master admin). Mapped to a 400 by the caller; anything else rolls back as 500.
+class AdminGuardError extends Error {}
 
 // Best-effort deletion of a Clerk user. Swallows "already gone" so DB cleanup
 // can still proceed; rethrows nothing (logged by caller via return value).
@@ -206,7 +210,25 @@ router.post("/users/merge", async (req, res): Promise<void> => {
     return;
   }
 
-  const result = await db.transaction(async (tx) => {
+  let result: { movedStores: number; movedItems: number; movedReceipts: number };
+  try {
+    result = await db.transaction(async (tx) => {
+    // Lock the source row and re-check inside the txn: a concurrent role
+    // transfer could have made it the master admin after the check above. The
+    // lock serializes against the transfer (which also locks the row), so we
+    // never delete the sole admin and leave the app admin-less.
+    const [lockedSource] = await tx
+      .select({ id: usersTable.id, isAdmin: usersTable.isAdmin })
+      .from(usersTable)
+      .where(eq(usersTable.id, sourceUserId))
+      .for("update");
+    if (!lockedSource) throw new AdminGuardError("User not found");
+    if (lockedSource.isAdmin) {
+      throw new AdminGuardError(
+        "Can't merge the master admin. Transfer master admin to another user first.",
+      );
+    }
+
     const [receiptCountRow] = await tx
       .select({ c: sql<number>`count(*)::int` })
       .from(receiptsTable)
@@ -273,12 +295,30 @@ router.post("/users/merge", async (req, res): Promise<void> => {
     }
     const movedItems = sourceItems.length;
 
-    // Move any remaining source receipts to the target, then drop the source user.
+    // Move any remaining source receipts to the target, then drop the source
+    // user. The conditional predicate is belt-and-suspenders on top of the row
+    // lock: never delete a user that is (still) the master admin.
     await tx.update(receiptsTable).set({ userId: targetUserId }).where(eq(receiptsTable.userId, sourceUserId));
-    await tx.delete(usersTable).where(eq(usersTable.id, sourceUserId));
+    const deleted = await tx
+      .delete(usersTable)
+      .where(and(eq(usersTable.id, sourceUserId), eq(usersTable.isAdmin, false)))
+      .returning({ id: usersTable.id });
+    if (deleted.length !== 1) {
+      throw new AdminGuardError(
+        "Can't merge the master admin. Transfer master admin to another user first.",
+      );
+    }
 
     return { movedStores, movedItems, movedReceipts };
-  });
+    });
+  } catch (err) {
+    if (err instanceof AdminGuardError) {
+      const status = err.message === "User not found" ? 404 : 400;
+      res.status(status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 
   await deleteClerkUser(sourceUserId, req.log);
 
@@ -306,8 +346,22 @@ router.delete("/users/:userId", async (req, res): Promise<void> => {
     return;
   }
 
+  // Conditional delete guards against a concurrent master-admin transfer onto
+  // this user between the check above and the delete: only deletes if the user
+  // is still non-admin, so we can never remove the sole admin. Do the DB delete
+  // first so a lost race doesn't orphan the Clerk account.
+  const deleted = await db
+    .delete(usersTable)
+    .where(and(eq(usersTable.id, userId), eq(usersTable.isAdmin, false)))
+    .returning({ id: usersTable.id });
+  if (deleted.length === 0) {
+    res.status(400).json({
+      error: "Can't delete the master admin. Transfer master admin to another user first.",
+    });
+    return;
+  }
+
   await deleteClerkUser(userId, req.log);
-  await db.delete(usersTable).where(eq(usersTable.id, userId));
 
   res.json({ success: true });
 });
