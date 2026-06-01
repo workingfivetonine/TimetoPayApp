@@ -16,7 +16,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_SECTIONS,
-  GUIDE_ADMIN_SECTIONS,
   type GuideSectionContent,
 } from "@workspace/guide-content";
 import { useColors } from "@/hooks/useColors";
@@ -51,8 +50,6 @@ const GUIDE_IMAGES: Record<string, ImageSourcePropType> = {
   "analytics.jpg": require("@/assets/images/guide/analytics.jpg"),
   "catalog.jpg": require("@/assets/images/guide/catalog.jpg"),
   "account.jpg": require("@/assets/images/guide/account.jpg"),
-  "admin-global.jpg": require("@/assets/images/guide/admin-global.jpg"),
-  "admin-catalog.jpg": require("@/assets/images/guide/admin-catalog.jpg"),
 };
 
 function toSection(content: GuideSectionContent): GuideSection {
@@ -66,8 +63,6 @@ function toSection(content: GuideSectionContent): GuideSection {
 }
 
 const SECTIONS: GuideSection[] = GUIDE_SECTIONS.map(toSection);
-
-const ADMIN_SECTIONS: GuideSection[] = GUIDE_ADMIN_SECTIONS.map(toSection);
 
 function GuideCard({ section, index }: { section: GuideSection; index: number }) {
   const colors = useColors();
@@ -150,7 +145,7 @@ export default function HelpScreen() {
             <Feather name="book-open" size={22} color={colors.primary} />
           </View>
           <Text style={[styles.heroTitle, { color: colors.accentForeground }]}>
-            Welcome to Receipt Tracker
+            Welcome to TimetoPay
           </Text>
           <Text style={[styles.heroSub, { color: colors.accentForeground }]}>
             Scan receipts, track prices over time, and let your shopping list build itself. Here's
@@ -175,25 +170,6 @@ export default function HelpScreen() {
         </View>
 
         {SECTIONS.map((section, i) => (
-          <GuideCard key={section.title} section={section} index={i} />
-        ))}
-
-        <View style={styles.divider}>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          <View style={[styles.dividerBadge, { backgroundColor: colors.primary }]}>
-            <Feather name="shield" size={13} color={colors.primaryForeground} />
-            <Text style={[styles.dividerText, { color: colors.primaryForeground }]}>
-              Admin only
-            </Text>
-          </View>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-        </View>
-
-        <Text style={[styles.adminNote, { color: colors.mutedForeground }]}>
-          These tools appear only for the account designated as admin.
-        </Text>
-
-        {ADMIN_SECTIONS.map((section, i) => (
           <GuideCard key={section.title} section={section} index={i} />
         ))}
 
@@ -288,21 +264,4 @@ const styles = StyleSheet.create({
   },
   stepNum: { fontSize: 12, fontFamily: "Inter_700Bold" },
   stepText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  divider: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  dividerBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  dividerText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  adminNote: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    marginTop: -4,
-  },
 });

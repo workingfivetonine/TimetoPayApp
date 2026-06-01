@@ -1,12 +1,12 @@
-# Receipt Tracker — How-to Guide
+# TimetoPay — How-to Guide
 
-> Scan receipts, track prices over time, and let your shopping list build itself. This guide walks through every part of Receipt Tracker with screenshots from the app.
+> Scan receipts, track prices over time, and let your shopping list build itself. This guide walks through every part of TimetoPay with screenshots from the app.
 
 ---
 
 ## 1. Signing in
 
-Receipt Tracker keeps each person's data private, so you start by signing in. Your receipts, stores, and prices are only ever visible to your own account.
+TimetoPay keeps each person's data private, so you start by signing in. Your receipts, stores, and prices are only ever visible to your own account.
 
 <img src="images/sign-in.jpg" width="280" alt="Signing in" />
 
@@ -22,6 +22,7 @@ The Receipts tab is your home base — every receipt you scan or enter shows up 
 
 - Tap any receipt to open it and see the individual line items.
 - The total on the right is calculated from the items on that receipt.
+- Use the search box and Sort control at the top to find or reorder your receipts.
 - Use the trash icon to remove a receipt you no longer need.
 
 ## 3. Receipt details
@@ -126,50 +127,24 @@ The Analytics tab turns your receipts into spending insights so you can spot tre
 
 ## 13. Browse catalog
 
-Open Browse Catalog from the Shopping List header to see prices seen across everyone's receipts, grouped by category.
+Open Browse Catalog from the Shopping List header to see typical prices for items that multiple shoppers have bought, grouped by category.
 
 <img src="images/catalog.jpg" width="280" alt="Browse catalog" />
 
 - Tap the + (check) button to add any item to your own shopping list.
 - Items already on your list appear checked.
-- Prices reflect the most recent sighting across all shoppers — no names attached.
+- You only ever see prices for items several shoppers have bought — never who bought them.
 
 ## 14. Your account
 
-The Account screen shows who you're signed in as and lets you sign out. Admins see extra tools here.
+The Account screen shows who you're signed in as and lets you sign out.
 
 <img src="images/account.jpg" width="280" alt="Your account" />
 
 - Confirm the email tied to your data.
-- Sign out to switch accounts — your data stays private to you.
-- Admin tools, when available, appear as rows above Sign out.
+- Everything you scan stays private to your account.
+- Sign out here to switch accounts.
 
 ---
 
-## 🔒 Admin only
-
-These tools appear only for the account designated as admin.
-
-## 15. Global prices
-
-Admins get a read-only, cross-user view of the most recent price for every item — overall and per store.
-
-<img src="images/admin-global.jpg" width="280" alt="Global prices" />
-
-- Tap a card to expand per-store prices, with the lowest highlighted.
-- Data is aggregated across all users without exposing who bought what.
-- Use it to keep the shared catalog's prices realistic.
-
-## 16. Manage catalog
-
-The catalog tool lets admins tidy up spelling variants of item and store names into clean, canonical entries.
-
-<img src="images/admin-catalog.jpg" width="280" alt="Manage catalog" />
-
-- Merge, rename, or split entries from the Items and Stores tabs.
-- Auto-suggested merges surface near-duplicate names for one-tap cleanup.
-- This only touches the shared catalog — it never edits anyone's private rows.
-
----
-
-_Generated for Receipt Tracker. Screenshots reflect the live app with demo data._
+_Generated for TimetoPay. Screenshots reflect the live app with demo data._

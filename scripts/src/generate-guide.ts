@@ -1,5 +1,5 @@
 /**
- * Regenerates the offline Receipt Tracker guide from the single source of truth
+ * Regenerates the offline TimetoPay guide from the single source of truth
  * (`@workspace/guide-content`) so it never drifts from the in-app Help screen.
  *
  * Outputs:
@@ -26,11 +26,8 @@ import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import {
   GUIDE_SECTIONS,
-  GUIDE_ADMIN_SECTIONS,
   GUIDE_TITLE,
   GUIDE_TAGLINE,
-  GUIDE_ADMIN_HEADING,
-  GUIDE_ADMIN_NOTE,
   GUIDE_FOOTER,
   type GuideSectionContent,
 } from "@workspace/guide-content";
@@ -95,12 +92,6 @@ function buildMarkdown(): string {
   };
 
   for (const section of GUIDE_SECTIONS) renderSection(section);
-
-  lines.push("---", "");
-  lines.push(`## 🔒 ${GUIDE_ADMIN_HEADING}`, "");
-  lines.push(GUIDE_ADMIN_NOTE, "");
-
-  for (const section of GUIDE_ADMIN_SECTIONS) renderSection(section);
 
   lines.push("---", "");
   lines.push(`_${GUIDE_FOOTER}_`, "");
@@ -197,23 +188,6 @@ function buildPdf(outPath: string): Promise<void> {
 
     for (const section of GUIDE_SECTIONS) renderSection(section);
 
-    // Admin divider
-    doc.addPage();
-    doc
-      .fillColor(COLOR_PRIMARY)
-      .font("Helvetica-Bold")
-      .fontSize(20)
-      .text(`🔒 ${GUIDE_ADMIN_HEADING}`);
-    doc.moveDown(0.4);
-    doc
-      .fillColor(COLOR_MUTED)
-      .font("Helvetica")
-      .fontSize(11)
-      .text(GUIDE_ADMIN_NOTE, { width: pageWidth });
-    doc.moveDown(1);
-
-    for (const section of GUIDE_ADMIN_SECTIONS) renderSection(section);
-
     doc.moveDown(1.5);
     doc
       .fillColor(COLOR_MUTED)
@@ -227,7 +201,7 @@ function buildPdf(outPath: string): Promise<void> {
 
 async function write(): Promise<void> {
   ensureDirs();
-  copyImages([...GUIDE_SECTIONS, ...GUIDE_ADMIN_SECTIONS]);
+  copyImages(GUIDE_SECTIONS);
 
   writeFileSync(MD_PATH, buildMarkdown(), "utf8");
   console.log(`Wrote ${MD_PATH}`);
@@ -246,7 +220,7 @@ async function write(): Promise<void> {
  */
 async function check(): Promise<void> {
   // Screenshots referenced by the content must still exist.
-  copyImages([...GUIDE_SECTIONS, ...GUIDE_ADMIN_SECTIONS]);
+  copyImages(GUIDE_SECTIONS);
 
   const tmpDir = mkdtempSync(join(tmpdir(), "guide-check-"));
   const tmpPdf = join(tmpDir, "Receipt-Tracker-Guide.pdf");

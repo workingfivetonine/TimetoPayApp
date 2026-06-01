@@ -24,7 +24,7 @@ export async function downloadGuidePdf(): Promise<void> {
   }
   await Sharing.shareAsync(uri, {
     mimeType: "application/pdf",
-    dialogTitle: "Receipt Tracker Guide",
+    dialogTitle: "TimetoPay Guide",
     UTI: "com.adobe.pdf",
   });
 }

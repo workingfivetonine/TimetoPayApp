@@ -1,5 +1,5 @@
 /**
- * Single source of truth for the Receipt Tracker how-to guide content.
+ * Single source of truth for the TimetoPay how-to guide content.
  *
  * This data drives BOTH:
  *  - the in-app Help screen (`artifacts/receipt-tracker/app/help.tsx`)
@@ -30,25 +30,20 @@ export interface GuideSectionContent {
   imageFile: string;
 }
 
-export const GUIDE_TITLE = "Receipt Tracker — How-to Guide";
+export const GUIDE_TITLE = "TimetoPay — How-to Guide";
 
 export const GUIDE_TAGLINE =
-  "Scan receipts, track prices over time, and let your shopping list build itself. This guide walks through every part of Receipt Tracker with screenshots from the app.";
-
-export const GUIDE_ADMIN_HEADING = "Admin only";
-
-export const GUIDE_ADMIN_NOTE =
-  "These tools appear only for the account designated as admin.";
+  "Scan receipts, track prices over time, and let your shopping list build itself. This guide walks through every part of TimetoPay with screenshots from the app.";
 
 export const GUIDE_FOOTER =
-  "Generated for Receipt Tracker. Screenshots reflect the live app with demo data.";
+  "Generated for TimetoPay. Screenshots reflect the live app with demo data.";
 
 export const GUIDE_SECTIONS: GuideSectionContent[] = [
   {
     icon: "log-in",
     title: "Signing in",
     intro:
-      "Receipt Tracker keeps each person's data private, so you start by signing in. Your receipts, stores, and prices are only ever visible to your own account.",
+      "TimetoPay keeps each person's data private, so you start by signing in. Your receipts, stores, and prices are only ever visible to your own account.",
     steps: [
       "Enter your email and password, then tap Sign in.",
       "New here? Tap Sign up to create an account in a few seconds.",
@@ -64,6 +59,7 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
     steps: [
       "Tap any receipt to open it and see the individual line items.",
       "The total on the right is calculated from the items on that receipt.",
+      "Use the search box and Sort control at the top to find or reorder your receipts.",
       "Use the trash icon to remove a receipt you no longer need.",
     ],
     imageFile: "receipts.jpg",
@@ -192,11 +188,11 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
     icon: "grid",
     title: "Browse catalog",
     intro:
-      "Open Browse Catalog from the Shopping List header to see prices seen across everyone's receipts, grouped by category.",
+      "Open Browse Catalog from the Shopping List header to see typical prices for items that multiple shoppers have bought, grouped by category.",
     steps: [
       "Tap the + (check) button to add any item to your own shopping list.",
       "Items already on your list appear checked.",
-      "Prices reflect the most recent sighting across all shoppers — no names attached.",
+      "You only ever see prices for items several shoppers have bought — never who bought them.",
     ],
     imageFile: "catalog.jpg",
   },
@@ -204,39 +200,12 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
     icon: "user",
     title: "Your account",
     intro:
-      "The Account screen shows who you're signed in as and lets you sign out. Admins see extra tools here.",
+      "The Account screen shows who you're signed in as and lets you sign out.",
     steps: [
       "Confirm the email tied to your data.",
-      "Sign out to switch accounts — your data stays private to you.",
-      "Admin tools, when available, appear as rows above Sign out.",
+      "Everything you scan stays private to your account.",
+      "Sign out here to switch accounts.",
     ],
     imageFile: "account.jpg",
-  },
-];
-
-export const GUIDE_ADMIN_SECTIONS: GuideSectionContent[] = [
-  {
-    icon: "tag",
-    title: "Global prices",
-    intro:
-      "Admins get a read-only, cross-user view of the most recent price for every item — overall and per store.",
-    steps: [
-      "Tap a card to expand per-store prices, with the lowest highlighted.",
-      "Data is aggregated across all users without exposing who bought what.",
-      "Use it to keep the shared catalog's prices realistic.",
-    ],
-    imageFile: "admin-global.jpg",
-  },
-  {
-    icon: "layers",
-    title: "Manage catalog",
-    intro:
-      "The catalog tool lets admins tidy up spelling variants of item and store names into clean, canonical entries.",
-    steps: [
-      "Merge, rename, or split entries from the Items and Stores tabs.",
-      "Auto-suggested merges surface near-duplicate names for one-tap cleanup.",
-      "This only touches the shared catalog — it never edits anyone's private rows.",
-    ],
-    imageFile: "admin-catalog.jpg",
   },
 ];
