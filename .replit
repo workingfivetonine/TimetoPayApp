@@ -49,6 +49,7 @@ isValidation = true
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
+integrations = ["stripe:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -98,3 +99,4 @@ channel = "stable-25_05"
 [userenv.shared]
 PAYPAL_API_BASE = "https://api-m.paypal.com"
 PAYPAL_PLAN_ID = "P-3A129630RR8921826NIO2U3I"
+STRIPE_PRICE_ID = "price_1TdZ90AJLMeP925SHBnxlXuf"

@@ -103,6 +103,8 @@ A mobile app for scanning receipts with AI, tracking prices over time, and build
 - Drizzle `numeric` columns require string values on insert/update; cast to `Number` when returning JSON
 - Run `pnpm run typecheck:libs` before `pnpm --filter @workspace/api-server run typecheck` to ensure lib declarations are built first
 - `EXPO_PUBLIC_DOMAIN` env var is set by the workflow script — used in scan.tsx to construct the API URL
+- The Stripe connector exposes the secret key as `settings.secret` (NOT `secret_key`) and requires the `X-Replit-Token` header + an `environment=development|production` query param (keyed off `REPLIT_DEPLOYMENT`) on the connector lookup — see `stripeClient.ts` (both the api-server and `scripts/src` copies).
+- `stripe-replit-sync`'s `runMigrations()` resolves its SQL files relative to `__dirname` at runtime. Because the api-server is esbuild-bundled into `dist/index.mjs`, `__dirname` becomes `dist/`, so `build.mjs` copies the package's `migrations/` into `dist/migrations` — otherwise the migration step silently skips ("directory not found") and the `stripe.*` tables are never created (webhook setup then fails with `relation "stripe.accounts" does not exist`).
 
 ## User preferences
 

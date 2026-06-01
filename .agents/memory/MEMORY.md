@@ -1,3 +1,4 @@
 - [Custom-domain Clerk white screen](clerk-custom-domain-white-screen.md) — Expo RN-web prod bundle must use the live serving origin for API base + Clerk proxy, not a baked single domain.
 - [Expo-router auth redirect navigator](expo-router-auth-redirect-navigator.md) — never return a spinner instead of the <Stack>; guard protected layouts with <Redirect> so the navigator stays mounted and the redirect fires.
+- [stripe-replit-sync migrations + connector fields](stripe-sync-migrations-bundling.md) — esbuild doesn't copy the package's runtime SQL; build.mjs must copy migrations into dist/ or stripe.* tables silently never create. Connector key is `settings.secret`.
 - [Entitlement state machine](entitlement-state-machine.md) — paywall: trial window is a FLOOR even in terminal states; past_due must be bounded (never indefinite when periodEnd is null).

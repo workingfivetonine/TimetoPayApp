@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { rm } from "node:fs/promises";
+import { cp, rm } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -117,6 +117,21 @@ globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
+  });
+
+  // stripe-replit-sync's runMigrations() resolves its SQL files relative to
+  // __dirname at runtime. Because we bundle into dist/index.mjs, __dirname is
+  // dist/, so the package's own dist/migrations is never on disk next to the
+  // bundle — the migration step then silently skips ("directory not found") and
+  // the `stripe.*` tables are never created. Copy the migrations next to the
+  // bundle so they resolve to dist/migrations.
+  const require2 = createRequire(import.meta.url);
+  const stripeSyncMigrations = path.join(
+    path.dirname(require2.resolve("stripe-replit-sync")),
+    "migrations",
+  );
+  await cp(stripeSyncMigrations, path.resolve(distDir, "migrations"), {
+    recursive: true,
   });
 }
 
