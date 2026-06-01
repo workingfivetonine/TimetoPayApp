@@ -79,7 +79,40 @@ Both Sora and Manrope are Google Fonts that ship in Canva's standard library (fr
 
 ---
 
-## 4. How to set this up in Canva
+## 4. Brand Voice
+
+How TimetoPay speaks. Use this when writing anything — landing copy, captions, push notifications, app store text, social posts.
+
+**In one line:** Confident, plain-talking, and quietly clever — a money-smart friend who does the boring math for you and never lectures.
+
+### The five traits
+
+1. **Plain-spoken and benefit-first.** Lead with what the user gets, never the tech. AI is a means, never the headline. *"Turn your receipts into real grocery savings." · "no typing." · "We do the rest."*
+2. **Punchy and rhythmic.** Short, confident sentences — often three beats. Lots of periods, few commas. It reads fast. *"Snap. Track. Save." · "Scan it. AI does the rest." · "Scan smarter. Spend less."*
+3. **Friendly and lightly playful.** Warm wit, not jokey. *"Finally, a reason to keep the receipt." · "The price memory your wallet wishes you had." · "Let your receipts do the math."*
+4. **Money-savvy and reassuring — never preachy.** Name the pain honestly, then hand over control. Empowering, not guilt-trippy or hype-y. *"Prices creep up. Receipts pile up. Nobody's keeping track."*
+5. **Trustworthy about privacy.** When copy touches user data, go calm and transparent. *"Real prices from real shoppers." · "We never show whose."*
+
+### Do / Don't
+
+| Do | Don't |
+|---|---|
+| Lead with the benefit | Lead with the technology |
+| Keep it short and rhythmic | Write long, hedging sentences |
+| Be warmly clever | Be jokey, gimmicky, or cutesy |
+| Name the problem, then solve it | Lecture or guilt-trip the reader |
+| Stay calm and transparent on privacy | Overpromise or get vague about data |
+| Use confident, active verbs | Overuse exclamation marks or hype words ("revolutionary!!!") |
+
+### Quick reference
+- **Tone:** confident, warm, plain.
+- **Sentence length:** short. Fragments are fine.
+- **Person:** speak to "you"; the app is "TimetoPay" or "we."
+- **Avoid:** jargon, hype, exclamation overload, corporate-speak.
+
+---
+
+## 5. How to set this up in Canva
 
 1. Open **Canva → Brand Hub → Brand Kits** (Pro feature; free accounts get one limited Brand Kit).
 2. Under **Brand colors**, create a palette named "TimetoPay" and add each hex code above.
