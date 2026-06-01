@@ -987,6 +987,51 @@ paths:
               schema:
                 $ref: "#/components/schemas/CatalogEntry"
 
+  /admin/catalog/items/suggest-categories:
+    post:
+      operationId: adminSuggestCatalogItemCategories
+      tags: [admin]
+      summary: AI-suggest a category for catalog items (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogCategorySuggestInput"
+      responses:
+        "200":
+          description: Suggested categories, one per requested item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogCategorySuggestionList"
+
+  /admin/catalog/items/suggest-duplicates:
+    post:
+      operationId: adminSuggestCatalogItemDuplicates
+      tags: [admin]
+      summary: AI-find likely duplicate catalog items to merge (admin only)
+      responses:
+        "200":
+          description: Suggested merge groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogSuggestionList"
+
+  /admin/catalog/stores/suggest-duplicates:
+    post:
+      operationId: adminSuggestCatalogStoreDuplicates
+      tags: [admin]
+      summary: AI-find likely duplicate catalog stores to merge (admin only)
+      responses:
+        "200":
+          description: Suggested merge groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogSuggestionList"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1091,6 +1136,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CatalogSuggestion"
+
+    CatalogSuggestionList:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogSuggestion"
+
+    CatalogCategorySuggestInput:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+
+    CatalogCategorySuggestion:
+      type: object
+      required: [id, category]
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+
+    CatalogCategorySuggestionList:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogCategorySuggestion"
 
     CatalogMergeInput:
       type: object

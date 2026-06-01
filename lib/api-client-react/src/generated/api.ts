@@ -28,6 +28,8 @@ import type {
   AdminUserReceipts,
   CatalogAddToListInput,
   CatalogBrowse,
+  CatalogCategorySuggestInput,
+  CatalogCategorySuggestionList,
   CatalogEntry,
   CatalogEntryList,
   CatalogGlobalItem,
@@ -35,6 +37,7 @@ import type {
   CatalogMergeInput,
   CatalogSplitInput,
   CatalogStoreUpdate,
+  CatalogSuggestionList,
   CurrentUser,
   DaySpend,
   DismissResponse,
@@ -3826,5 +3829,216 @@ export const useAdminSplitCatalogStore = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminSplitCatalogStoreMutationOptions(options));
+    }
+
+export const getAdminSuggestCatalogItemCategoriesUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/items/suggest-categories`
+}
+
+/**
+ * @summary AI-suggest a category for catalog items (admin only)
+ */
+export const adminSuggestCatalogItemCategories = async (catalogCategorySuggestInput: CatalogCategorySuggestInput, options?: RequestInit): Promise<CatalogCategorySuggestionList> => {
+
+  return customFetch<CatalogCategorySuggestionList>(getAdminSuggestCatalogItemCategoriesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      catalogCategorySuggestInput,)
+  }
+);}
+
+
+
+
+export const getAdminSuggestCatalogItemCategoriesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogItemCategories>>, TError,{data: BodyType<CatalogCategorySuggestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogItemCategories>>, TError,{data: BodyType<CatalogCategorySuggestInput>}, TContext> => {
+
+const mutationKey = ['adminSuggestCatalogItemCategories'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSuggestCatalogItemCategories>>, {data: BodyType<CatalogCategorySuggestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminSuggestCatalogItemCategories(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSuggestCatalogItemCategoriesMutationResult = NonNullable<Awaited<ReturnType<typeof adminSuggestCatalogItemCategories>>>
+    export type AdminSuggestCatalogItemCategoriesMutationBody = BodyType<CatalogCategorySuggestInput>
+    export type AdminSuggestCatalogItemCategoriesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI-suggest a category for catalog items (admin only)
+ */
+export const useAdminSuggestCatalogItemCategories = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogItemCategories>>, TError,{data: BodyType<CatalogCategorySuggestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSuggestCatalogItemCategories>>,
+        TError,
+        {data: BodyType<CatalogCategorySuggestInput>},
+        TContext
+      > => {
+      return useMutation(getAdminSuggestCatalogItemCategoriesMutationOptions(options));
+    }
+
+export const getAdminSuggestCatalogItemDuplicatesUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/items/suggest-duplicates`
+}
+
+/**
+ * @summary AI-find likely duplicate catalog items to merge (admin only)
+ */
+export const adminSuggestCatalogItemDuplicates = async ( options?: RequestInit): Promise<CatalogSuggestionList> => {
+
+  return customFetch<CatalogSuggestionList>(getAdminSuggestCatalogItemDuplicatesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminSuggestCatalogItemDuplicatesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogItemDuplicates>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogItemDuplicates>>, TError,void, TContext> => {
+
+const mutationKey = ['adminSuggestCatalogItemDuplicates'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSuggestCatalogItemDuplicates>>, void> = () => {
+
+
+          return  adminSuggestCatalogItemDuplicates(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSuggestCatalogItemDuplicatesMutationResult = NonNullable<Awaited<ReturnType<typeof adminSuggestCatalogItemDuplicates>>>
+
+    export type AdminSuggestCatalogItemDuplicatesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI-find likely duplicate catalog items to merge (admin only)
+ */
+export const useAdminSuggestCatalogItemDuplicates = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogItemDuplicates>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSuggestCatalogItemDuplicates>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAdminSuggestCatalogItemDuplicatesMutationOptions(options));
+    }
+
+export const getAdminSuggestCatalogStoreDuplicatesUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/stores/suggest-duplicates`
+}
+
+/**
+ * @summary AI-find likely duplicate catalog stores to merge (admin only)
+ */
+export const adminSuggestCatalogStoreDuplicates = async ( options?: RequestInit): Promise<CatalogSuggestionList> => {
+
+  return customFetch<CatalogSuggestionList>(getAdminSuggestCatalogStoreDuplicatesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminSuggestCatalogStoreDuplicatesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogStoreDuplicates>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogStoreDuplicates>>, TError,void, TContext> => {
+
+const mutationKey = ['adminSuggestCatalogStoreDuplicates'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSuggestCatalogStoreDuplicates>>, void> = () => {
+
+
+          return  adminSuggestCatalogStoreDuplicates(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSuggestCatalogStoreDuplicatesMutationResult = NonNullable<Awaited<ReturnType<typeof adminSuggestCatalogStoreDuplicates>>>
+
+    export type AdminSuggestCatalogStoreDuplicatesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI-find likely duplicate catalog stores to merge (admin only)
+ */
+export const useAdminSuggestCatalogStoreDuplicates = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSuggestCatalogStoreDuplicates>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSuggestCatalogStoreDuplicates>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAdminSuggestCatalogStoreDuplicatesMutationOptions(options));
     }
 

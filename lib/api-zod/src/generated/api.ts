@@ -985,3 +985,42 @@ export const AdminSplitCatalogStoreResponse = zod.object({
 })
 
 
+/**
+ * @summary AI-suggest a category for catalog items (admin only)
+ */
+export const AdminSuggestCatalogItemCategoriesBody = zod.object({
+  "ids": zod.array(zod.number())
+})
+
+export const AdminSuggestCatalogItemCategoriesResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "id": zod.number(),
+  "category": zod.string()
+}))
+})
+
+
+/**
+ * @summary AI-find likely duplicate catalog items to merge (admin only)
+ */
+export const AdminSuggestCatalogItemDuplicatesResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "ids": zod.array(zod.number()),
+  "names": zod.array(zod.string()),
+  "reason": zod.string()
+}))
+})
+
+
+/**
+ * @summary AI-find likely duplicate catalog stores to merge (admin only)
+ */
+export const AdminSuggestCatalogStoreDuplicatesResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "ids": zod.array(zod.number()),
+  "names": zod.array(zod.string()),
+  "reason": zod.string()
+}))
+})
+
+

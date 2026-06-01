@@ -25,6 +25,9 @@ import {
   useAdminUpdateCatalogStore,
   useAdminSplitCatalogItem,
   useAdminSplitCatalogStore,
+  useAdminSuggestCatalogItemCategories,
+  useAdminSuggestCatalogItemDuplicates,
+  useAdminSuggestCatalogStoreDuplicates,
 } from "@workspace/api-client-react";
 import type { CatalogEntry, CatalogSuggestion } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
@@ -58,7 +61,18 @@ export default function AdminCatalogScreen() {
   const itemsQuery = useAdminListCatalogItems();
   const storesQuery = useAdminListCatalogStores();
 
+  // AI-found duplicate suggestions are kept per tab and cleared on any refetch
+  // (since accepted merges change the ids they reference).
+  const [aiDupes, setAiDupes] = React.useState<{ items: CatalogSuggestion[]; stores: CatalogSuggestion[] }>({
+    items: [],
+    stores: [],
+  });
+  // AI category suggestions: id -> suggested category, plus ids the admin rejected.
+  const [aiCategory, setAiCategory] = React.useState<Record<number, string>>({});
+  const [rejectedCategory, setRejectedCategory] = React.useState<Set<number>>(new Set());
+
   const refetch = React.useCallback(() => {
+    setAiDupes({ items: [], stores: [] });
     void itemsQuery.refetch();
     void storesQuery.refetch();
   }, [itemsQuery, storesQuery]);
@@ -69,16 +83,32 @@ export default function AdminCatalogScreen() {
   const updateStore = useAdminUpdateCatalogStore();
   const splitItem = useAdminSplitCatalogItem();
   const splitStore = useAdminSplitCatalogStore();
+  const suggestCategories = useAdminSuggestCatalogItemCategories();
+  const suggestItemDupes = useAdminSuggestCatalogItemDuplicates();
+  const suggestStoreDupes = useAdminSuggestCatalogStoreDuplicates();
 
   const [renameTarget, setRenameTarget] = React.useState<CatalogEntry | null>(null);
   const [renameText, setRenameText] = React.useState("");
   const [mergeSource, setMergeSource] = React.useState<CatalogEntry | null>(null);
   const [categoryTarget, setCategoryTarget] = React.useState<CatalogEntry | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [catLoading, setCatLoading] = React.useState(false);
+  const [dupLoading, setDupLoading] = React.useState(false);
+
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    setAiCategory({});
+    setRejectedCategory(new Set());
+  };
 
   const active = tab === "items" ? itemsQuery : storesQuery;
   const entries = active.data?.entries ?? [];
-  const suggestions = active.data?.suggestions ?? [];
+  const suggestions = [
+    ...(active.data?.suggestions ?? []),
+    ...(tab === "items" ? aiDupes.items : aiDupes.stores),
+  ];
+  const uncategorizedIds =
+    tab === "items" ? entries.filter((e) => !e.category).map((e) => e.id) : [];
 
   const doMerge = async (sourceId: number, targetId: number) => {
     if (tab === "items") await mergeItems.mutateAsync({ data: { sourceId, targetId } });
@@ -109,6 +139,56 @@ export default function AdminCatalogScreen() {
       setCategoryTarget(null);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onSuggestCategories = async () => {
+    if (uncategorizedIds.length === 0) return;
+    setCatLoading(true);
+    try {
+      const res = await suggestCategories.mutateAsync({ data: { ids: uncategorizedIds } });
+      const map: Record<number, string> = {};
+      for (const s of res.suggestions) map[s.id] = s.category;
+      setAiCategory(map);
+      setRejectedCategory(new Set());
+    } finally {
+      setCatLoading(false);
+    }
+  };
+
+  const onConfirmCategory = async (entry: CatalogEntry) => {
+    const category = aiCategory[entry.id];
+    if (!category) return;
+    setBusy(true);
+    try {
+      await updateItem.mutateAsync({ id: entry.id, data: { category } });
+      setAiCategory((prev) => {
+        const next = { ...prev };
+        delete next[entry.id];
+        return next;
+      });
+      refetch();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRejectCategory = (entry: CatalogEntry) => {
+    setRejectedCategory((prev) => new Set(prev).add(entry.id));
+  };
+
+  const onFindDuplicates = async () => {
+    setDupLoading(true);
+    try {
+      if (tab === "items") {
+        const res = await suggestItemDupes.mutateAsync();
+        setAiDupes((prev) => ({ ...prev, items: res.suggestions }));
+      } else {
+        const res = await suggestStoreDupes.mutateAsync();
+        setAiDupes((prev) => ({ ...prev, stores: res.suggestions }));
+      }
+    } finally {
+      setDupLoading(false);
     }
   };
 
@@ -197,7 +277,7 @@ export default function AdminCatalogScreen() {
           <TouchableOpacity
             key={t}
             style={[styles.tab, tab === t && { backgroundColor: colors.card }]}
-            onPress={() => setTab(t)}
+            onPress={() => switchTab(t)}
           >
             <Text
               style={[
@@ -225,10 +305,16 @@ export default function AdminCatalogScreen() {
           keyExtractor={(e) => String(e.id)}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
-            <SuggestionsHeader
+            <CatalogHeader
+              tab={tab}
               suggestions={suggestions}
               colors={colors}
               busy={busy}
+              uncategorizedCount={uncategorizedIds.length}
+              catLoading={catLoading}
+              dupLoading={dupLoading}
+              onSuggestCategories={onSuggestCategories}
+              onFindDuplicates={onFindDuplicates}
               onAccept={onAcceptSuggestion}
             />
           }
@@ -251,6 +337,13 @@ export default function AdminCatalogScreen() {
               onEditCategory={() => setCategoryTarget(item)}
               onUploadLogo={() => onUploadLogo(item)}
               onRemoveLogo={() => onRemoveLogo(item)}
+              aiSuggestedCategory={
+                !item.category && !rejectedCategory.has(item.id)
+                  ? aiCategory[item.id] ?? null
+                  : null
+              }
+              onConfirmCategory={() => onConfirmCategory(item)}
+              onRejectCategory={() => onRejectCategory(item)}
             />
           )}
         />
@@ -364,38 +457,90 @@ export default function AdminCatalogScreen() {
   );
 }
 
-function SuggestionsHeader({
+function CatalogHeader({
+  tab,
   suggestions,
   colors,
   busy,
+  uncategorizedCount,
+  catLoading,
+  dupLoading,
+  onSuggestCategories,
+  onFindDuplicates,
   onAccept,
 }: {
+  tab: Tab;
   suggestions: CatalogSuggestion[];
   colors: ReturnType<typeof useColors>;
   busy: boolean;
+  uncategorizedCount: number;
+  catLoading: boolean;
+  dupLoading: boolean;
+  onSuggestCategories: () => void;
+  onFindDuplicates: () => void;
   onAccept: (s: CatalogSuggestion) => void;
 }) {
-  if (suggestions.length === 0) return null;
   return (
     <View style={{ gap: 10, marginBottom: 6 }}>
-      <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Suggested merges</Text>
-      {suggestions.map((s, i) => (
-        <View key={i} style={[styles.suggestion, { backgroundColor: colors.accent }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.suggestionNames, { color: colors.accentForeground }]}>
-              {s.names.join("  ·  ")}
-            </Text>
-            <Text style={[styles.suggestionReason, { color: colors.accentForeground }]}>{s.reason}</Text>
-          </View>
+      <View style={styles.aiActions}>
+        {tab === "items" ? (
           <TouchableOpacity
-            style={[styles.mergeBtn, { backgroundColor: colors.primary }]}
-            onPress={() => onAccept(s)}
-            disabled={busy}
+            style={[
+              styles.aiBtn,
+              { borderColor: colors.primary },
+              (catLoading || uncategorizedCount === 0) && { opacity: 0.5 },
+            ]}
+            onPress={onSuggestCategories}
+            disabled={catLoading || uncategorizedCount === 0}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.mergeBtnText, { color: colors.primaryForeground }]}>Merge</Text>
+            {catLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather name="zap" size={13} color={colors.primary} />
+            )}
+            <Text style={[styles.aiBtnText, { color: colors.primary }]}>
+              {uncategorizedCount > 0 ? `Suggest categories (${uncategorizedCount})` : "All categorized"}
+            </Text>
           </TouchableOpacity>
-        </View>
-      ))}
+        ) : null}
+        <TouchableOpacity
+          style={[styles.aiBtn, { borderColor: colors.primary }, dupLoading && { opacity: 0.5 }]}
+          onPress={onFindDuplicates}
+          disabled={dupLoading}
+          activeOpacity={0.7}
+        >
+          {dupLoading ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name="search" size={13} color={colors.primary} />
+          )}
+          <Text style={[styles.aiBtnText, { color: colors.primary }]}>Find duplicates with AI</Text>
+        </TouchableOpacity>
+      </View>
+
+      {suggestions.length > 0 ? (
+        <>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Suggested merges</Text>
+          {suggestions.map((s, i) => (
+            <View key={i} style={[styles.suggestion, { backgroundColor: colors.accent }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.suggestionNames, { color: colors.accentForeground }]}>
+                  {s.names.join("  ·  ")}
+                </Text>
+                <Text style={[styles.suggestionReason, { color: colors.accentForeground }]}>{s.reason}</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.mergeBtn, { backgroundColor: colors.primary }]}
+                onPress={() => onAccept(s)}
+                disabled={busy}
+              >
+                <Text style={[styles.mergeBtnText, { color: colors.primaryForeground }]}>Merge</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -412,6 +557,9 @@ function EntryCard({
   onEditCategory,
   onUploadLogo,
   onRemoveLogo,
+  aiSuggestedCategory,
+  onConfirmCategory,
+  onRejectCategory,
 }: {
   entry: CatalogEntry;
   colors: ReturnType<typeof useColors>;
@@ -424,6 +572,9 @@ function EntryCard({
   onEditCategory: () => void;
   onUploadLogo: () => void;
   onRemoveLogo: () => void;
+  aiSuggestedCategory: string | null;
+  onConfirmCategory: () => void;
+  onRejectCategory: () => void;
 }) {
   const canSplit = entry.members.length > 1;
   return (
@@ -485,17 +636,44 @@ function EntryCard({
       ) : null}
 
       {showCategory ? (
-        <TouchableOpacity
-          style={[styles.categoryRow, { borderColor: colors.border }]}
-          onPress={onEditCategory}
-          activeOpacity={0.7}
-        >
-          <Feather name="tag" size={13} color={colors.mutedForeground} />
-          <Text style={[styles.categoryText, { color: entry.category ? colors.foreground : colors.mutedForeground }]}>
-            {entry.category ?? "Set category"}
-          </Text>
-          <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
-        </TouchableOpacity>
+        !entry.category && aiSuggestedCategory ? (
+          <View style={styles.aiCatRow}>
+            <View style={[styles.aiCatPill, { backgroundColor: colors.accent }]}>
+              <Feather name="zap" size={12} color={colors.accentForeground} />
+              <Text style={[styles.aiCatText, { color: colors.accentForeground }]} numberOfLines={1}>
+                AI: {aiSuggestedCategory}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.aiCatAction, { backgroundColor: colors.primary }]}
+              onPress={onConfirmCategory}
+              disabled={busy}
+              hitSlop={6}
+            >
+              <Feather name="check" size={15} color={colors.primaryForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.aiCatAction, { borderWidth: 1, borderColor: colors.border }]}
+              onPress={onRejectCategory}
+              disabled={busy}
+              hitSlop={6}
+            >
+              <Feather name="x" size={15} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.categoryRow, { borderColor: colors.border }]}
+            onPress={onEditCategory}
+            activeOpacity={0.7}
+          >
+            <Feather name="tag" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.categoryText, { color: entry.category ? colors.foreground : colors.mutedForeground }]}>
+              {entry.category ?? "Set category"}
+            </Text>
+            <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )
       ) : null}
 
       <View style={styles.chips}>
@@ -544,6 +722,13 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   list: { paddingHorizontal: 16, paddingBottom: 24, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
   sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5 },
+  aiActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  aiBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8 },
+  aiBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  aiCatRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  aiCatPill: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, flexShrink: 1 },
+  aiCatText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  aiCatAction: { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   suggestion: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, padding: 12 },
   suggestionNames: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   suggestionReason: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, opacity: 0.85 },

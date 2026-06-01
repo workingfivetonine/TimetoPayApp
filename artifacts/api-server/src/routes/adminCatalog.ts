@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   itemsTable,
@@ -20,14 +20,20 @@ import {
   AdminSplitCatalogItemBody,
   AdminSplitCatalogStoreParams,
   AdminSplitCatalogStoreBody,
+  AdminSuggestCatalogItemCategoriesBody,
 } from "@workspace/api-zod";
+import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAdmin } from "../middlewares/auth";
 import {
   ensureCatalog,
   looseKey,
   computeGlobalPrices,
 } from "../lib/catalog";
-import { isValidCategory } from "../lib/categories";
+import {
+  FIXED_CATEGORIES,
+  isValidCategory,
+  categoryForItemName,
+} from "../lib/categories";
 
 const router = Router();
 router.use(requireAdmin);
@@ -44,22 +50,115 @@ type Entry = {
 };
 type Suggestion = { ids: number[]; names: string[]; reason: string };
 
-function buildSuggestions(entries: Entry[]): Suggestion[] {
-  const groups = new Map<string, Entry[]>();
-  for (const e of entries) {
-    const key = looseKey(e.canonicalName);
-    if (!key) continue;
-    const g = groups.get(key);
-    if (g) g.push(e);
-    else groups.set(key, [e]);
+// Order-independent key: lowercase, split on non-alphanumerics, sort tokens.
+// Groups "corn & wheat tortillas" with "tortillas corn wheat".
+function tokenSortKey(name: string): string {
+  return name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = new Array<number>(b.length + 1);
+  let curr = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
   }
+  return prev[b.length];
+}
+
+function similarity(a: string, b: string): number {
+  const max = Math.max(a.length, b.length);
+  if (max === 0) return 1;
+  return 1 - levenshtein(a, b) / max;
+}
+
+// Clusters catalog entries whose canonical names look like the same thing using
+// a union-find over three signals: identical loose key (alphanumerics only),
+// identical token-sort key (word reordering), and high edit-distance similarity
+// (typos / OCR garble). Only suggests groups of 2+; the admin confirms each.
+function buildSuggestions(entries: Entry[]): Suggestion[] {
+  const n = entries.length;
+  const parent = entries.map((_, i) => i);
+  const find = (x: number): number => {
+    let r = x;
+    while (parent[r] !== r) r = parent[r];
+    while (parent[x] !== r) {
+      const next = parent[x];
+      parent[x] = r;
+      x = next;
+    }
+    return r;
+  };
+  const union = (a: number, b: number): void => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb);
+  };
+
+  const looseKeys = entries.map((e) => looseKey(e.canonicalName));
+  const byLoose = new Map<string, number>();
+  const byTokens = new Map<string, number>();
+  for (let i = 0; i < n; i++) {
+    const lk = looseKeys[i];
+    if (lk) {
+      const j = byLoose.get(lk);
+      if (j !== undefined) union(i, j);
+      else byLoose.set(lk, i);
+    }
+    const tk = tokenSortKey(entries[i].canonicalName);
+    if (tk) {
+      const j = byTokens.get(tk);
+      if (j !== undefined) union(i, j);
+      else byTokens.set(tk, i);
+    }
+  }
+
+  // Fuzzy pass (O(n^2)). Bounded so it never runs on pathologically large
+  // catalogs; a household catalog is well under this.
+  if (n <= 800) {
+    for (let i = 0; i < n; i++) {
+      const a = looseKeys[i];
+      if (!a || a.length < 4) continue;
+      for (let j = i + 1; j < n; j++) {
+        const b = looseKeys[j];
+        if (!b || b.length < 4) continue;
+        if (find(i) === find(j)) continue;
+        const min = Math.min(a.length, b.length);
+        const max = Math.max(a.length, b.length);
+        if (min / max < 0.6) continue; // very different lengths -> skip
+        if (similarity(a, b) >= 0.85) union(i, j);
+      }
+    }
+  }
+
+  const groups = new Map<number, Entry[]>();
+  for (let i = 0; i < n; i++) {
+    const r = find(i);
+    const g = groups.get(r);
+    if (g) g.push(entries[i]);
+    else groups.set(r, [entries[i]]);
+  }
+
   const suggestions: Suggestion[] = [];
   for (const g of groups.values()) {
     if (g.length > 1) {
       suggestions.push({
         ids: g.map((e) => e.id),
         names: g.map((e) => e.canonicalName),
-        reason: "Names look like spelling variants of each other",
+        reason: "Names look like variants of the same thing",
       });
     }
   }
@@ -445,6 +544,190 @@ router.post("/stores/:id/split", async (req, res): Promise<void> => {
     return row;
   });
   res.json(await buildStoreEntry(created.id));
+});
+
+// ---- AI assists -----------------------------------------------------------
+
+// Cap for the single-shot duplicate scans (one prompt sees all names so they can
+// be grouped together). Household catalogs are far below this.
+const AI_DUPLICATE_LIMIT = 400;
+// Category classification is batched (below) so it always covers every id.
+const CATEGORY_BATCH = 150;
+
+function extractJson(text: string): unknown {
+  // Models occasionally wrap JSON in prose or code fences; grab the first {...}.
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const raw = fenced ? fenced[1] : text;
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+// AI-suggest a category (from the FIXED list) for the requested catalog items.
+// Always returns one suggestion per existing requested id; falls back to the
+// keyword heuristic for any item the model omits or mislabels.
+router.post("/items/suggest-categories", async (req, res): Promise<void> => {
+  const parsed = AdminSuggestCatalogItemCategoriesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const ids = [...new Set(parsed.data.ids)];
+  if (ids.length === 0) {
+    res.json({ suggestions: [] });
+    return;
+  }
+  await ensureCatalog();
+  const rows = await db
+    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName })
+    .from(catalogItemsTable)
+    .where(inArray(catalogItemsTable.id, ids));
+  if (rows.length === 0) {
+    res.json({ suggestions: [] });
+    return;
+  }
+
+  // Classify in batches so every requested id gets a suggestion regardless of
+  // catalog size; the keyword heuristic backfills anything the model omits.
+  const aiByName = new Map<number, string>();
+  for (let i = 0; i < rows.length; i += CATEGORY_BATCH) {
+    const batch = rows.slice(i, i + CATEGORY_BATCH);
+    await classifyCategoryBatch(req.log, batch, aiByName);
+  }
+
+  const suggestions = rows.map((r) => ({
+    id: r.id,
+    category: aiByName.get(r.id) ?? categoryForItemName(r.name),
+  }));
+  res.json({ suggestions });
+});
+
+async function classifyCategoryBatch(
+  log: { warn: (obj: unknown, msg?: string) => void },
+  batch: { id: number; name: string }[],
+  out: Map<number, string>,
+): Promise<void> {
+  try {
+    const list = batch.map((r) => `${r.id}\t${r.name}`).join("\n");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You classify grocery and household products into exactly one category " +
+            "from this fixed list (use the value VERBATIM): " +
+            FIXED_CATEGORIES.join(", ") +
+            '. Respond ONLY with JSON of the form {"results":[{"id":<number>,"category":"<one of the categories>"}]} ' +
+            "with one entry for every product id provided. Do not invent categories.",
+        },
+        {
+          role: "user",
+          content: `Classify these products (id<TAB>name per line):\n${list}`,
+        },
+      ],
+    });
+    const content = completion.choices[0]?.message?.content ?? "";
+    const data = extractJson(content) as
+      | { results?: Array<{ id?: unknown; category?: unknown }> }
+      | null;
+    if (data?.results) {
+      for (const r of data.results) {
+        const id = typeof r.id === "number" ? r.id : Number(r.id);
+        const cat = typeof r.category === "string" ? r.category : "";
+        if (Number.isFinite(id) && isValidCategory(cat)) out.set(id, cat);
+      }
+    }
+  } catch (err) {
+    log.warn({ err }, "AI category suggestion failed; using heuristic fallback");
+  }
+}
+
+// Shared core for AI duplicate detection over a set of {id, name} entries.
+async function aiFindDuplicates(
+  log: { warn: (obj: unknown, msg?: string) => void },
+  rows: { id: number; name: string }[],
+  kind: "products" | "stores",
+): Promise<Suggestion[]> {
+  if (rows.length < 2) return [];
+  const batch = rows.slice(0, AI_DUPLICATE_LIMIT);
+  const byId = new Map(batch.map((r) => [r.id, r.name]));
+  let groups: number[][] = [];
+  try {
+    const list = batch.map((r) => `${r.id}\t${r.name}`).join("\n");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      messages: [
+        {
+          role: "system",
+          content:
+            `You find duplicate ${kind} in a catalog. Group entries that refer to the SAME ` +
+            `real-world ${kind === "products" ? "product" : "store"}, including misspellings, ` +
+            "OCR garble, abbreviations, word reordering, and brand/description variants. " +
+            "Do NOT group merely-similar but genuinely different entries (e.g. whole milk vs skim milk, " +
+            "or two different store chains). Every group must have 2 or more ids. " +
+            'Respond ONLY with JSON of the form {"groups":[[id,id,...],...]}. Use an empty array if there are no duplicates.',
+        },
+        {
+          role: "user",
+          content: `Entries (id<TAB>name per line):\n${list}`,
+        },
+      ],
+    });
+    const content = completion.choices[0]?.message?.content ?? "";
+    const data = extractJson(content) as { groups?: unknown } | null;
+    if (Array.isArray(data?.groups)) {
+      groups = (data.groups as unknown[])
+        .filter((g): g is unknown[] => Array.isArray(g))
+        .map((g) =>
+          [
+            ...new Set(
+              g
+                .map((x) => (typeof x === "number" ? x : Number(x)))
+                .filter((x) => Number.isFinite(x) && byId.has(x)),
+            ),
+          ],
+        );
+    }
+  } catch (err) {
+    log.warn({ err }, "AI duplicate detection failed");
+    return [];
+  }
+
+  const seen = new Set<number>();
+  const suggestions: Suggestion[] = [];
+  for (const g of groups) {
+    const ids = g.filter((id) => !seen.has(id));
+    if (ids.length < 2) continue;
+    for (const id of ids) seen.add(id);
+    suggestions.push({
+      ids,
+      names: ids.map((id) => byId.get(id)!),
+      reason: "AI thinks these are the same — review before merging",
+    });
+  }
+  return suggestions;
+}
+
+router.post("/items/suggest-duplicates", async (req, res): Promise<void> => {
+  await ensureCatalog();
+  const rows = await db
+    .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName })
+    .from(catalogItemsTable);
+  res.json({ suggestions: await aiFindDuplicates(req.log, rows, "products") });
+});
+
+router.post("/stores/suggest-duplicates", async (req, res): Promise<void> => {
+  await ensureCatalog();
+  const rows = await db
+    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName })
+    .from(catalogStoresTable);
+  res.json({ suggestions: await aiFindDuplicates(req.log, rows, "stores") });
 });
 
 export default router;

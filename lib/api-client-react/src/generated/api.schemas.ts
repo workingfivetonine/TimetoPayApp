@@ -57,6 +57,23 @@ export interface CatalogEntryList {
   suggestions: CatalogSuggestion[];
 }
 
+export interface CatalogSuggestionList {
+  suggestions: CatalogSuggestion[];
+}
+
+export interface CatalogCategorySuggestInput {
+  ids: number[];
+}
+
+export interface CatalogCategorySuggestion {
+  id: number;
+  category: string;
+}
+
+export interface CatalogCategorySuggestionList {
+  suggestions: CatalogCategorySuggestion[];
+}
+
 export interface CatalogMergeInput {
   sourceId: number;
   targetId: number;
