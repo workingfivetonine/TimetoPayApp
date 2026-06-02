@@ -27,6 +27,7 @@ import { ReceiptCard } from "@/components/ReceiptCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { ShareInvite } from "@/components/ShareInvite";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 type ReceiptSort = "recent" | "price" | "store";
 const RECEIPT_SORT: SortOption<ReceiptSort>[] = [
@@ -63,7 +64,7 @@ export default function ReceiptsScreen() {
     );
   }, []);
 
-  const { data: receipts, isLoading } = useListReceipts();
+  const { data: receipts, isLoading, dataUpdatedAt } = useListReceipts();
   const deleteMutation = useDeleteReceipt();
 
   const hasReceipts = (receipts?.length ?? 0) > 0;
@@ -140,6 +141,8 @@ export default function ReceiptsScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       {hasReceipts ? (
         <ListControls

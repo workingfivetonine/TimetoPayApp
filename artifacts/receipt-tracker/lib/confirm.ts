@@ -19,3 +19,17 @@ export function confirmDestructive({ title, message, confirmLabel, onConfirm }: 
     { text: confirmLabel, style: "destructive", onPress: onConfirm },
   ]);
 }
+
+/**
+ * Simple web-friendly notice (RN's Alert.alert renders nothing useful on web).
+ * Used to tell the user an action can't proceed while offline.
+ */
+export function notify(title: string, message: string): void {
+  if (Platform.OS === "web") {
+    const webAlert = (globalThis as unknown as { alert?: (msg: string) => void }).alert;
+    if (webAlert) webAlert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}
+

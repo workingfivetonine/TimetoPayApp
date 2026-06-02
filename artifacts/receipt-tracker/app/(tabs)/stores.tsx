@@ -35,6 +35,7 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { StoreCard } from "@/components/StoreCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { RegionPicker } from "@/components/RegionPicker";
 import { confirmDestructive } from "@/lib/confirm";
 import type { Store } from "@workspace/api-client-react";
@@ -84,7 +85,7 @@ export default function StoresScreen() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<StoreSort>("az");
 
-  const { data: stores, isLoading } = useListStores();
+  const { data: stores, isLoading, dataUpdatedAt } = useListStores();
   const createMutation = useCreateStore();
   const updateMutation = useUpdateStore();
   const deleteMutation = useDeleteStore();
@@ -228,6 +229,8 @@ export default function StoresScreen() {
           <Feather name="plus" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       {hasStores ? (
         <ListControls

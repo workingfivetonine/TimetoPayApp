@@ -20,10 +20,13 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { ShoppingListPdfModal } from "@/components/ShoppingListPdfModal";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { notify } from "@/lib/confirm";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
@@ -78,9 +81,10 @@ export default function ShoppingScreen() {
   const [sortKey, setSortKey] = useState<ShoppingSort>("az");
 
   const { user } = useUser();
-  const { data: list, isLoading } = useGetShoppingList();
+  const { data: list, isLoading, dataUpdatedAt } = useGetShoppingList();
   const { mutateAsync: markRanOut } = useMarkRanOut();
   const { mutateAsync: dismissItem } = useDismissItem();
+  const isOnline = useOnlineStatus();
 
   const isDesktop = useDesktop();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
@@ -93,20 +97,32 @@ export default function ShoppingScreen() {
   };
 
   const handleRanOut = async (itemId: number) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to update your list.");
+      return;
+    }
     setLoadingItemId(itemId);
     try {
       await markRanOut({ id: itemId });
       await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+    } catch {
+      notify("Couldn't update", "Something went wrong. Please try again.");
     } finally {
       setLoadingItemId(null);
     }
   };
 
   const handleDismiss = async (itemId: number) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to update your list.");
+      return;
+    }
     setDismissingItemId(itemId);
     try {
       await dismissItem({ id: itemId });
       await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+    } catch {
+      notify("Couldn't update", "Something went wrong. Please try again.");
     } finally {
       setDismissingItemId(null);
     }
@@ -170,6 +186,8 @@ export default function ShoppingScreen() {
           )}
         </View>
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       {hasItems ? (
         <ListControls

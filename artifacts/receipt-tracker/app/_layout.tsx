@@ -5,7 +5,8 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
@@ -27,6 +28,11 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { DataProvider } from "@/context/DataContext";
 import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
+import {
+  queryClient,
+  asyncStoragePersister,
+  OFFLINE_CACHE_MAX_AGE,
+} from "@/lib/queryClient";
 
 // Set base URL for API calls. On production web this resolves to the live
 // serving origin so the app works on the custom domain AND the *.replit.app
@@ -45,8 +51,6 @@ const proxyUrl = getClerkProxyUrl();
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-
-const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   return (
@@ -73,14 +77,18 @@ function RootLayoutNav() {
   );
 }
 
-// Clears the React Query cache whenever the signed-in user changes so
-// data from a previous account never leaks into another's session.
+// Clears the React Query cache — in memory AND the persisted offline copy —
+// whenever the signed-in user changes, so one account's data never leaks into
+// another's session (matches the offline-persistence per-user scoping).
 function CacheInvalidator() {
   const { userId } = useAuth();
   const qc = useQueryClient();
   const prev = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (prev.current !== undefined && prev.current !== userId) {
+      // Drop the persisted snapshot first so a reload can't restore stale data,
+      // then clear memory (the provider re-persists the now-empty cache).
+      void asyncStoragePersister.removeClient();
       qc.clear();
     }
     prev.current = userId;
@@ -188,7 +196,15 @@ export default function RootLayout() {
       <ClerkLoaded>
         <SafeAreaProvider>
           <ErrorBoundary>
-            <QueryClientProvider client={queryClient}>
+            <PersistQueryClientProvider
+              client={queryClient}
+              persistOptions={{
+                persister: asyncStoragePersister,
+                maxAge: OFFLINE_CACHE_MAX_AGE,
+                // Read-only offline: never persist (and later resume) mutations.
+                dehydrateOptions: { shouldDehydrateMutation: () => false },
+              }}
+            >
               <CacheInvalidator />
               <DataProvider>
                 <GestureHandlerRootView>
@@ -197,7 +213,7 @@ export default function RootLayout() {
                   </KeyboardProvider>
                 </GestureHandlerRootView>
               </DataProvider>
-            </QueryClientProvider>
+            </PersistQueryClientProvider>
           </ErrorBoundary>
         </SafeAreaProvider>
       </ClerkLoaded>
