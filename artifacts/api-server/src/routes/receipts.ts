@@ -344,7 +344,10 @@ router.post("/merge", async (req, res): Promise<void> => {
         .from(receiptsTable)
         .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
         .where(and(eq(receiptsTable.userId, userId), inArray(receiptsTable.id, receiptIds)))
-        .for("update");
+        // Lock ONLY the receipts rows. Postgres rejects FOR UPDATE on the
+        // nullable side of an outer join, so a bare .for("update") over this
+        // left join to stores errors out — scope the lock with `of`.
+        .for("update", { of: receiptsTable });
 
       if (rows.length !== receiptIds.length) {
         const err = new Error("not_found") as Error & { status?: number };
@@ -693,89 +696,95 @@ async function persistParsedReceipt(userId: string, parsed: {
     .where(eq(usersTable.id, userId));
   const userRegion = { countryCode: u?.countryCode ?? null, stateCode: u?.stateCode ?? null };
 
-  // Guard against a blank/whitespace storeName from the model: a "" value still
-  // satisfies the NOT NULL column but creates an unnamed store the user reads as
-  // "no store was created". Fall back to a sensible placeholder instead.
-  const storeName = parsed.storeName?.trim() || "Unknown Store";
+  // Persist the whole receipt (store + receipt + items + line items) in ONE
+  // transaction so a failure partway through (e.g. a numeric cast error on a
+  // later line item) rolls everything back. Otherwise a caller that treats a
+  // thrown error as "skip this page/receipt" would leave hidden partial rows.
+  return await db.transaction(async (tx) => {
+    // Guard against a blank/whitespace storeName from the model: a "" value still
+    // satisfies the NOT NULL column but creates an unnamed store the user reads as
+    // "no store was created". Fall back to a sensible placeholder instead.
+    const storeName = parsed.storeName?.trim() || "Unknown Store";
 
-  // Find or create store (scoped to this user)
-  let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${storeName})`)))[0];
-  if (!store) {
-    const region = resolveScanRegion(
-      { country: parsed.storeCountryCode, state: parsed.storeStateCode },
-      userRegion,
-    );
-    [store] = await db
-      .insert(storesTable)
-      .values({ name: storeName, userId, countryCode: region.countryCode, stateCode: region.stateCode })
-      .returning();
-  } else if (!store.countryCode) {
-    // Lazy-backfill region on a pre-existing store that has none yet.
-    const region = resolveScanRegion(
-      { country: parsed.storeCountryCode, state: parsed.storeStateCode },
-      userRegion,
-    );
-    if (region.countryCode) {
-      await db
-        .update(storesTable)
-        .set({ countryCode: region.countryCode, stateCode: region.stateCode })
-        .where(eq(storesTable.id, store.id));
-      store.countryCode = region.countryCode;
-      store.stateCode = region.stateCode;
-    }
-  }
-
-  // Create receipt
-  const [receipt] = await db
-    .insert(receiptsTable)
-    .values({
-      userId,
-      storeId: store.id,
-      purchasedAt: new Date(parsed.purchasedAt),
-      total: String(parsed.total),
-    })
-    .returning();
-
-  // Create line items
-  const savedLineItems = [];
-  for (const li of parsed.lineItems) {
-    let item = (await db.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
-    const liCategory = isValidCategory(li.category) ? li.category : categoryForItemName(li.name);
-    if (!item) {
-      const icon = li.icon || iconForItemName(li.name);
-      [item] = await db.insert(itemsTable).values({ name: li.name, icon, category: liCategory, purchaseCount: 1, userId }).returning();
-    } else {
-      const backfillIcon = !item.icon ? li.icon || iconForItemName(li.name) : undefined;
-      const backfillCategory = !item.category ? liCategory : undefined;
-      await db
-        .update(itemsTable)
-        .set({
-          purchaseCount: sql`${itemsTable.purchaseCount} + 1`,
-          ...(backfillIcon ? { icon: backfillIcon } : {}),
-          ...(backfillCategory ? { category: backfillCategory } : {}),
-        })
-        .where(eq(itemsTable.id, item.id));
-      item.purchaseCount += 1;
-      if (backfillIcon) item.icon = backfillIcon;
-      if (backfillCategory) item.category = backfillCategory;
+    // Find or create store (scoped to this user)
+    let store = (await tx.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${storeName})`)))[0];
+    if (!store) {
+      const region = resolveScanRegion(
+        { country: parsed.storeCountryCode, state: parsed.storeStateCode },
+        userRegion,
+      );
+      [store] = await tx
+        .insert(storesTable)
+        .values({ name: storeName, userId, countryCode: region.countryCode, stateCode: region.stateCode })
+        .returning();
+    } else if (!store.countryCode) {
+      // Lazy-backfill region on a pre-existing store that has none yet.
+      const region = resolveScanRegion(
+        { country: parsed.storeCountryCode, state: parsed.storeStateCode },
+        userRegion,
+      );
+      if (region.countryCode) {
+        await tx
+          .update(storesTable)
+          .set({ countryCode: region.countryCode, stateCode: region.stateCode })
+          .where(eq(storesTable.id, store.id));
+        store.countryCode = region.countryCode;
+        store.stateCode = region.stateCode;
+      }
     }
 
-    const [lineItem] = await db
-      .insert(lineItemsTable)
-      .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
+    // Create receipt
+    const [receipt] = await tx
+      .insert(receiptsTable)
+      .values({
+        userId,
+        storeId: store.id,
+        purchasedAt: new Date(parsed.purchasedAt),
+        total: String(parsed.total),
+      })
       .returning();
 
-    savedLineItems.push({
-      ...lineItem,
-      itemName: item.name,
-      icon: item.icon ?? null,
-      price: Number(lineItem.price),
-      quantity: Number(lineItem.quantity),
-      createdAt: lineItem.createdAt.toISOString(),
-    });
-  }
+    // Create line items
+    const savedLineItems = [];
+    for (const li of parsed.lineItems) {
+      let item = (await tx.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
+      const liCategory = isValidCategory(li.category) ? li.category : categoryForItemName(li.name);
+      if (!item) {
+        const icon = li.icon || iconForItemName(li.name);
+        [item] = await tx.insert(itemsTable).values({ name: li.name, icon, category: liCategory, purchaseCount: 1, userId }).returning();
+      } else {
+        const backfillIcon = !item.icon ? li.icon || iconForItemName(li.name) : undefined;
+        const backfillCategory = !item.category ? liCategory : undefined;
+        await tx
+          .update(itemsTable)
+          .set({
+            purchaseCount: sql`${itemsTable.purchaseCount} + 1`,
+            ...(backfillIcon ? { icon: backfillIcon } : {}),
+            ...(backfillCategory ? { category: backfillCategory } : {}),
+          })
+          .where(eq(itemsTable.id, item.id));
+        item.purchaseCount += 1;
+        if (backfillIcon) item.icon = backfillIcon;
+        if (backfillCategory) item.category = backfillCategory;
+      }
 
-  return { receipt, store, savedLineItems };
+      const [lineItem] = await tx
+        .insert(lineItemsTable)
+        .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
+        .returning();
+
+      savedLineItems.push({
+        ...lineItem,
+        itemName: item.name,
+        icon: item.icon ?? null,
+        price: Number(lineItem.price),
+        quantity: Number(lineItem.quantity),
+        createdAt: lineItem.createdAt.toISOString(),
+      });
+    }
+
+    return { receipt, store, savedLineItems };
+  });
 }
 
 // Parse and save receipt
