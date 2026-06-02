@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 export default function SignUpPage() {
   const { signUp, errors, fetchStatus } = useSignUp();
@@ -153,6 +154,8 @@ export default function SignUpPage() {
               >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
               </TouchableOpacity>
+
+              <GoogleAuthButton label="Sign up with Google" />
 
               <View style={styles.linkRow}>
                 <Text style={{ color: colors.mutedForeground }}>Already have an account? </Text>

@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 type AuthView = "signin" | "forgot";
 type ForgotStep = "email" | "reset";
@@ -164,6 +165,8 @@ export default function SignInPage() {
               >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
               </TouchableOpacity>
+
+              <GoogleAuthButton label="Sign in with Google" />
 
               <View style={styles.linkRow}>
                 <Text style={{ color: colors.mutedForeground }}>Don't have an account? </Text>
