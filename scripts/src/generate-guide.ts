@@ -29,6 +29,10 @@ import {
   GUIDE_TITLE,
   GUIDE_TAGLINE,
   GUIDE_FOOTER,
+  GUIDE_ADMIN_SECTIONS,
+  GUIDE_ADMIN_TITLE,
+  GUIDE_ADMIN_TAGLINE,
+  GUIDE_ADMIN_FOOTER,
   type GuideSectionContent,
 } from "@workspace/guide-content";
 
@@ -42,6 +46,32 @@ const BUNDLED_GUIDE_DIR = join(REPO_ROOT, "artifacts/receipt-tracker/assets/guid
 const MD_PATH = join(DOCS_DIR, "Receipt-Tracker-Guide.md");
 const PDF_PATH = join(DOCS_DIR, "Receipt-Tracker-Guide.pdf");
 const BUNDLED_PDF_PATH = join(BUNDLED_GUIDE_DIR, "Receipt-Tracker-Guide.pdf");
+
+const ADMIN_MD_PATH = join(DOCS_DIR, "Receipt-Tracker-Admin-Guide.md");
+const ADMIN_PDF_PATH = join(DOCS_DIR, "Receipt-Tracker-Admin-Guide.pdf");
+const BUNDLED_ADMIN_PDF_PATH = join(BUNDLED_GUIDE_DIR, "Receipt-Tracker-Admin-Guide.pdf");
+
+/** Bundles a set of sections + cover copy into one guide document. */
+interface GuideDoc {
+  sections: GuideSectionContent[];
+  title: string;
+  tagline: string;
+  footer: string;
+}
+
+const USER_GUIDE: GuideDoc = {
+  sections: GUIDE_SECTIONS,
+  title: GUIDE_TITLE,
+  tagline: GUIDE_TAGLINE,
+  footer: GUIDE_FOOTER,
+};
+
+const ADMIN_GUIDE: GuideDoc = {
+  sections: GUIDE_ADMIN_SECTIONS,
+  title: GUIDE_ADMIN_TITLE,
+  tagline: GUIDE_ADMIN_TAGLINE,
+  footer: GUIDE_ADMIN_FOOTER,
+};
 
 const IMG_WIDTH_MD = 280;
 
@@ -59,6 +89,7 @@ function ensureDirs(): void {
 
 function copyImages(sections: GuideSectionContent[]): void {
   for (const section of sections) {
+    if (!section.imageFile) continue;
     const src = join(APP_IMAGES_DIR, section.imageFile);
     if (!existsSync(src)) {
       throw new Error(
@@ -70,10 +101,10 @@ function copyImages(sections: GuideSectionContent[]): void {
   }
 }
 
-function buildMarkdown(): string {
+function buildMarkdown(guide: GuideDoc): string {
   const lines: string[] = [];
-  lines.push(`# ${GUIDE_TITLE}`, "");
-  lines.push(`> ${GUIDE_TAGLINE}`, "");
+  lines.push(`# ${guide.title}`, "");
+  lines.push(`> ${guide.tagline}`, "");
   lines.push("---", "");
 
   let n = 0;
@@ -81,20 +112,22 @@ function buildMarkdown(): string {
     n += 1;
     lines.push(`## ${n}. ${section.title}`, "");
     lines.push(section.intro, "");
-    lines.push(
-      `<img src="images/${section.imageFile}" width="${IMG_WIDTH_MD}" alt="${section.title}" />`,
-      "",
-    );
+    if (section.imageFile) {
+      lines.push(
+        `<img src="images/${section.imageFile}" width="${IMG_WIDTH_MD}" alt="${section.title}" />`,
+        "",
+      );
+    }
     for (const step of section.steps) {
       lines.push(`- ${step}`);
     }
     lines.push("");
   };
 
-  for (const section of GUIDE_SECTIONS) renderSection(section);
+  for (const section of guide.sections) renderSection(section);
 
   lines.push("---", "");
-  lines.push(`_${GUIDE_FOOTER}_`, "");
+  lines.push(`_${guide.footer}_`, "");
 
   return lines.join("\n");
 }
@@ -104,7 +137,7 @@ function buildMarkdown(): string {
 // otherwise make the --check drift comparison fail spuriously).
 const FIXED_PDF_DATE = new Date(Date.UTC(2024, 0, 1, 0, 0, 0));
 
-function buildPdf(outPath: string): Promise<void> {
+function buildPdf(outPath: string, guide: GuideDoc): Promise<void> {
   return new Promise((resolvePdf, rejectPdf) => {
     const doc = new PDFDocument({
       size: "A4",
@@ -121,9 +154,9 @@ function buildPdf(outPath: string): Promise<void> {
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
     // Cover / intro
-    doc.fillColor(COLOR_PRIMARY).font("Helvetica-Bold").fontSize(26).text(GUIDE_TITLE);
+    doc.fillColor(COLOR_PRIMARY).font("Helvetica-Bold").fontSize(26).text(guide.title);
     doc.moveDown(0.6);
-    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(12).text(GUIDE_TAGLINE, {
+    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(12).text(guide.tagline, {
       width: pageWidth,
       lineGap: 3,
     });
@@ -157,14 +190,16 @@ function buildPdf(outPath: string): Promise<void> {
         .text(section.intro, { width: pageWidth, lineGap: 2 });
       doc.moveDown(0.5);
 
-      // Screenshot
-      const imgPath = join(APP_IMAGES_DIR, section.imageFile);
-      try {
-        doc.image(imgPath, { fit: [200, 360], align: "center" });
-      } catch {
-        // If an image can't be embedded, skip it rather than failing the whole build.
+      // Screenshot (optional — admin sections may have no image)
+      if (section.imageFile) {
+        const imgPath = join(APP_IMAGES_DIR, section.imageFile);
+        try {
+          doc.image(imgPath, { fit: [200, 360], align: "center" });
+        } catch {
+          // If an image can't be embedded, skip it rather than failing the whole build.
+        }
+        doc.moveDown(0.6);
       }
-      doc.moveDown(0.6);
 
       // Steps
       for (const step of section.steps) {
@@ -186,14 +221,14 @@ function buildPdf(outPath: string): Promise<void> {
       doc.moveDown(0.8);
     };
 
-    for (const section of GUIDE_SECTIONS) renderSection(section);
+    for (const section of guide.sections) renderSection(section);
 
     doc.moveDown(1.5);
     doc
       .fillColor(COLOR_MUTED)
       .font("Helvetica-Oblique")
       .fontSize(9)
-      .text(GUIDE_FOOTER, { width: pageWidth });
+      .text(guide.footer, { width: pageWidth });
 
     doc.end();
   });
@@ -201,16 +236,22 @@ function buildPdf(outPath: string): Promise<void> {
 
 async function write(): Promise<void> {
   ensureDirs();
-  copyImages(GUIDE_SECTIONS);
+  copyImages(USER_GUIDE.sections);
+  copyImages(ADMIN_GUIDE.sections);
 
-  writeFileSync(MD_PATH, buildMarkdown(), "utf8");
+  writeFileSync(MD_PATH, buildMarkdown(USER_GUIDE), "utf8");
   console.log(`Wrote ${MD_PATH}`);
-
-  await buildPdf(PDF_PATH);
+  await buildPdf(PDF_PATH, USER_GUIDE);
   console.log(`Wrote ${PDF_PATH}`);
-
   copyFileSync(PDF_PATH, BUNDLED_PDF_PATH);
   console.log(`Copied PDF to ${BUNDLED_PDF_PATH}`);
+
+  writeFileSync(ADMIN_MD_PATH, buildMarkdown(ADMIN_GUIDE), "utf8");
+  console.log(`Wrote ${ADMIN_MD_PATH}`);
+  await buildPdf(ADMIN_PDF_PATH, ADMIN_GUIDE);
+  console.log(`Wrote ${ADMIN_PDF_PATH}`);
+  copyFileSync(ADMIN_PDF_PATH, BUNDLED_ADMIN_PDF_PATH);
+  console.log(`Copied admin PDF to ${BUNDLED_ADMIN_PDF_PATH}`);
 }
 
 /**
@@ -220,13 +261,10 @@ async function write(): Promise<void> {
  */
 async function check(): Promise<void> {
   // Screenshots referenced by the content must still exist.
-  copyImages(GUIDE_SECTIONS);
+  copyImages(USER_GUIDE.sections);
+  copyImages(ADMIN_GUIDE.sections);
 
   const tmpDir = mkdtempSync(join(tmpdir(), "guide-check-"));
-  const tmpPdf = join(tmpDir, "Receipt-Tracker-Guide.pdf");
-  await buildPdf(tmpPdf);
-  const freshPdf = readFileSync(tmpPdf);
-  const freshMd = buildMarkdown();
 
   const drifted: string[] = [];
 
@@ -250,9 +288,19 @@ async function check(): Promise<void> {
     }
   };
 
-  compareText("Guide Markdown", MD_PATH, freshMd);
-  comparePdf("Guide PDF", PDF_PATH, freshPdf);
-  comparePdf("Bundled guide PDF", BUNDLED_PDF_PATH, freshPdf);
+  const tmpUserPdf = join(tmpDir, "Receipt-Tracker-Guide.pdf");
+  await buildPdf(tmpUserPdf, USER_GUIDE);
+  const freshUserPdf = readFileSync(tmpUserPdf);
+  compareText("Guide Markdown", MD_PATH, buildMarkdown(USER_GUIDE));
+  comparePdf("Guide PDF", PDF_PATH, freshUserPdf);
+  comparePdf("Bundled guide PDF", BUNDLED_PDF_PATH, freshUserPdf);
+
+  const tmpAdminPdf = join(tmpDir, "Receipt-Tracker-Admin-Guide.pdf");
+  await buildPdf(tmpAdminPdf, ADMIN_GUIDE);
+  const freshAdminPdf = readFileSync(tmpAdminPdf);
+  compareText("Admin guide Markdown", ADMIN_MD_PATH, buildMarkdown(ADMIN_GUIDE));
+  comparePdf("Admin guide PDF", ADMIN_PDF_PATH, freshAdminPdf);
+  comparePdf("Bundled admin guide PDF", BUNDLED_ADMIN_PDF_PATH, freshAdminPdf);
 
   rmSync(tmpDir, { recursive: true, force: true });
 

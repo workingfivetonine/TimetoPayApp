@@ -16,10 +16,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_SECTIONS,
+  GUIDE_ADMIN_SECTIONS,
   type GuideSectionContent,
 } from "@workspace/guide-content";
 import { useColors } from "@/hooks/useColors";
-import { downloadGuidePdf } from "@/lib/guidePdf";
+import { useGetCurrentUser } from "@workspace/api-client-react";
+import { downloadGuidePdf, downloadAdminGuidePdf } from "@/lib/guidePdf";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
@@ -28,7 +30,7 @@ interface GuideSection {
   title: string;
   intro: string;
   steps: string[];
-  image: ImageSourcePropType;
+  image?: ImageSourcePropType;
 }
 
 const SHOT_ASPECT = 402 / 860;
@@ -50,6 +52,8 @@ const GUIDE_IMAGES: Record<string, ImageSourcePropType> = {
   "analytics.jpg": require("@/assets/images/guide/analytics.jpg"),
   "catalog.jpg": require("@/assets/images/guide/catalog.jpg"),
   "account.jpg": require("@/assets/images/guide/account.jpg"),
+  "admin-catalog.jpg": require("@/assets/images/guide/admin-catalog.jpg"),
+  "admin-global.jpg": require("@/assets/images/guide/admin-global.jpg"),
 };
 
 function toSection(content: GuideSectionContent): GuideSection {
@@ -58,11 +62,12 @@ function toSection(content: GuideSectionContent): GuideSection {
     title: content.title,
     intro: content.intro,
     steps: content.steps,
-    image: GUIDE_IMAGES[content.imageFile],
+    image: content.imageFile ? GUIDE_IMAGES[content.imageFile] : undefined,
   };
 }
 
 const SECTIONS: GuideSection[] = GUIDE_SECTIONS.map(toSection);
+const ADMIN_SECTIONS: GuideSection[] = GUIDE_ADMIN_SECTIONS.map(toSection);
 
 function GuideCard({ section, index }: { section: GuideSection; index: number }) {
   const colors = useColors();
@@ -77,9 +82,11 @@ function GuideCard({ section, index }: { section: GuideSection; index: number })
 
       <Text style={[styles.cardIntro, { color: colors.mutedForeground }]}>{section.intro}</Text>
 
-      <View style={[styles.shotFrame, { backgroundColor: colors.background, borderColor: colors.border }]}>
-        <Image source={section.image} style={styles.shot} resizeMode="contain" />
-      </View>
+      {section.image ? (
+        <View style={[styles.shotFrame, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <Image source={section.image} style={styles.shot} resizeMode="contain" />
+        </View>
+      ) : null}
 
       <View style={styles.steps}>
         {section.steps.map((step, i) => (
@@ -101,6 +108,9 @@ export default function HelpScreen() {
   const insets = useSafeAreaInsets();
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
   const [downloading, setDownloading] = React.useState(false);
+  const [downloadingAdmin, setDownloadingAdmin] = React.useState(false);
+  const { data: me } = useGetCurrentUser();
+  const isAdmin = !!me?.isAdmin;
 
   const handleDownload = React.useCallback(async () => {
     if (downloading) return;
@@ -115,6 +125,22 @@ export default function HelpScreen() {
       setDownloading(false);
     }
   }, [downloading]);
+
+  const handleDownloadAdmin = React.useCallback(async () => {
+    if (downloadingAdmin) return;
+    setDownloadingAdmin(true);
+    try {
+      await downloadAdminGuidePdf();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Could not open the admin guide PDF. Please try again.";
+      Alert.alert("Download failed", message);
+    } finally {
+      setDownloadingAdmin(false);
+    }
+  }, [downloadingAdmin]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -173,6 +199,43 @@ export default function HelpScreen() {
           <GuideCard key={section.title} section={section} index={i} />
         ))}
 
+        {isAdmin ? (
+          <>
+            <View style={[styles.adminBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.adminBannerHeader}>
+                <Feather name="shield" size={18} color={colors.primary} />
+                <Text style={[styles.adminBannerTitle, { color: colors.foreground }]}>
+                  Admin tools
+                </Text>
+              </View>
+              <Text style={[styles.adminBannerSub, { color: colors.mutedForeground }]}>
+                These sections cover the admin-only features and are also available as a separate
+                downloadable PDF.
+              </Text>
+              <TouchableOpacity
+                onPress={handleDownloadAdmin}
+                style={[styles.downloadBtn, { backgroundColor: colors.primary }]}
+                disabled={downloadingAdmin}
+                accessibilityRole="button"
+                accessibilityLabel="Download admin guide as PDF"
+              >
+                {downloadingAdmin ? (
+                  <ActivityIndicator size="small" color={colors.primaryForeground} />
+                ) : (
+                  <Feather name="download" size={16} color={colors.primaryForeground} />
+                )}
+                <Text style={[styles.downloadBtnText, { color: colors.primaryForeground }]}>
+                  {downloadingAdmin ? "Preparing PDF…" : "Download Admin PDF"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {ADMIN_SECTIONS.map((section, i) => (
+              <GuideCard key={section.title} section={section} index={i} />
+            ))}
+          </>
+        ) : null}
+
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>
@@ -224,6 +287,20 @@ const styles = StyleSheet.create({
     minWidth: 170,
   },
   downloadBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  adminBanner: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 18,
+    alignItems: "center",
+  },
+  adminBannerHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  adminBannerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  adminBannerSub: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   card: {
     borderWidth: 1,
     borderRadius: 18,

@@ -26,8 +26,12 @@ export interface GuideSectionContent {
   intro: string;
   /** Ordered list of how-to steps. */
   steps: string[];
-  /** Screenshot file name (lives in `artifacts/receipt-tracker/assets/images/guide/`). */
-  imageFile: string;
+  /**
+   * Screenshot file name (lives in `artifacts/receipt-tracker/assets/images/guide/`).
+   * Optional — admin sections may be documented without a screenshot, in which
+   * case the card/PDF renders text-only.
+   */
+  imageFile?: string;
 }
 
 export const GUIDE_TITLE = "TimetoPay — How-to Guide";
@@ -37,6 +41,14 @@ export const GUIDE_TAGLINE =
 
 export const GUIDE_FOOTER =
   "Generated for TimetoPay. Screenshots reflect the live app with demo data.";
+
+export const GUIDE_ADMIN_TITLE = "TimetoPay — Admin Guide";
+
+export const GUIDE_ADMIN_TAGLINE =
+  "Administrator-only reference for TimetoPay. These tools are visible only to the master admin and cover the cross-user catalog, user management, billing oversight, and global pricing. Keep this document restricted to administrators.";
+
+export const GUIDE_ADMIN_FOOTER =
+  "Generated for TimetoPay administrators. Admin tools appear only for the master admin account.";
 
 export const GUIDE_SECTIONS: GuideSectionContent[] = [
   {
@@ -207,5 +219,82 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
       "Sign out here to switch accounts.",
     ],
     imageFile: "account.jpg",
+  },
+];
+
+/**
+ * Admin-only guide sections. These document the master-admin tools and are
+ * shipped as a SEPARATE offline PDF (`Receipt-Tracker-Admin-Guide.pdf`) and
+ * only rendered in the in-app Help screen for admins. Sections without an
+ * `imageFile` render text-only.
+ */
+export const GUIDE_ADMIN_SECTIONS: GuideSectionContent[] = [
+  {
+    icon: "shield",
+    title: "Admin tools overview",
+    intro:
+      "Admin features are visible only to the master admin account. When you're signed in as the admin, four extra links appear at the bottom of the Account screen: All users, Subscriptions, Global prices, and Manage catalog. Everything below lives behind those links.",
+    steps: [
+      "Open the Account screen and scroll to the admin links at the bottom.",
+      "These links (and the data behind them) never appear for regular users.",
+      "Cross-user data is read-only except for the catalog and user-management actions described below.",
+    ],
+  },
+  {
+    icon: "users",
+    title: "All users",
+    intro:
+      "The All users screen is a directory of every account, showing each user's receipt count, store visits, items tracked, and lifetime spend so you can spot active or inactive accounts at a glance.",
+    steps: [
+      "Use the search bar to filter the list by email address.",
+      "Scan the Receipts / Stores / Items stats on each card to gauge engagement.",
+      "Tap any user card to open their detailed management screen.",
+    ],
+  },
+  {
+    icon: "user-check",
+    title: "User management",
+    intro:
+      "Opening a user shows their full receipt history plus the controls to manage that account: change their role, merge them into another account, or delete them entirely. Destructive actions ask for confirmation.",
+    steps: [
+      "Change the role between Master admin, Family, or General — promoting to Master admin transfers admin rights in one step and asks you to confirm.",
+      "Use “Merge into another user” to move all of this account's receipts, stores, and items into a target account, then remove the source.",
+      "Use Delete user in the danger zone to permanently remove the account and all its data.",
+    ],
+  },
+  {
+    icon: "edit",
+    title: "Manage catalog",
+    intro:
+      "The Manage catalog screen keeps the shared product and store database clean. Switch between the Items and Stores tabs to rename, merge, split, categorize, and brand the canonical entries every user's prices roll up into.",
+    steps: [
+      "Tap “Suggest categories” to let AI bulk-assign departments to uncategorized items, then accept or reject each suggestion.",
+      "Tap “Find duplicates” to have AI group near-identical names; accept a group to merge it into one canonical entry (the non-AI matcher also flags obvious duplicates automatically).",
+      "On the Stores tab, edit a store to upload a logo or add a website — both then show on the store's detail screen for every user.",
+    ],
+    imageFile: "admin-catalog.jpg",
+  },
+  {
+    icon: "trending-up",
+    title: "Global prices",
+    intro:
+      "Global prices is a cross-user market view of the most recent price recorded for every catalog item, so you can track variance and inflation across stores. It shows aggregates only — never who bought what.",
+    steps: [
+      "Tap an item card to expand a ranked list of prices from every store it's been scanned at.",
+      "The “Lowest” badge marks the cheapest store for that item.",
+      "Sort by A–Z, Price, or Recent to surface the data you need.",
+    ],
+    imageFile: "admin-global.jpg",
+  },
+  {
+    icon: "credit-card",
+    title: "Subscriptions",
+    intro:
+      "The Subscriptions screen tracks billing and entitlement across the user base — who's on a free trial, who's actively paying via Stripe or PayPal, and whose payment is past due — so premium access stays correct.",
+    steps: [
+      "Read the color-coded status badges (e.g. red for Past due, gold for Free trial) to spot billing issues.",
+      "Check the Access column to confirm whether the backend currently grants premium features.",
+      "Open a card's Period section to see when a trial ends or a subscription renews.",
+    ],
   },
 ];
