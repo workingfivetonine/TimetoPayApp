@@ -371,14 +371,83 @@ export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
 </html>`;
 }
 
+// On web, expo-print's printAsync is just `window.print()` — it ignores the
+// supplied html and prints the CURRENT page (the app screen), which is why the
+// export looked like a screen grab. Instead we render the generated html into a
+// hidden iframe and print THAT document, so the user gets the clean list PDF.
+function printHtmlOnWeb(html: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Printing is not available."));
+      return;
+    }
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.visibility = "hidden";
+    document.body.appendChild(iframe);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      // Defer removal so the print dialog has fully grabbed the document.
+      setTimeout(() => {
+        try {
+          iframe.remove();
+        } catch {
+          /* noop */
+        }
+      }, 500);
+    };
+
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument || win?.document;
+    if (!win || !doc) {
+      iframe.remove();
+      reject(new Error("Could not prepare the document for printing."));
+      return;
+    }
+
+    const doPrint = () => {
+      try {
+        win.focus();
+        win.onafterprint = cleanup;
+        win.print();
+        // Fallback cleanup for browsers that don't fire afterprint.
+        setTimeout(cleanup, 60000);
+        resolve();
+      } catch (err) {
+        cleanup();
+        reject(err instanceof Error ? err : new Error("Printing failed."));
+      }
+    };
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    if (doc.readyState === "complete") {
+      setTimeout(doPrint, 250);
+    } else {
+      iframe.onload = () => setTimeout(doPrint, 250);
+    }
+  });
+}
+
 export async function downloadShoppingListPdf(
   opts: ShoppingListPdfOptions,
 ): Promise<void> {
   const html = buildShoppingListHtml(opts);
 
   if (Platform.OS === "web") {
-    // On web, open the system print dialog (user can save as PDF).
-    await Print.printAsync({ html });
+    // Print the generated html (not the app screen) so the user can save it as PDF.
+    await printHtmlOnWeb(html);
     return;
   }
 

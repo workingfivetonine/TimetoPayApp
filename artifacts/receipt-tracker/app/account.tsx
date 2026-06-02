@@ -222,6 +222,15 @@ export default function AccountScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/admin/subscriptions")}
+              activeOpacity={0.7}
+            >
+              <Feather name="credit-card" size={18} color={colors.primary} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Subscriptions</Text>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => router.push("/admin/global")}
               activeOpacity={0.7}
             >

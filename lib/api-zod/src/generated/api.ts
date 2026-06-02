@@ -759,6 +759,22 @@ export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
 
 
 /**
+ * @summary List all users with their subscription/entitlement status (admin only)
+ */
+export const AdminListSubscribersResponseItem = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
+  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullish(),
+  "entitled": zod.boolean(),
+  "currentPeriodEnd": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+export const AdminListSubscribersResponse = zod.array(AdminListSubscribersResponseItem)
+
+
+/**
  * @summary Set a user's type/role (admin only)
  */
 export const AdminSetUserRoleParams = zod.object({

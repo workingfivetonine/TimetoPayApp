@@ -51,6 +51,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="landing" options={{ headerShown: false }} />
+      <Stack.Screen name="pricing" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: "fullScreenModal" }} />
@@ -97,8 +98,9 @@ function InitialLayout() {
 
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
+  const onPricing = segments[0] === "pricing";
   const onRegionSetup = segments[0] === "region-setup";
-  const isPublicRoute = inAuthGroup || onLanding;
+  const isPublicRoute = inAuthGroup || onLanding || onPricing;
 
   // Region gate: a signed-in user must pick a region before using the app, since
   // the catalog is scoped by it. Only fetch once signed in.

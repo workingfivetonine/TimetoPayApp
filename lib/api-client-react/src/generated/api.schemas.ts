@@ -235,6 +235,43 @@ export interface AdminUser {
   totalSpend: number;
 }
 
+export type AdminSubscriberStatus = typeof AdminSubscriberStatus[keyof typeof AdminSubscriberStatus];
+
+
+export const AdminSubscriberStatus = {
+  trialing: 'trialing',
+  active: 'active',
+  past_due: 'past_due',
+  canceled: 'canceled',
+  comped: 'comped',
+  none: 'none',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AdminSubscriberProvider = typeof AdminSubscriberProvider[keyof typeof AdminSubscriberProvider] | null;
+
+
+export const AdminSubscriberProvider = {
+  stripe: 'stripe',
+  paypal: 'paypal',
+} as const;
+
+export interface AdminSubscriber {
+  id: string;
+  /** @nullable */
+  email?: string | null;
+  role: UserRole;
+  status: AdminSubscriberStatus;
+  /** @nullable */
+  provider?: AdminSubscriberProvider;
+  entitled: boolean;
+  /** @nullable */
+  currentPeriodEnd: string | null;
+  createdAt: string;
+}
+
 export interface AdminSetRoleInput {
   role: UserRole;
 }

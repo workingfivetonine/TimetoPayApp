@@ -12,6 +12,7 @@ import {
 import { AdminSetUserRoleBody, AdminMergeUsersBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { normalizeName } from "../lib/catalog";
+import { computeEntitlement } from "../lib/billing/entitlement";
 
 const router = Router();
 
@@ -104,6 +105,28 @@ router.get("/users", async (_req, res): Promise<void> => {
       receiptCount: receiptMap.get(u.id)?.receiptCount ?? 0,
       totalSpend: Math.round(Number(receiptMap.get(u.id)?.totalSpend ?? 0) * 100) / 100,
     })),
+  );
+});
+
+// List all users with their subscription/entitlement status (trial/active/etc.)
+// and the provider backing it. Mirrors computeEntitlement so the admin view
+// matches exactly what each user is gated on.
+router.get("/subscribers", async (_req, res): Promise<void> => {
+  const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
+  res.json(
+    users.map((u) => {
+      const e = computeEntitlement(u);
+      return {
+        id: u.id,
+        email: u.email,
+        role: u.role,
+        status: e.status,
+        provider: e.provider,
+        entitled: e.entitled,
+        currentPeriodEnd: e.currentPeriodEnd,
+        createdAt: u.createdAt.toISOString(),
+      };
+    }),
   );
 });
 

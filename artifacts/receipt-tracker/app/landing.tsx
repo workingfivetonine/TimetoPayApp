@@ -112,12 +112,20 @@ export default function LandingPage() {
             />
             <Text style={styles.brandName}>TimetoPay</Text>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push("/(auth)/sign-in")}
-            accessibilityRole="button"
-          >
-            <Text style={styles.navSignIn}>Sign in</Text>
-          </TouchableOpacity>
+          <View style={styles.navRight}>
+            <TouchableOpacity
+              onPress={() => router.push("/pricing")}
+              accessibilityRole="button"
+            >
+              <Text style={styles.navLink}>Pricing</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/sign-in")}
+              accessibilityRole="button"
+            >
+              <Text style={styles.navSignIn}>Sign in</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Hero */}
@@ -290,6 +298,12 @@ function makeStyles(colors: ReturnType<typeof useColors>, isWide: boolean) {
     brandName: {
       fontFamily: "Inter_700Bold",
       fontSize: 18,
+      color: colors.text,
+    },
+    navRight: { flexDirection: "row", alignItems: "center", gap: 22 },
+    navLink: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 15,
       color: colors.text,
     },
     navSignIn: {

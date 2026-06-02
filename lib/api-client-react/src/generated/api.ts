@@ -24,6 +24,7 @@ import type {
   AdminMergeResult,
   AdminMergeUsersInput,
   AdminSetRoleInput,
+  AdminSubscriber,
   AdminUser,
   AdminUserReceipts,
   BillingCheckoutInput,
@@ -3080,6 +3081,83 @@ export function useAdminListUsers<TData = Awaited<ReturnType<typeof adminListUse
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminListUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminListSubscribersUrl = () => {
+
+
+
+
+  return `/api/admin/subscribers`
+}
+
+/**
+ * @summary List all users with their subscription/entitlement status (admin only)
+ */
+export const adminListSubscribers = async ( options?: RequestInit): Promise<AdminSubscriber[]> => {
+
+  return customFetch<AdminSubscriber[]>(getAdminListSubscribersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListSubscribersQueryKey = () => {
+    return [
+    `/api/admin/subscribers`
+    ] as const;
+    }
+
+
+export const getAdminListSubscribersQueryOptions = <TData = Awaited<ReturnType<typeof adminListSubscribers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListSubscribers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListSubscribersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListSubscribers>>> = ({ signal }) => adminListSubscribers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListSubscribers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListSubscribersQueryResult = NonNullable<Awaited<ReturnType<typeof adminListSubscribers>>>
+export type AdminListSubscribersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all users with their subscription/entitlement status (admin only)
+ */
+
+export function useAdminListSubscribers<TData = Awaited<ReturnType<typeof adminListSubscribers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListSubscribers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListSubscribersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

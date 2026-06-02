@@ -781,6 +781,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/AdminUser"
 
+  /admin/subscribers:
+    get:
+      operationId: adminListSubscribers
+      tags: [admin]
+      summary: List all users with their subscription/entitlement status (admin only)
+      responses:
+        "200":
+          description: List of users with subscription status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSubscriber"
+
   /admin/users/{userId}/role:
     patch:
       operationId: adminSetUserRole
@@ -1435,6 +1450,29 @@ components:
           type: integer
         totalSpend:
           type: number
+
+    AdminSubscriber:
+      type: object
+      required: [id, role, status, entitled, currentPeriodEnd, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        role:
+          $ref: "#/components/schemas/UserRole"
+        status:
+          type: string
+          enum: [trialing, active, past_due, canceled, comped, none]
+        provider:
+          type: ["string", "null"]
+          enum: [stripe, paypal, null]
+        entitled:
+          type: boolean
+        currentPeriodEnd:
+          type: ["string", "null"]
+        createdAt:
+          type: string
 
     AdminSetRoleInput:
       type: object

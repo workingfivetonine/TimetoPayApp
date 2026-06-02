@@ -55,7 +55,7 @@ function serveRobots(req, res) {
 
 function serveSitemap(req, res) {
   const baseUrl = getBaseUrl(req);
-  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${CANONICAL_ORIGIN}/</loc>\n    <changefreq>weekly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/privacy</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/support</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/donate</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n</urlset>\n`;
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${CANONICAL_ORIGIN}/</loc>\n    <changefreq>weekly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/pricing</loc>\n    <changefreq>monthly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/privacy</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/support</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n  <url>\n    <loc>${CANONICAL_ORIGIN}/donate</loc>\n    <changefreq>yearly</changefreq>\n  </url>\n</urlset>\n`;
   res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
   res.end(body);
 }
