@@ -45,10 +45,21 @@ export default function RegionSetupScreen() {
 
   const handleSave = () => {
     if (!valid || !countryCode) return;
+    const nextStateCode = isStateScoped(countryCode) ? stateCode : null;
     mutate(
-      { data: { countryCode, stateCode: isStateScoped(countryCode) ? stateCode : null } },
+      { data: { countryCode, stateCode: nextStateCode } },
       {
-        onSuccess: () => {
+        onSuccess: (updated) => {
+          // Update the cached user SYNCHRONOUSLY before navigating. Otherwise the
+          // onboarding gate in _layout.tsx still sees the stale region-less user
+          // (invalidate keeps old data while refetching) and bounces back here,
+          // making the region screen appear twice. The background invalidate then
+          // reconciles with the server.
+          queryClient.setQueryData(getGetCurrentUserQueryKey(), (old) =>
+            old
+              ? { ...old, ...updated, countryCode, stateCode: nextStateCode }
+              : old,
+          );
           queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
           router.replace("/");
         },
