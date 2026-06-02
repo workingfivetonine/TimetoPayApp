@@ -686,6 +686,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/CurrentUser"
 
+  /me/notifications:
+    get:
+      operationId: getMyNotificationPreferences
+      tags: [users]
+      summary: Get the authenticated user's email reminder preferences
+      responses:
+        "200":
+          description: The current notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+    patch:
+      operationId: updateMyNotificationPreferences
+      tags: [users]
+      summary: Update the authenticated user's email reminder preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferencesInput"
+      responses:
+        "200":
+          description: The updated notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+
   /billing/checkout:
     post:
       operationId: createBillingCheckout
@@ -1442,6 +1472,42 @@ components:
         showAnnualOffer:
           type: boolean
           description: Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)
+
+    NotificationPreferences:
+      type: object
+      required:
+        [
+          notifyPaymentReminders,
+          notifyListExport,
+          notifyReceiptReminders,
+          notifySpendSummary,
+        ]
+      properties:
+        notifyPaymentReminders:
+          type: boolean
+          description: Trial-ending and payment-past-due reminder emails
+        notifyListExport:
+          type: boolean
+          description: Weekly grocery-list export nudge
+        notifyReceiptReminders:
+          type: boolean
+          description: Receipt-upload inactivity nudge (7+ days inactive)
+        notifySpendSummary:
+          type: boolean
+          description: End-of-week and end-of-month spend summary emails
+
+    NotificationPreferencesInput:
+      type: object
+      description: Partial update — only the provided toggles are changed.
+      properties:
+        notifyPaymentReminders:
+          type: boolean
+        notifyListExport:
+          type: boolean
+        notifyReceiptReminders:
+          type: boolean
+        notifySpendSummary:
+          type: boolean
 
     BillingCheckoutInput:
       type: object

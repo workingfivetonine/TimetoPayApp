@@ -678,6 +678,35 @@ export const UpdateMyRegionResponse = zod.object({
 
 
 /**
+ * @summary Get the authenticated user's email reminder preferences
+ */
+export const GetMyNotificationPreferencesResponse = zod.object({
+  "notifyPaymentReminders": zod.boolean().describe('Trial-ending and payment-past-due reminder emails'),
+  "notifyListExport": zod.boolean().describe('Weekly grocery-list export nudge'),
+  "notifyReceiptReminders": zod.boolean().describe('Receipt-upload inactivity nudge (7+ days inactive)'),
+  "notifySpendSummary": zod.boolean().describe('End-of-week and end-of-month spend summary emails')
+})
+
+
+/**
+ * @summary Update the authenticated user's email reminder preferences
+ */
+export const UpdateMyNotificationPreferencesBody = zod.object({
+  "notifyPaymentReminders": zod.boolean().optional(),
+  "notifyListExport": zod.boolean().optional(),
+  "notifyReceiptReminders": zod.boolean().optional(),
+  "notifySpendSummary": zod.boolean().optional()
+}).describe('Partial update — only the provided toggles are changed.')
+
+export const UpdateMyNotificationPreferencesResponse = zod.object({
+  "notifyPaymentReminders": zod.boolean().describe('Trial-ending and payment-past-due reminder emails'),
+  "notifyListExport": zod.boolean().describe('Weekly grocery-list export nudge'),
+  "notifyReceiptReminders": zod.boolean().describe('Receipt-upload inactivity nudge (7+ days inactive)'),
+  "notifySpendSummary": zod.boolean().describe('End-of-week and end-of-month spend summary emails')
+})
+
+
+/**
  * @summary Start a subscription checkout with the chosen provider
  */
 export const CreateBillingCheckoutBody = zod.object({

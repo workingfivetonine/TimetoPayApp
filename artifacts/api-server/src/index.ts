@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { runStartupReconciliations } from "./lib/bootstrap";
 import { initStripe } from "./lib/billing/stripeSync";
 import { startAdminDigestScheduler } from "./lib/adminDigestScheduler";
+import { startReminderScheduler } from "./lib/notifications/reminderScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -38,4 +39,9 @@ app.listen(port, (err) => {
   // Periodic admin review digest (new catalog items / stores / users). Unref'd
   // timers; no-op if Gmail isn't connected or no admin email is on file.
   startAdminDigestScheduler();
+
+  // Periodic opt-in email reminders (payment / list-export / receipt-inactivity
+  // / spend summaries) for subscription-related users. Unref'd timer; graceful
+  // no-op when SendGrid isn't connected.
+  startReminderScheduler();
 });

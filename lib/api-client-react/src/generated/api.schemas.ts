@@ -175,6 +175,27 @@ export interface CurrentUser {
   entitlement: UserEntitlement;
 }
 
+export interface NotificationPreferences {
+  /** Trial-ending and payment-past-due reminder emails */
+  notifyPaymentReminders: boolean;
+  /** Weekly grocery-list export nudge */
+  notifyListExport: boolean;
+  /** Receipt-upload inactivity nudge (7+ days inactive) */
+  notifyReceiptReminders: boolean;
+  /** End-of-week and end-of-month spend summary emails */
+  notifySpendSummary: boolean;
+}
+
+/**
+ * Partial update — only the provided toggles are changed.
+ */
+export interface NotificationPreferencesInput {
+  notifyPaymentReminders?: boolean;
+  notifyListExport?: boolean;
+  notifyReceiptReminders?: boolean;
+  notifySpendSummary?: boolean;
+}
+
 export type BillingCheckoutInputProvider = typeof BillingCheckoutInputProvider[keyof typeof BillingCheckoutInputProvider];
 
 

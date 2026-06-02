@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -17,9 +18,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGetCurrentUserQueryKey,
+  getGetMyNotificationPreferencesQueryKey,
   useGetCurrentUser,
+  useGetMyNotificationPreferences,
   useManageBillingSubscription,
   useStartFreeTrial,
+  useUpdateMyNotificationPreferences,
+  type NotificationPreferences,
 } from "@workspace/api-client-react";
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
@@ -69,6 +74,10 @@ export default function AccountScreen() {
   const [trialError, setTrialError] = React.useState<string | null>(null);
 
   const entitlement = me?.entitlement ?? null;
+  // Email reminders only go to subscription-related users (entitled, or past_due),
+  // so only surface the toggles to them.
+  const showNotifications =
+    !!entitlement && (entitlement.entitled || entitlement.status === "past_due");
   const isWeb = Platform.OS === "web";
   // Only show the billing UI to web users with a real provider subscription
   // (native is never paywalled; admins/comped users have no provider record).
@@ -265,6 +274,8 @@ export default function AccountScreen() {
           </View>
         ) : null}
 
+        {showNotifications ? <NotificationsSection /> : null}
+
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : me?.isAdmin ? (
@@ -319,6 +330,108 @@ export default function AccountScreen() {
           <Text style={[styles.signOutText, { color: colors.destructive }]}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
+    </View>
+  );
+}
+
+const NOTIFICATION_TOGGLES: {
+  key: keyof NotificationPreferences;
+  label: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+}[] = [
+  {
+    key: "notifyPaymentReminders",
+    label: "Payment reminders",
+    description: "Trial ending soon and payment-past-due alerts",
+    icon: "credit-card",
+  },
+  {
+    key: "notifyListExport",
+    label: "Grocery list nudge",
+    description: "A weekly reminder to export your shopping list",
+    icon: "list",
+  },
+  {
+    key: "notifyReceiptReminders",
+    label: "Receipt reminders",
+    description: "A nudge when you haven't scanned in a while",
+    icon: "camera",
+  },
+  {
+    key: "notifySpendSummary",
+    label: "Spend summaries",
+    description: "Weekly and monthly recaps of what you spent",
+    icon: "bar-chart-2",
+  },
+];
+
+function NotificationsSection() {
+  const colors = useColors();
+  const queryClient = useQueryClient();
+  const { data: prefs } = useGetMyNotificationPreferences();
+  const update = useUpdateMyNotificationPreferences();
+  // Optimistic local copy so toggles feel instant.
+  const [local, setLocal] = React.useState<NotificationPreferences | null>(null);
+
+  React.useEffect(() => {
+    if (prefs) setLocal(prefs);
+  }, [prefs]);
+
+  const current = local ?? prefs ?? null;
+
+  const toggle = (key: keyof NotificationPreferences) => {
+    if (!current) return;
+    const next = { ...current, [key]: !current[key] };
+    setLocal(next);
+    update.mutate(
+      { data: { [key]: next[key] } },
+      {
+        onSuccess: (saved) => {
+          setLocal(saved);
+          void queryClient.invalidateQueries({
+            queryKey: getGetMyNotificationPreferencesQueryKey(),
+          });
+        },
+        onError: () => {
+          // Revert on failure.
+          setLocal(current);
+        },
+      },
+    );
+  };
+
+  return (
+    <View style={[styles.notifCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.notifHeader}>
+        <Feather name="bell" size={18} color={colors.primary} />
+        <Text style={[styles.rowText, { color: colors.foreground }]}>Email reminders</Text>
+      </View>
+      {NOTIFICATION_TOGGLES.map((t, idx) => (
+        <View
+          key={t.key}
+          style={[
+            styles.notifRow,
+            idx < NOTIFICATION_TOGGLES.length - 1 && {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <Feather name={t.icon} size={16} color={colors.mutedForeground} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.notifLabel, { color: colors.foreground }]}>{t.label}</Text>
+            <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{t.description}</Text>
+          </View>
+          <Switch
+            value={current ? current[t.key] : true}
+            onValueChange={() => toggle(t.key)}
+            disabled={!current}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor="#ffffff"
+          />
+        </View>
+      ))}
     </View>
   );
 }
@@ -389,6 +502,20 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   subHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  notifCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  notifHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
+  notifRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+  },
+  notifLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   subActions: { gap: 10 },
   subActionBtn: {
     borderRadius: 12,

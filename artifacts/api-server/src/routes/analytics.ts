@@ -3,6 +3,7 @@ import { eq, sql, and, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { receiptsTable, storesTable, lineItemsTable, itemsTable } from "@workspace/db";
 import { requirePremium } from "../middlewares/requireEntitlement";
+import { groupReceiptsByWeek } from "../lib/analytics/spend";
 
 const router = Router();
 
@@ -20,31 +21,8 @@ router.get("/spend", async (req, res): Promise<void> => {
     return;
   }
 
-  // Group receipts by ISO week
-  const weekMap = new Map<string, { total: number; count: number; weekStart: Date; weekEnd: Date }>();
-
-  for (const r of receipts) {
-    const d = new Date(r.purchasedAt);
-    // Get Monday of that week
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(d);
-    monday.setDate(diff);
-    monday.setHours(0, 0, 0, 0);
-
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    const key = monday.toISOString().split("T")[0];
-    const existing = weekMap.get(key);
-    if (existing) {
-      existing.total += Number(r.total);
-      existing.count += 1;
-    } else {
-      weekMap.set(key, { total: Number(r.total), count: 1, weekStart: monday, weekEnd: sunday });
-    }
-  }
+  // Group receipts by ISO week (shared helper, also used by the email scheduler)
+  const weekMap = groupReceiptsByWeek(receipts);
 
   const weeks = Array.from(weekMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
