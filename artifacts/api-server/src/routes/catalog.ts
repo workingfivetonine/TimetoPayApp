@@ -14,7 +14,6 @@ import {
   ensureCatalog,
   computeGlobalPrices,
   normalizeName,
-  CATALOG_MIN_CONTRIBUTORS,
 } from "../lib/catalog";
 import { categoryOrder } from "../lib/categories";
 import { requirePremium } from "../middlewares/requireEntitlement";
@@ -68,12 +67,12 @@ router.get("/browse", requirePremium, async (req, res): Promise<void> => {
     res.json({ categories: [] });
     return;
   }
-  // Privacy-thresholded view: only surface items/store prices backed by at least
-  // CATALOG_MIN_CONTRIBUTORS distinct OTHER users, so a regular account can't
-  // read back another person's singleton purchases from the "shared" catalog.
-  // Region-scoped: only stores in the user's own country (and US state) appear.
+  // The cross-user catalog exposes only non-identifying aggregates (item name,
+  // store name, price, month-coarsened date), region-scoped and with the
+  // requester's OWN rows excluded so it never echoes their data back. The former
+  // k-anonymity contributor threshold has been disabled by product decision, so
+  // an item is shown regardless of how many other shoppers bought it.
   const global = await computeGlobalPrices({
-    minDistinctUsers: CATALOG_MIN_CONTRIBUTORS,
     excludeUserId: userId,
     countryCode: region.countryCode,
     stateCode: region.stateCode,
@@ -202,14 +201,12 @@ router.post("/add-to-list", requirePremium, async (req, res): Promise<void> => {
     return;
   }
 
-  // Resolve the target item ONLY through the user's privacy-thresholded catalog
-  // view (same threshold AND region scope as browse). This both snapshots a
-  // privacy-safe price and gates the route to the caller's visible set: a
-  // suppressed OR out-of-region item returns 404 (indistinguishable from
-  // "doesn't exist"), so sequential id probing can't be used to disclose hidden
-  // canonical item names or cross-region activity.
+  // Resolve the target item ONLY through the user's region-scoped catalog view
+  // (same scope as browse). This both snapshots a privacy-safe price and gates
+  // the route to the caller's visible set: an out-of-region item returns 404
+  // (indistinguishable from "doesn't exist"), so sequential id probing can't be
+  // used to disclose cross-region activity.
   const global = await computeGlobalPrices({
-    minDistinctUsers: CATALOG_MIN_CONTRIBUTORS,
     excludeUserId: userId,
     countryCode: region.countryCode,
     stateCode: region.stateCode,

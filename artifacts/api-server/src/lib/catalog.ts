@@ -152,20 +152,23 @@ export type GlobalItem = {
   stores: GlobalStorePrice[];
 };
 
-// k-anonymity threshold for the NON-admin browse catalog. An item (and each of
-// its per-store prices) is only shown to a regular user when at least this many
-// DISTINCT users have bought it, so the "aggregated" catalog can never be used
-// to read back a single (or near-single) person's purchase. The threat model
-// calls out "singleton OR near-singleton" activity, so we require >2. The
-// trusted admin view is exempt (called with no options).
-export const CATALOG_MIN_CONTRIBUTORS = 3;
+// NOTE: the k-anonymity contributor threshold (formerly CATALOG_MIN_CONTRIBUTORS
+// = 3) has been intentionally DISABLED by product decision. The cross-user
+// catalog only ever exposes aggregate, non-identifying data (canonical item
+// name, store name, a price, and a month-coarsened date, scoped to the viewer's
+// region with the viewer's own rows excluded — never a user identity or a raw
+// per-user row), so a single contributor is treated as non-sensitive. The
+// generic `minDistinctUsers` suppression below remains available (and the
+// tenure gate it relies on) should we ever want to re-enable a threshold, but
+// no caller passes it anymore. See threat_model.md (Information Disclosure).
 
-// Account-tenure gate for catalog CONTRIBUTORS (non-admin thresholded view
-// only). A user's purchases only count toward the k-anonymity threshold once
+// Account-tenure gate for catalog CONTRIBUTORS, applied ONLY when a caller opts
+// into suppression via `minDistinctUsers` > 1 (currently no caller does). When
+// active, a user's purchases only count toward the threshold once
 // their account is at least this many days old. Raw distinct-userId counting is
 // trivially defeated by Sybil/sockpuppet accounts on a public self-service
 // deployment: an attacker can create throwaway accounts + fabricated receipts to
-// satisfy CATALOG_MIN_CONTRIBUTORS *on demand* and confirm a target's purchase.
+// satisfy the contributor threshold *on demand* and confirm a target's purchase.
 // Requiring tenure removes the "on demand" property (fresh accounts contribute
 // price data like ownerless rows, but never unlock an entry), so an attacker can
 // no longer manufacture qualifying contributors at probe time — they would have

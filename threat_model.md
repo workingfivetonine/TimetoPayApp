@@ -62,8 +62,9 @@ User shopping history is private by default, but the product also exposes cross-
 Required guarantees:
 - Non-admin routes MUST return only the authenticated user’s receipts, items, stores, analytics, and shopping-list data.
 - Admin-only cross-user routes MUST remain server-side gated.
-- Aggregated catalog features MUST avoid exposing singleton or near-singleton user activity in a way that defeats the app’s privacy promise.
-- Aggregated catalog privacy controls MUST not rely solely on raw account counts in a self-service signup environment, because attacker-created accounts can be used to steer or defeat naive k-anonymity thresholds.
+- Aggregated catalog features MUST only ever expose non-identifying aggregates — canonical item name, store name, a price, and a coarsened (month-granularity) date — and MUST NEVER expose a user identity or a raw per-user row.
+- The cross-user catalog MUST exclude the requesting user's own rows from its aggregation (so it cannot echo the viewer's private data back as "global"), and MUST be region-scoped so a request only sees activity in the viewer's own region (country, and US state where applicable); a region-less requester MUST get an empty catalog.
+- ACCEPTED PRODUCT DECISION (privacy relaxation): the per-item k-anonymity contributor threshold (formerly: show a per-store price only after ≥3 distinct contributors) has been DISABLED. The product owner judged that the catalog's non-identifying aggregates above are not sensitive even with a single contributor, so a unique/rare item bought by one other in-region shopper may now be visible (still without any identity). This deliberately relaxes the previous "avoid singleton/near-singleton exposure" guarantee in exchange for catalog usefulness. The generic suppression mechanism (and its Sybil-resistant account-tenure gate) remains in the code but is unused, so the threshold can be re-enabled without new code if abuse appears.
 - Logs and errors MUST not leak secrets, tokens, or raw sensitive payloads.
 
 ### Denial of Service
