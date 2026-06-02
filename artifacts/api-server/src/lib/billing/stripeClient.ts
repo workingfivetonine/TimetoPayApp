@@ -1,104 +1,16 @@
 import Stripe from "stripe";
-import { StripeSync } from "stripe-replit-sync";
 
-// Fetches Stripe credentials from the Replit connector API. Not cached — tokens
-// can rotate, so fetch fresh each time. Throws when Stripe is not connected.
-async function getStripeCredentials(): Promise<{
-  secretKey: string;
-  webhookSecret?: string;
-}> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-      ? "depl " + process.env.WEB_REPL_RENEWAL
-      : null;
+// Stripe client for seed scripts.
+// Reads the secret key directly from the STRIPE_SECRET_KEY environment variable.
+// Set this in your Railway Variables tab.
 
-  if (!hostname || !xReplitToken) {
-    throw new Error(
-      "Missing Replit environment variables. " +
-        "Ensure the Stripe integration is connected via the Integrations tab.",
-    );
-  }
-
-  // The Stripe connector exposes separate development/production connections;
-  // pick the one matching this runtime (matches the Replit Stripe blueprint).
-  // STRIPE_CONNECTOR_ENVIRONMENT can force a specific connection (kept in sync
-  // with the scripts/ copy so seeding the LIVE price works from the workspace).
-  const override = process.env.STRIPE_CONNECTOR_ENVIRONMENT;
-  if (override && override !== "production" && override !== "development") {
-    throw new Error(
-      `Invalid STRIPE_CONNECTOR_ENVIRONMENT="${override}" ` +
-        `(expected "production" or "development").`,
-    );
-  }
-  const isProduction = process.env.REPLIT_DEPLOYMENT === "1";
-  const targetEnvironment =
-    override ?? (isProduction ? "production" : "development");
-
-  const url = new URL(`https://${hostname}/api/v2/connection`);
-  url.searchParams.set("include_secrets", "true");
-  url.searchParams.set("connector_names", "stripe");
-  url.searchParams.set("environment", targetEnvironment);
-
-  const resp = await fetch(url.toString(), {
-    headers: { Accept: "application/json", "X-Replit-Token": xReplitToken },
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!resp.ok) {
-    throw new Error(
-      `Failed to fetch Stripe credentials: ${resp.status} ${resp.statusText}`,
-    );
-  }
-
-  const data = (await resp.json()) as {
-    items?: Array<{ settings?: { secret?: string; webhook_secret?: string } }>;
-  };
-  const settings = data.items?.[0]?.settings;
-
-  if (!settings?.secret) {
-    throw new Error(
-      "Stripe integration not connected or missing secret key. " +
-        "Connect Stripe via the Integrations tab first.",
-    );
-  }
-
-  return {
-    secretKey: settings.secret,
-    webhookSecret: settings.webhook_secret,
-  };
-}
-
-// Returns a fresh authenticated Stripe client. Not cached so rotated keys are
-// picked up on every call.
 export async function getUncachableStripeClient(): Promise<Stripe> {
-  const { secretKey } = await getStripeCredentials();
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error(
+      "Missing STRIPE_SECRET_KEY environment variable. " +
+        "Add it in Railway's Variables tab.",
+    );
+  }
   return new Stripe(secretKey);
-}
-
-// Returns a fresh StripeSync instance for webhook processing and data sync.
-export async function getStripeSync(): Promise<StripeSync> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
-  }
-
-  const { secretKey, webhookSecret } = await getStripeCredentials();
-  return new StripeSync({
-    poolConfig: { connectionString: databaseUrl },
-    stripeSecretKey: secretKey,
-    stripeWebhookSecret: webhookSecret ?? "",
-  });
-}
-
-// True when the Stripe connector is connected and exposes a secret key. Used to
-// gracefully skip Stripe startup/checkout when the integration isn't set up yet.
-export async function isStripeConfigured(): Promise<boolean> {
-  try {
-    await getStripeCredentials();
-    return true;
-  } catch {
-    return false;
-  }
 }
