@@ -38,7 +38,9 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
-import { confirmDestructive } from "@/lib/confirm";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { confirmDestructive, notify } from "@/lib/confirm";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import type { ItemHistoryEntry } from "@workspace/api-client-react";
 
 function formatDate(iso: string): string {
@@ -197,10 +199,11 @@ export default function ItemHistoryScreen() {
   const queryClient = useQueryClient();
 
   const itemId = parseInt(id ?? "0");
-  const { data, isLoading, refetch } = useGetItemHistory(itemId);
+  const { data, isLoading, refetch, dataUpdatedAt } = useGetItemHistory(itemId);
   const { mutateAsync: markRanOut, isPending: ranOutPending } = useMarkRanOut();
   const { mutate: updateItem, isPending: iconSaving } = useUpdateItem();
   const { mutate: deleteItem, isPending: deletePending } = useDeleteItem();
+  const isOnline = useOnlineStatus();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
@@ -210,6 +213,10 @@ export default function ItemHistoryScreen() {
   const handlePickIcon = (icon: string) => {
     const trimmed = icon.trim();
     if (!trimmed) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to change the icon.");
+      return;
+    }
     updateItem(
       { id: itemId, data: { icon: trimmed } },
       {
@@ -232,6 +239,10 @@ export default function ItemHistoryScreen() {
   };
 
   const handleRanOut = async () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to update your list.");
+      return;
+    }
     await markRanOut({ id: itemId });
     await Promise.all([
       refetch(),
@@ -240,6 +251,10 @@ export default function ItemHistoryScreen() {
   };
 
   const handleDelete = () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to delete this item.");
+      return;
+    }
     const name = data?.itemName ?? "this item";
     confirmDestructive({
       title: `Delete ${name}?`,
@@ -320,6 +335,8 @@ export default function ItemHistoryScreen() {
           {data.itemName}
         </Text>
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}>
         {/* Stats */}

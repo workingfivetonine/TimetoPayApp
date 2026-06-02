@@ -32,10 +32,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { WeeklySpendBar } from "@/components/WeeklySpendBar";
 import { EmptyState } from "@/components/EmptyState";
 import { SpendCalendar } from "@/components/SpendCalendar";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { notify } from "@/lib/confirm";
 import { Feather } from "@expo/vector-icons";
 
 type Tab = "calendar" | "items";
@@ -94,7 +97,7 @@ export default function AnalyticsScreen() {
   const [editName, setEditName] = useState("");
   const [mergingItem, setMergingItem] = useState<Item | null>(null);
 
-  const { data: analytics, isLoading: analyticsLoading } = useGetSpendAnalytics();
+  const { data: analytics, isLoading: analyticsLoading, dataUpdatedAt } = useGetSpendAnalytics();
   const { data: dailySpend, isLoading: calendarLoading } = useGetDailySpend();
   const { data: items } = useListItems();
   const { data: receipts } = useListReceipts();
@@ -103,6 +106,7 @@ export default function AnalyticsScreen() {
 
   const isDesktop = useDesktop();
   const locked = usePremiumLock();
+  const isOnline = useOnlineStatus();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
   const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
 
@@ -148,6 +152,10 @@ export default function AnalyticsScreen() {
 
   const saveEdit = () => {
     if (!editingItem || !editName.trim()) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to edit items.");
+      return;
+    }
     updateItem.mutate(
       { id: editingItem.id, data: { name: editName.trim() } },
       {
@@ -161,6 +169,10 @@ export default function AnalyticsScreen() {
 
   const doMerge = (targetId: number) => {
     if (!mergingItem) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to merge items.");
+      return;
+    }
     mergeItem.mutate(
       { id: mergingItem.id, data: { targetId } },
       {
@@ -208,6 +220,8 @@ export default function AnalyticsScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       {isLoading ? (
         <View style={styles.loading}>

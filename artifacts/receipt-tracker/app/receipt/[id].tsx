@@ -29,7 +29,9 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
-import { confirmDestructive } from "@/lib/confirm";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { confirmDestructive, notify } from "@/lib/confirm";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import type { LineItem } from "@workspace/api-client-react";
 
 export default function ReceiptDetailScreen() {
@@ -44,14 +46,19 @@ export default function ReceiptDetailScreen() {
   const [editNotes, setEditNotes] = useState("");
 
   const receiptId = parseInt(id ?? "0");
-  const { data: receipt, isLoading } = useGetReceipt(receiptId);
+  const { data: receipt, isLoading, dataUpdatedAt } = useGetReceipt(receiptId);
   const updateItemMutation = useUpdateItem();
   const deleteLineItemMutation = useDeleteLineItem();
   const deleteReceiptMutation = useDeleteReceipt();
+  const isOnline = useOnlineStatus();
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
 
   const handleDeleteReceipt = () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to delete this receipt.");
+      return;
+    }
     confirmDestructive({
       title: "Delete Receipt",
       message:
@@ -85,6 +92,10 @@ export default function ReceiptDetailScreen() {
 
   const handleSaveItemEdit = () => {
     if (!editingItem || !editName.trim()) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to edit items.");
+      return;
+    }
     updateItemMutation.mutate(
       {
         id: editingItem.itemId,
@@ -102,6 +113,10 @@ export default function ReceiptDetailScreen() {
   };
 
   const handleDeleteLineItem = (liId: number) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to remove items.");
+      return;
+    }
     confirmDestructive({
       title: "Remove Item",
       message: "Remove this line item from the receipt?",
@@ -166,6 +181,8 @@ export default function ReceiptDetailScreen() {
           </Text>
         </View>
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}

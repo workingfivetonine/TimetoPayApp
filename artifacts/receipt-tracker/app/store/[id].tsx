@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetStoreSummary, useGetStoreVisits } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { resolveStoreLink } from "@/lib/storeLink";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -30,7 +32,7 @@ export default function StoreDetailScreen() {
   const [itemsExpanded, setItemsExpanded] = useState(true);
 
   const storeId = parseInt(id ?? "0");
-  const { data: summary, isLoading } = useGetStoreSummary(storeId);
+  const { data: summary, isLoading, dataUpdatedAt } = useGetStoreSummary(storeId);
   const { data: visits } = useGetStoreVisits(storeId);
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
@@ -61,6 +63,8 @@ export default function StoreDetailScreen() {
           {summary.storeName}
         </Text>
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}>
         {/* Stats */}
