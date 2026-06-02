@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 /**
  * Reactive online/offline status from React Query's `onlineManager`. On web
  * (incl. the installed PWA) this tracks the browser's `online`/`offline`
- * events. On native it reports online unless NetInfo is wired into the manager,
- * so the offline UI is effectively web-only — matching where offline launch
- * (the cached app shell) actually applies.
+ * events; on native it tracks real device connectivity via NetInfo, which is
+ * wired into `onlineManager` in `lib/queryClient.ts`. So the offline UI works
+ * on iOS/Android as well as web.
  */
 export function useOnlineStatus(): boolean {
   const [online, setOnline] = useState<boolean>(() => onlineManager.isOnline());

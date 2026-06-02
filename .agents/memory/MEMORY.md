@@ -4,3 +4,4 @@
 - [Entitlement state machine](entitlement-state-machine.md) — paywall: trial window is a FLOOR even in terminal states; past_due must be bounded (never indefinite when periodEnd is null).
 - [Stripe connector environment](stripe-connector-environment.md) — dev/live connection picked by REPLIT_DEPLOYMENT; seed live price from workspace via STRIPE_CONNECTOR_ENVIRONMENT=production override.
 - [Native premium-bypass header](native-premium-bypass-header.md) — raw expoFetch calls to requirePremium routes must manually send x-client-platform:Platform.OS or native users get wrongly 403'd.
+- [Native React Query online detection](native-onlinemanager-netinfo.md) — onlineManager assumes always-online on RN; wire NetInfo (Expo-bundled version) on native only, web keeps its default listener.
