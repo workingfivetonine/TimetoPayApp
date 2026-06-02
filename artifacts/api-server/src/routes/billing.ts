@@ -24,10 +24,7 @@ const router = Router();
 
 // Base URL of the public web app (same domain as the API behind the proxy).
 function webBaseUrl(req: Request): string {
-  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-  if (domain) return `https://${domain}`;
-  const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol;
-  return `${proto}://${req.get("host")}`;
+  return process.env.WEB_BASE_URL ?? "https://5to9shopping.com";
 }
 
 async function loadUser(userId: string) {
