@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 
 type AuthView = "signin" | "forgot";
 type ForgotStep = "email" | "reset";
@@ -84,6 +86,10 @@ export default function SignInPage() {
 
   const handleSubmitNewPassword = async () => {
     setLocalError(null);
+    if (!passwordMeetsPolicy(newPassword)) {
+      setLocalError("Your new password doesn't meet the requirements below.");
+      return;
+    }
     const { error: verifyErr } = await signIn.resetPasswordEmailCode.verifyCode({ code: resetCode });
     if (verifyErr) {
       setLocalError(clerkErrorMessage(verifyErr));
@@ -239,6 +245,8 @@ export default function SignInPage() {
                     onSubmitEditing={handleSubmitNewPassword}
                   />
 
+                  <PasswordRequirements password={newPassword} />
+
                   {shownError ? (
                     <Text style={[styles.error, { color: colors.destructive }]}>{shownError}</Text>
                   ) : null}
@@ -247,10 +255,10 @@ export default function SignInPage() {
                     style={[
                       styles.button,
                       { backgroundColor: colors.primary },
-                      (!resetCode || !newPassword || busy) && styles.buttonDisabled,
+                      (!resetCode || !passwordMeetsPolicy(newPassword) || busy) && styles.buttonDisabled,
                     ]}
                     onPress={handleSubmitNewPassword}
-                    disabled={!resetCode || !newPassword || busy}
+                    disabled={!resetCode || !passwordMeetsPolicy(newPassword) || busy}
                     activeOpacity={0.85}
                   >
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Update password</Text>}

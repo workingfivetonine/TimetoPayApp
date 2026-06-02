@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 
 export default function SignUpPage() {
   const { signUp, errors, fetchStatus } = useSignUp();
@@ -28,6 +30,7 @@ export default function SignUpPage() {
   const busy = fetchStatus === "fetching";
 
   const handleSubmit = async () => {
+    if (!passwordMeetsPolicy(password)) return;
     const { error } = await signUp.password({ emailAddress, password });
     if (error) return;
     await signUp.verifications.sendEmailCode();
@@ -138,6 +141,8 @@ export default function SignUpPage() {
                 onChangeText={setPassword}
               />
 
+              <PasswordRequirements password={password} />
+
               {formError ? (
                 <Text style={[styles.error, { color: colors.destructive }]}>{formError}</Text>
               ) : null}
@@ -146,10 +151,10 @@ export default function SignUpPage() {
                 style={[
                   styles.button,
                   { backgroundColor: colors.primary },
-                  (!emailAddress || !password || busy) && styles.buttonDisabled,
+                  (!emailAddress || !passwordMeetsPolicy(password) || busy) && styles.buttonDisabled,
                 ]}
                 onPress={handleSubmit}
-                disabled={!emailAddress || !password || busy}
+                disabled={!emailAddress || !passwordMeetsPolicy(password) || busy}
                 activeOpacity={0.85}
               >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
