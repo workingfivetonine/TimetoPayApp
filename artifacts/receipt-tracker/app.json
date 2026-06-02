@@ -23,13 +23,13 @@
     "web": {
       "favicon": "./assets/images/favicon.png",
       "bundler": "metro",
-      "output": "single"
+      "output": "static"
     },
     "plugins": [
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "expo-router"
         }
       ],
       "expo-font",
