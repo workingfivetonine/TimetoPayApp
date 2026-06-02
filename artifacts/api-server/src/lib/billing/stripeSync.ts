@@ -43,17 +43,13 @@ export async function initStripe(): Promise<void> {
 
   const sync = await getStripeSync();
 
-  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-  if (domain) {
-    const webhookUrl = `https://${domain}/api/stripe/webhook`;
-    try {
-      await sync.findOrCreateManagedWebhook(webhookUrl);
-      logger.info({ webhookUrl }, "Stripe managed webhook ready");
-    } catch (err) {
-      logger.error({ err }, "Failed to set up Stripe managed webhook");
-    }
-  }
-
+  const webhookUrl = `https://api.5to9shopping.com/api/stripe/webhook`;
+try {
+  await sync.findOrCreateManagedWebhook(webhookUrl);
+  logger.info({ webhookUrl }, "Stripe managed webhook ready");
+} catch (err) {
+  logger.error({ err }, "Failed to set up Stripe managed webhook");
+}
   void sync
     .syncBackfill()
     .then(() => logger.info("Stripe data backfill complete"))
