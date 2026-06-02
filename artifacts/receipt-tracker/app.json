@@ -29,7 +29,7 @@
       [
         "expo-router",
         {
-          "origin": "expo-router"
+          "origin": "https://5to9shopping.com"
         }
       ],
       "expo-font",
