@@ -311,6 +311,16 @@ export interface AdminActionResult {
   success: boolean;
 }
 
+export interface AdminReviewDigestResult {
+  sent: boolean;
+  reason?: string | null;
+  recipient?: string | null;
+  total: number;
+  newItems: number;
+  newStores: number;
+  newUsers: number;
+}
+
 export interface AdminReceiptSummary {
   id: number;
   storeName: string;

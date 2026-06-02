@@ -966,6 +966,20 @@ export const AddCatalogItemToListResponse = zod.object({
 
 
 /**
+ * @summary Send a review digest email to the admin now (test/preview, admin only)
+ */
+export const AdminSendTestReviewDigestResponse = zod.object({
+  "sent": zod.boolean(),
+  "reason": zod.string().nullish(),
+  "recipient": zod.string().nullish(),
+  "total": zod.number(),
+  "newItems": zod.number(),
+  "newStores": zod.number(),
+  "newUsers": zod.number()
+})
+
+
+/**
  * @summary Global most-recent price per canonical item across all users (admin only)
  */
 export const AdminGetGlobalPricesResponseItem = zod.object({

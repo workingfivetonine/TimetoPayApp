@@ -23,6 +23,7 @@ import type {
   AdminActionResult,
   AdminMergeResult,
   AdminMergeUsersInput,
+  AdminReviewDigestResult,
   AdminSetRoleInput,
   AdminSubscriber,
   AdminUser,
@@ -3816,6 +3817,76 @@ export const useAddCatalogItemToList = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAddCatalogItemToListMutationOptions(options));
+    }
+
+export const getAdminSendTestReviewDigestUrl = () => {
+
+
+
+
+  return `/api/admin/review-digest/test`
+}
+
+/**
+ * @summary Send a review digest email to the admin now (test/preview, admin only)
+ */
+export const adminSendTestReviewDigest = async ( options?: RequestInit): Promise<AdminReviewDigestResult> => {
+
+  return customFetch<AdminReviewDigestResult>(getAdminSendTestReviewDigestUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminSendTestReviewDigestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSendTestReviewDigest>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminSendTestReviewDigest>>, TError,void, TContext> => {
+
+const mutationKey = ['adminSendTestReviewDigest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminSendTestReviewDigest>>, void> = () => {
+
+
+          return  adminSendTestReviewDigest(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminSendTestReviewDigestMutationResult = NonNullable<Awaited<ReturnType<typeof adminSendTestReviewDigest>>>
+
+    export type AdminSendTestReviewDigestMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a review digest email to the admin now (test/preview, admin only)
+ */
+export const useAdminSendTestReviewDigest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminSendTestReviewDigest>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminSendTestReviewDigest>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAdminSendTestReviewDigestMutationOptions(options));
     }
 
 export const getAdminGetGlobalPricesUrl = () => {

@@ -10,6 +10,7 @@ export * from './adminActionResult';
 export * from './adminMergeResult';
 export * from './adminMergeUsersInput';
 export * from './adminReceiptSummary';
+export * from './adminReviewDigestResult';
 export * from './adminSetRoleInput';
 export * from './adminSubscriber';
 export * from './adminSubscriberProvider';

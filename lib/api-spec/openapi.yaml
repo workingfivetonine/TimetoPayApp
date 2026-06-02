@@ -971,6 +971,19 @@ paths:
         "404":
           description: Catalog item not found
 
+  /admin/review-digest/test:
+    post:
+      operationId: adminSendTestReviewDigest
+      tags: [admin]
+      summary: Send a review digest email to the admin now (test/preview, admin only)
+      responses:
+        "200":
+          description: Result of the manual digest send
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReviewDigestResult"
+
   /admin/catalog/global:
     get:
       operationId: adminGetGlobalPrices
@@ -1571,6 +1584,27 @@ components:
       properties:
         success:
           type: boolean
+
+    AdminReviewDigestResult:
+      type: object
+      required: [sent, total, newItems, newStores, newUsers]
+      properties:
+        sent:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        recipient:
+          type: string
+          nullable: true
+        total:
+          type: integer
+        newItems:
+          type: integer
+        newStores:
+          type: integer
+        newUsers:
+          type: integer
 
     AdminReceiptSummary:
       type: object

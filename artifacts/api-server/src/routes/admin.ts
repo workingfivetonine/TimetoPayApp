@@ -13,6 +13,7 @@ import { AdminSetUserRoleBody, AdminMergeUsersBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { normalizeName } from "../lib/catalog";
 import { computeEntitlement } from "../lib/billing/entitlement";
+import { runAdminDigest } from "../lib/adminDigest";
 
 const router = Router();
 
@@ -416,6 +417,23 @@ router.get("/users/:userId/receipts", async (req, res): Promise<void> => {
       notes: r.receipt.notes ?? null,
       createdAt: r.receipt.createdAt.toISOString(),
     })),
+  });
+});
+
+// Manually send a review digest email to the admin now (test/preview). Unlike
+// the scheduled digest, this always sends (even when nothing is new) and does
+// NOT advance the cursor, so it's a safe wiring check that won't consume the
+// queue the next scheduled digest would report.
+router.post("/review-digest/test", async (req, res) => {
+  const result = await runAdminDigest({ trigger: "manual" });
+  res.json({
+    sent: result.sent,
+    reason: result.reason ?? null,
+    recipient: result.recipient ?? null,
+    total: result.digest.total,
+    newItems: result.digest.items.count,
+    newStores: result.digest.stores.count,
+    newUsers: result.digest.users.count,
   });
 });
 

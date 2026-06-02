@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runStartupReconciliations } from "./lib/bootstrap";
 import { initStripe } from "./lib/billing/stripeSync";
+import { startAdminDigestScheduler } from "./lib/adminDigestScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -33,4 +34,8 @@ app.listen(port, (err) => {
   void initStripe().catch((err) =>
     logger.error({ err }, "Stripe init failed"),
   );
+
+  // Periodic admin review digest (new catalog items / stores / users). Unref'd
+  // timers; no-op if Gmail isn't connected or no admin email is on file.
+  startAdminDigestScheduler();
 });
