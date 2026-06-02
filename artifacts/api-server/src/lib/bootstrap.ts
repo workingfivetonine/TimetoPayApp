@@ -74,6 +74,33 @@ async function backfillStoreRegions(): Promise<void> {
   }
 }
 
+// The one-time "Choose your plan" onboarding step (web) is shown to signed-in
+// users whose `planSelectedAt` is NULL. It was added after users already
+// existed, so every pre-existing user would otherwise be force-routed through it
+// — violating the rule that RETURNING users skip onboarding. We treat any user
+// who has already completed the earlier region-setup step (countryCode set) as a
+// returning user and mark their plan choice as made, so only genuinely new
+// accounts (which pick a region then a plan in one flow) ever see the screen.
+// Idempotent: once stamped the rows no longer match (planSelectedAt non-null).
+async function backfillPlanSelected(): Promise<void> {
+  const updated = await db
+    .update(usersTable)
+    .set({ planSelectedAt: sql`now()` })
+    .where(
+      and(
+        sql`${usersTable.countryCode} is not null`,
+        sql`${usersTable.planSelectedAt} is null`,
+      ),
+    )
+    .returning({ id: usersTable.id });
+  if (updated.length > 0) {
+    logger.info(
+      { count: updated.length },
+      "Backfilled planSelectedAt for returning users (skip choose-plan onboarding)",
+    );
+  }
+}
+
 // Keep the `role` label in sync with the `isAdmin` power flag for the elected
 // admin. Backfills role='master_admin' for the existing admin after the role
 // column is introduced. Idempotent (no-op once roles agree).
@@ -175,6 +202,7 @@ export async function runStartupReconciliations(): Promise<void> {
     await ensureAdminExists();
     await releaseLegacyAdminData();
     await backfillStoreRegions();
+    await backfillPlanSelected();
   } catch (err) {
     logger.error({ err }, "Startup reconciliation failed");
   }
