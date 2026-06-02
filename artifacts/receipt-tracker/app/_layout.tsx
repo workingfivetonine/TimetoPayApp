@@ -26,6 +26,7 @@ import {
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
+import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { DataProvider } from "@/context/DataContext";
 import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
 import {
@@ -171,6 +172,7 @@ function InitialLayout() {
     <>
       <RootLayoutNav />
       <AnnualOfferModal />
+      <UpdatePrompt />
     </>
   );
 }
