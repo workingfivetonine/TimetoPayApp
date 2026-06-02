@@ -622,10 +622,44 @@ export const DetectReceiptBoundsResponse = zod.object({
 
 
 /**
- * @summary Parse a PDF receipt (online order confirmation) and save it
+ * @summary Parse a PDF receipt and save it; each page becomes its own receipt
  */
 export const ParsePdfReceiptBody = zod.object({
   "pdfBase64": zod.string()
+})
+
+
+/**
+ * @summary Merge two or more of the user's receipts into a single receipt
+ */
+export const mergeReceiptsBodyReceiptIdsMin = 2;
+
+
+
+export const MergeReceiptsBody = zod.object({
+  "receiptIds": zod.array(zod.number()).min(mergeReceiptsBodyReceiptIdsMin)
+})
+
+export const MergeReceiptsResponse = zod.object({
+  "id": zod.number(),
+  "storeId": zod.number(),
+  "storeName": zod.string(),
+  "purchasedAt": zod.string(),
+  "total": zod.number(),
+  "totalBeforeTax": zod.number().nullish(),
+  "imageUri": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "receiptId": zod.number(),
+  "itemId": zod.number(),
+  "itemName": zod.string(),
+  "icon": zod.string().nullish(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "createdAt": zod.string()
+})),
+  "createdAt": zod.string()
 })
 
 

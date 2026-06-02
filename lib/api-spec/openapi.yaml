@@ -639,7 +639,7 @@ paths:
     post:
       operationId: parsePdfReceipt
       tags: [receipts-ai]
-      summary: Parse a PDF receipt (online order confirmation) and save it
+      summary: Parse a PDF receipt and save it; each page becomes its own receipt
       requestBody:
         required: true
         content:
@@ -648,7 +648,26 @@ paths:
               $ref: "#/components/schemas/ParsePdfInput"
       responses:
         "201":
-          description: Saved receipt with all data
+          description: One saved receipt per PDF page that contained items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParsedReceiptsResult"
+
+  /receipts/merge:
+    post:
+      operationId: mergeReceipts
+      tags: [receipts]
+      summary: Merge two or more of the user's receipts into a single receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeReceiptsInput"
+      responses:
+        "200":
+          description: The merged receipt
           content:
             application/json:
               schema:
@@ -2363,6 +2382,25 @@ components:
       properties:
         pdfBase64:
           type: string
+
+    ParsedReceiptsResult:
+      type: object
+      required: [receipts]
+      properties:
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptDetail"
+
+    MergeReceiptsInput:
+      type: object
+      required: [receiptIds]
+      properties:
+        receiptIds:
+          type: array
+          minItems: 2
+          items:
+            type: integer
 
     ReceiptBounds:
       type: object

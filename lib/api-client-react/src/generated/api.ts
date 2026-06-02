@@ -57,11 +57,13 @@ import type {
   LineItemUpdate,
   ManualEntryInput,
   MergeItemInput,
+  MergeReceiptsInput,
   NotificationPreferences,
   NotificationPreferencesInput,
   ParsePdfInput,
   ParseReceiptInput,
   ParsedReceipt,
+  ParsedReceiptsResult,
   PaypalFinalizeInput,
   RanOutResponse,
   Receipt,
@@ -2526,11 +2528,11 @@ export const getParsePdfReceiptUrl = () => {
 }
 
 /**
- * @summary Parse a PDF receipt (online order confirmation) and save it
+ * @summary Parse a PDF receipt and save it; each page becomes its own receipt
  */
-export const parsePdfReceipt = async (parsePdfInput: ParsePdfInput, options?: RequestInit): Promise<ReceiptDetail> => {
+export const parsePdfReceipt = async (parsePdfInput: ParsePdfInput, options?: RequestInit): Promise<ParsedReceiptsResult> => {
 
-  return customFetch<ReceiptDetail>(getParsePdfReceiptUrl(),
+  return customFetch<ParsedReceiptsResult>(getParsePdfReceiptUrl(),
   {
     ...options,
     method: 'POST',
@@ -2575,7 +2577,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ParsePdfReceiptMutationError = ErrorType<unknown>
 
     /**
- * @summary Parse a PDF receipt (online order confirmation) and save it
+ * @summary Parse a PDF receipt and save it; each page becomes its own receipt
  */
 export const useParsePdfReceipt = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof parsePdfReceipt>>, TError,{data: BodyType<ParsePdfInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -2586,6 +2588,77 @@ export const useParsePdfReceipt = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getParsePdfReceiptMutationOptions(options));
+    }
+
+export const getMergeReceiptsUrl = () => {
+
+
+
+
+  return `/api/receipts/merge`
+}
+
+/**
+ * @summary Merge two or more of the user's receipts into a single receipt
+ */
+export const mergeReceipts = async (mergeReceiptsInput: MergeReceiptsInput, options?: RequestInit): Promise<ReceiptDetail> => {
+
+  return customFetch<ReceiptDetail>(getMergeReceiptsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      mergeReceiptsInput,)
+  }
+);}
+
+
+
+
+export const getMergeReceiptsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeReceipts>>, TError,{data: BodyType<MergeReceiptsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mergeReceipts>>, TError,{data: BodyType<MergeReceiptsInput>}, TContext> => {
+
+const mutationKey = ['mergeReceipts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergeReceipts>>, {data: BodyType<MergeReceiptsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mergeReceipts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MergeReceiptsMutationResult = NonNullable<Awaited<ReturnType<typeof mergeReceipts>>>
+    export type MergeReceiptsMutationBody = BodyType<MergeReceiptsInput>
+    export type MergeReceiptsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Merge two or more of the user's receipts into a single receipt
+ */
+export const useMergeReceipts = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeReceipts>>, TError,{data: BodyType<MergeReceiptsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mergeReceipts>>,
+        TError,
+        {data: BodyType<MergeReceiptsInput>},
+        TContext
+      > => {
+      return useMutation(getMergeReceiptsMutationOptions(options));
     }
 
 export const getGetCurrentUserUrl = () => {

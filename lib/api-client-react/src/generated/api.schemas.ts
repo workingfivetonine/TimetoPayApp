@@ -816,6 +816,15 @@ export interface ParsePdfInput {
   pdfBase64: string;
 }
 
+export interface ParsedReceiptsResult {
+  receipts: ReceiptDetail[];
+}
+
+export interface MergeReceiptsInput {
+  /** @minItems 2 */
+  receiptIds: number[];
+}
+
 export interface ReceiptBounds {
   /** Left edge as fraction of image width (0–1) */
   x: number;

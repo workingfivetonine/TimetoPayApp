@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, inArray } from "drizzle-orm";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { tmpdir } from "os";
@@ -13,6 +13,7 @@ import {
   CreateReceiptBody,
   AddLineItemBody,
   UpdateLineItemBody,
+  MergeReceiptsBody,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
@@ -23,7 +24,15 @@ import { requirePremium } from "../middlewares/requireEntitlement.js";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (
   buf: Buffer,
-  options?: { max?: number },
+  options?: {
+    max?: number;
+    // Custom per-page renderer. pdf-parse calls this once per page in order; we
+    // use it to collect each page's text separately so a multi-page PDF can be
+    // split into one receipt per page.
+    pagerender?: (pageData: {
+      getTextContent: (opts?: object) => Promise<{ items: { str: string }[] }>;
+    }) => Promise<string>;
+  },
 ) => Promise<{ text: string; numpages: number }> = require("pdf-parse/lib/pdf-parse.js");
 const execFileAsync = promisify(execFile);
 
@@ -98,18 +107,23 @@ async function renderPdfToImages(
   pdfPath: string,
   imgPrefix: string,
   tempFiles: string[],
+  // When set, render ONLY this 1-based page (used to split a multi-page PDF into
+  // one receipt per page). When omitted, render the first PDF_MAX_PAGES.
+  onlyPage?: number,
 ): Promise<string[]> {
   const dims = await readPdfDims(pdfPath);
 
   // Fallback: no reliable dims — render full pages at the base DPI (original
-  // behavior), still bounded to the first PDF_MAX_PAGES.
+  // behavior), still bounded to the first PDF_MAX_PAGES (or the single page).
   if (!dims) {
+    const first = onlyPage ?? 1;
+    const last = onlyPage ?? PDF_MAX_PAGES;
     await execFileAsync(
       "pdftoppm",
-      ["-jpeg", "-r", String(PDF_RENDER_DPI), "-f", "1", "-l", String(PDF_MAX_PAGES), pdfPath, imgPrefix],
+      ["-jpeg", "-r", String(PDF_RENDER_DPI), "-f", String(first), "-l", String(last), pdfPath, imgPrefix],
       { timeout: PDFTOPPM_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
     );
-    const files = (await collectJpegs(imgPrefix)).slice(0, PDF_MAX_PAGES);
+    const files = (await collectJpegs(imgPrefix)).slice(0, MAX_RENDER_IMAGES);
     tempFiles.push(...files);
     return files;
   }
@@ -127,9 +141,11 @@ async function renderPdfToImages(
   const heightPx = Math.ceil((dims.heightPt * dpi) / 72);
   const bandsPerPage = Math.max(1, Math.ceil(heightPx / MAX_BAND_HEIGHT_PX));
   const pageCount = Math.min(dims.pages, PDF_MAX_PAGES);
+  const firstPage = onlyPage ?? 1;
+  const lastPage = onlyPage ?? pageCount;
 
   const out: string[] = [];
-  for (let page = 1; page <= pageCount; page++) {
+  for (let page = firstPage; page <= lastPage; page++) {
     for (let band = 0; band < bandsPerPage; band++) {
       if (out.length >= MAX_RENDER_IMAGES) return out;
       const y = band * MAX_BAND_HEIGHT_PX;
@@ -299,6 +315,115 @@ router.get("/", async (req, res): Promise<void> => {
   res.json(
     rows.map((r) => formatReceipt(r.receipt, r.storeName ?? "Unknown"))
   );
+});
+
+// Merge two or more of the user's receipts into a single receipt. All line
+// items are reassigned to the earliest-purchased receipt (the "target"); the
+// other ("source") receipts are deleted. Useful after a multi-page PDF or a
+// multi-photo upload split one logical purchase across several receipts.
+router.post("/merge", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const parsed = MergeReceiptsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  // De-dup ids so a repeated id can't make a receipt its own merge source.
+  const receiptIds = [...new Set(parsed.data.receiptIds)];
+  if (receiptIds.length < 2) {
+    res.status(400).json({ error: "Select at least two distinct receipts to merge" });
+    return;
+  }
+
+  try {
+    const targetId = await db.transaction(async (tx) => {
+      // Load + row-lock every requested receipt, scoped to this user. If any id
+      // is missing/not owned, the whole merge fails (404).
+      const rows = await tx
+        .select({ receipt: receiptsTable, storeName: storesTable.name })
+        .from(receiptsTable)
+        .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+        .where(and(eq(receiptsTable.userId, userId), inArray(receiptsTable.id, receiptIds)))
+        .for("update");
+
+      if (rows.length !== receiptIds.length) {
+        const err = new Error("not_found") as Error & { status?: number };
+        err.status = 404;
+        throw err;
+      }
+
+      // Target = earliest purchasedAt; tie-break on lowest id for determinism.
+      const sorted = [...rows].sort((a, b) => {
+        const t = a.receipt.purchasedAt.getTime() - b.receipt.purchasedAt.getTime();
+        return t !== 0 ? t : a.receipt.id - b.receipt.id;
+      });
+      const target = sorted[0].receipt;
+      const sources = sorted.slice(1).map((r) => r.receipt);
+      const sourceIds = sources.map((r) => r.id);
+
+      // Move every source line item onto the target receipt.
+      await tx
+        .update(lineItemsTable)
+        .set({ receiptId: target.id })
+        .where(inArray(lineItemsTable.receiptId, sourceIds));
+
+      // Combined total = sum of all receipt totals (numeric column → string).
+      const combinedTotal = rows.reduce((sum, r) => sum + Number(r.receipt.total), 0);
+      // Keep totalBeforeTax consistent with total: sum it across receipts, but
+      // only if EVERY receipt has it (else the sum would be misleading) — null
+      // otherwise so a stale single-receipt value isn't carried over.
+      const allHaveBeforeTax = rows.every((r) => r.receipt.totalBeforeTax != null);
+      const combinedBeforeTax = allHaveBeforeTax
+        ? String(rows.reduce((sum, r) => sum + Number(r.receipt.totalBeforeTax), 0))
+        : null;
+      await tx
+        .update(receiptsTable)
+        .set({ total: String(combinedTotal), totalBeforeTax: combinedBeforeTax })
+        .where(eq(receiptsTable.id, target.id));
+
+      // Delete the now-empty source receipts (line items already moved).
+      await tx.delete(receiptsTable).where(inArray(receiptsTable.id, sourceIds));
+
+      return target.id;
+    });
+
+    // Return the merged receipt detail (same shape as GET /:id).
+    const rows = await db
+      .select({
+        receipt: receiptsTable,
+        storeName: storesTable.name,
+        lineItem: lineItemsTable,
+        itemName: itemsTable.name,
+        itemIcon: itemsTable.icon,
+      })
+      .from(receiptsTable)
+      .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+      .leftJoin(lineItemsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+      .leftJoin(itemsTable, eq(lineItemsTable.itemId, itemsTable.id))
+      .where(and(eq(receiptsTable.id, targetId), eq(receiptsTable.userId, userId)));
+
+    const receipt = rows[0].receipt;
+    const storeName = rows[0].storeName ?? "Unknown";
+    const lineItems = rows
+      .filter((r) => r.lineItem !== null)
+      .map((r) => ({
+        ...r.lineItem!,
+        itemName: r.itemName ?? "Unknown",
+        icon: r.itemIcon ?? null,
+        price: Number(r.lineItem!.price),
+        quantity: Number(r.lineItem!.quantity),
+        createdAt: r.lineItem!.createdAt.toISOString(),
+      }));
+
+    res.json({ ...formatReceipt(receipt, storeName), lineItems });
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) {
+      res.status(404).json({ error: "One or more receipts were not found" });
+      return;
+    }
+    req.log.error({ err }, "Failed to merge receipts");
+    res.status(500).json({ error: "Failed to merge receipts" });
+  }
 });
 
 router.post("/", async (req, res): Promise<void> => {
@@ -712,7 +837,10 @@ router.post("/save-parsed", async (req, res): Promise<void> => {
   }
 });
 
-// Parse and save a PDF receipt — handles text-based and image-based (scanned) PDFs
+// Parse and save a PDF receipt — handles text-based and image-based (scanned)
+// PDFs. EACH PAGE is parsed independently and saved as its OWN receipt, so a
+// multi-page PDF (e.g. a stack of receipts scanned into one file) yields one
+// receipt per page; the client can then merge any that belong together.
 router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
@@ -722,29 +850,19 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
 
   const id = randomUUID();
   const pdfPath = join(tmpdir(), `receipt-${id}.pdf`);
-  const imgPrefix = join(tmpdir(), `receipt-${id}`);
   const tempFiles: string[] = [pdfPath];
 
-  try {
-    const buffer = Buffer.from(pdfBase64, "base64");
+  type ParsedReceipt = {
+    storeName: string;
+    storeCountryCode?: string | null;
+    storeStateCode?: string | null;
+    purchasedAt: string;
+    total: number;
+    lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
+  };
 
-    // Try text extraction first (works for text-based PDFs). Cap the parse to
-    // the first PDF_MAX_PAGES so a huge document can't make text extraction
-    // itself expensive — we only ever use the first few pages anyway.
-    const pdfData = await pdfParse(buffer, { max: PDF_MAX_PAGES });
-    const extractedText = pdfData.text.trim();
-
-    type ParsedReceipt = {
-      storeName: string;
-      storeCountryCode?: string | null;
-      storeStateCode?: string | null;
-      purchasedAt: string;
-      total: number;
-      lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
-    };
-    let parsed: ParsedReceipt;
-    const today = new Date().toISOString();
-    const jsonSchema = `{
+  const today = new Date().toISOString();
+  const jsonSchema = `{
   "storeName": "store or retailer name",
   "storeCountryCode": "ISO-3166 alpha-2 country code of the store, or null if unknown",
   "storeStateCode": "for a US store only, the USPS 2-letter state code, else null",
@@ -754,87 +872,133 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
     { "name": "item name", "icon": "a single emoji best representing the product", "category": "one of the fixed categories", "price": price per unit as number, "quantity": quantity as number }
   ]
 }`;
-    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null. This may be a forwarded email or a delivery/marketplace order confirmation: set "storeName" to the actual merchant or retailer the goods were bought from (look for labels like "Store", "Merchant", "Sold by", or "Vendor") — never the email sender or recipient, a person's name, the delivery service, or the marketplace platform. "storeName" must always be a non-empty merchant name.`;
+  const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null. This may be a forwarded email or a delivery/marketplace order confirmation: set "storeName" to the actual merchant or retailer the goods were bought from (look for labels like "Store", "Merchant", "Sold by", or "Vendor") — never the email sender or recipient, a person's name, the delivery service, or the marketplace platform. "storeName" must always be a non-empty merchant name. This is a SINGLE page from a larger PDF — only extract what is visible on this page.`;
 
-    if (extractedText.length >= 50) {
-      // Text-based PDF: structural parsing succeeded — charge global budget
-      // immediately before the model call.
-      if (!chargeGlobalAiBudget(res)) return;
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.2",
-        max_completion_tokens: 2048,
-        messages: [{
-          role: "user",
-          content: `Extract receipt data from the following text (from an online order confirmation PDF) and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}\n\nPDF text:\n${extractedText.slice(0, 8000)}`,
-        }],
-      });
-      const content = response.choices[0]?.message?.content ?? "{}";
+  // Tolerant JSON parse: strip ```json fences the model sometimes adds. Returns
+  // null on failure so one bad page is skipped instead of failing the request.
+  const parseJson = (content: string): ParsedReceipt | null => {
+    try {
+      const cleaned = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      return JSON.parse(cleaned) as ParsedReceipt;
+    } catch {
+      return null;
+    }
+  };
+
+  try {
+    const buffer = Buffer.from(pdfBase64, "base64");
+    // We may need to rasterize any page that has too little extractable text, so
+    // write the PDF to disk up front.
+    await writeFile(pdfPath, buffer);
+
+    // Collect each page's text separately (pdf-parse calls pagerender per page,
+    // in order). Image-only pages come back as "" but still occupy a slot, so
+    // pageTexts.length is a reliable page count, capped at PDF_MAX_PAGES.
+    const pageTexts: string[] = [];
+    await pdfParse(buffer, {
+      max: PDF_MAX_PAGES,
+      pagerender: async (pageData) => {
+        try {
+          const tc = await pageData.getTextContent();
+          const text = tc.items.map((i) => i.str).join(" ");
+          pageTexts.push(text);
+          return text;
+        } catch {
+          pageTexts.push("");
+          return "";
+        }
+      },
+    });
+
+    // Fall back to a single page if pagerender produced nothing (e.g. an
+    // unusual PDF structure) so we still attempt an image-based parse.
+    const pageCount = Math.min(Math.max(pageTexts.length, 1), PDF_MAX_PAGES);
+
+    // Charge the shared AI budget once for this request before any model call.
+    if (!chargeGlobalAiBudget(res)) return;
+
+    const results: object[] = [];
+
+    for (let i = 0; i < pageCount; i++) {
+      const pageNum = i + 1;
+      const pageText = (pageTexts[i] ?? "").trim();
+
+      // Each page is processed and persisted INDEPENDENTLY: a failure on one
+      // page (model error, render error, bad JSON, DB insert) must not discard
+      // pages already saved nor abort the whole request — otherwise a retry
+      // would silently re-create the earlier pages as duplicates. We catch
+      // per-page, skip the failed page, and still return whatever succeeded.
       try {
-        parsed = JSON.parse(content) as ParsedReceipt;
-      } catch {
-        res.status(500).json({ error: "Failed to parse AI response as JSON" });
-        return;
-      }
-    } else {
-      // Image-based PDF: rasterize pages with pdftoppm then use Vision.
-      // renderPdfToImages bounds the work to the first PDF_MAX_PAGES (the
-      // expensive step) and wraps every pdftoppm call in a wall-clock timeout +
-      // SIGKILL, so a crafted high-page-count or pathological page can't pin a
-      // worker or balloon CPU/disk — while also width-capping and band-splitting
-      // very tall/wide pages so each image stays within the vision model limits.
-      await writeFile(pdfPath, buffer);
-      const pageFiles = await renderPdfToImages(pdfPath, imgPrefix, tempFiles);
+        let parsed: ParsedReceipt | null = null;
 
-      if (pageFiles.length === 0) {
-        res.status(422).json({ error: "Could not render PDF pages — the file may be corrupted." });
-        return;
-      }
+        if (pageText.length >= 50) {
+          // Text-based page: cheaper + more accurate than rasterizing.
+          const response = await openai.chat.completions.create({
+            model: "gpt-5.2",
+            max_completion_tokens: 2048,
+            messages: [{
+              role: "user",
+              content: `Extract receipt data from the following text (one page of an order confirmation PDF) and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}\n\nPDF page text:\n${pageText.slice(0, 8000)}`,
+            }],
+          });
+          parsed = parseJson(response.choices[0]?.message?.content ?? "{}");
+        } else {
+          // Image-based page: rasterize just this page (width-capped + banded).
+          const pagePrefix = join(tmpdir(), `receipt-${id}-page${pageNum}`);
+          const pageFiles = await renderPdfToImages(pdfPath, pagePrefix, tempFiles, pageNum);
+          if (pageFiles.length === 0) continue;
 
-      // Image-based PDF: pdftoppm succeeded (structural + render validation
-      // both passed) — charge global budget immediately before the vision call.
-      if (!chargeGlobalAiBudget(res)) return;
+          const imageContents = await Promise.all(
+            pageFiles.map(async (f) => {
+              const imgBuf = await readFile(f);
+              return {
+                type: "image_url" as const,
+                image_url: {
+                  url: `data:image/jpeg;base64,${imgBuf.toString("base64")}`,
+                  detail: "high" as const,
+                },
+              };
+            }),
+          );
 
-      const imageContents = await Promise.all(
-        pageFiles.map(async (f) => {
-          const imgBuf = await readFile(f);
-          return {
-            type: "image_url" as const,
-            image_url: {
-              url: `data:image/jpeg;base64,${imgBuf.toString("base64")}`,
-              detail: "high" as const,
-            },
-          };
-        })
-      );
+          const response = await openai.chat.completions.create({
+            model: "gpt-5.2",
+            max_completion_tokens: 2048,
+            messages: [{
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `This is one page from a receipt or order confirmation PDF. Extract the receipt data and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}`,
+                },
+                ...imageContents,
+              ],
+            }],
+          });
+          parsed = parseJson(response.choices[0]?.message?.content ?? "{}");
+        }
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.2",
-        max_completion_tokens: 2048,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `These are pages from a receipt or order confirmation PDF. Extract the receipt data and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}`,
-            },
-            ...imageContents,
-          ],
-        }],
-      });
+        // Skip blank/unreadable pages (no items) so a cover page or trailing
+        // blank page doesn't create an empty receipt.
+        if (!parsed || !Array.isArray(parsed.lineItems) || parsed.lineItems.length === 0) {
+          continue;
+        }
 
-      const content = response.choices[0]?.message?.content ?? "{}";
-      try {
-        parsed = JSON.parse(content) as ParsedReceipt;
-      } catch {
-        res.status(500).json({ error: "Failed to parse AI response as JSON" });
-        return;
+        const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
+        results.push({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
+      } catch (pageErr) {
+        req.log.warn({ err: pageErr, pageNum }, "Failed to parse one PDF page; skipping");
       }
     }
 
-    // Persist receipt and line items (scoped to this user)
-    const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
+    if (results.length === 0) {
+      res.status(422).json({
+        error: "We couldn't read any receipts from this PDF — it may be blank, scanned at low quality, or not a receipt.",
+      });
+      return;
+    }
 
-    res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
+    res.status(201).json({ receipts: results });
   } catch (err) {
     req.log.error({ err }, "Failed to parse PDF receipt");
     res.status(500).json({ error: "Failed to process PDF receipt" });

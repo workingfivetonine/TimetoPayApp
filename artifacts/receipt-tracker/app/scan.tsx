@@ -27,6 +27,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
+import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceipts";
 import { getApiOrigin } from "@/lib/apiBase";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
@@ -37,6 +38,26 @@ interface PendingImage {
   base64: string;
   width: number;
   height: number;
+}
+
+// Minimal shape we need from a saved-receipt response (parse-and-save / each
+// parse-pdf page) to build a batch-review summary.
+interface SavedReceipt {
+  id: number;
+  storeName?: string | null;
+  total?: number | null;
+  purchasedAt?: string | null;
+  lineItems?: unknown[];
+}
+
+function toSummary(saved: SavedReceipt): BatchReceiptSummary {
+  return {
+    id: saved.id,
+    storeName: saved.storeName ?? "Unknown Store",
+    total: saved.total ?? 0,
+    itemCount: saved.lineItems?.length ?? 0,
+    purchasedAt: saved.purchasedAt ?? new Date().toISOString(),
+  };
 }
 
 export default function ScanScreen() {
@@ -125,7 +146,7 @@ export default function ScanScreen() {
     ]);
   };
 
-  const callApi = async (path: string, body: object) => {
+  const callApi = async <T,>(path: string, body: object): Promise<T> => {
     const url = `${getApiOrigin()}/api/receipts/${path}`;
     const token = await getToken();
     const response = await expoFetch(url, {
@@ -139,7 +160,7 @@ export default function ScanScreen() {
     });
     if (response.status === 403) throw new PremiumRequiredError();
     if (!response.ok) throw new UploadError(response.status);
-    return response.json() as Promise<{ id: number }>;
+    return response.json() as Promise<T>;
   };
 
   const handlePickImage = async () => {
@@ -147,16 +168,86 @@ export default function ScanScreen() {
       mediaTypes: ["images"],
       base64: true,
       quality: 1.0,
+      allowsMultipleSelection: true,
     });
-    if (result.canceled || !result.assets[0]?.base64) return;
-    const asset = result.assets[0];
+    if (result.canceled || result.assets.length === 0) return;
+
+    const assets = result.assets.filter((a) => a.base64);
+    if (assets.length === 0) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setPendingImage({
-      uri: asset.uri,
-      base64: asset.base64!,
-      width: asset.width,
-      height: asset.height,
-    });
+
+    // Single photo → the existing crop-and-review flow. Multiple photos →
+    // each becomes its own receipt, then the batch-review screen lets the user
+    // merge any that belong together.
+    if (assets.length === 1) {
+      const asset = assets[0];
+      setPendingImage({
+        uri: asset.uri,
+        base64: asset.base64!,
+        width: asset.width,
+        height: asset.height,
+      });
+    } else {
+      await parseMultipleImages(assets.map((a) => a.base64!));
+    }
+  };
+
+  // Parse several photos at once, saving each as its own receipt. Failures on
+  // individual photos are collected and reported without aborting the rest.
+  const parseMultipleImages = async (imagesBase64: string[]) => {
+    setScanning(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const summaries: BatchReceiptSummary[] = [];
+    let premiumBlocked = false;
+    let failures = 0;
+    try {
+      for (let i = 0; i < imagesBase64.length; i++) {
+        setScanningLabel(`Analyzing photo ${i + 1} of ${imagesBase64.length}…`);
+        try {
+          const saved = await callApi<SavedReceipt>("parse-and-save", {
+            imageBase64: imagesBase64[i],
+          });
+          summaries.push(toSummary(saved));
+        } catch (err) {
+          if (err instanceof PremiumRequiredError) {
+            premiumBlocked = true;
+            break;
+          }
+          failures++;
+        }
+      }
+    } finally {
+      setScanning(false);
+    }
+
+    if (premiumBlocked && summaries.length === 0) {
+      promptUpgrade();
+      return;
+    }
+
+    if (summaries.length === 0) {
+      showUploadFailure(new UploadError(422), "image", () =>
+        parseMultipleImages(imagesBase64),
+      );
+      return;
+    }
+
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    invalidateAll();
+
+    if (failures > 0) {
+      Alert.alert(
+        "Some photos couldn't be read",
+        `We saved ${summaries.length} of ${imagesBase64.length} photos. The rest couldn't be read — you can add those manually.`,
+      );
+    }
+
+    if (summaries.length === 1) {
+      router.replace(`/receipt/${summaries[0].id}`);
+    } else {
+      setBatchReceipts(summaries);
+      router.replace("/batch-review");
+    }
   };
 
   const handleEditorConfirm = async (editedBase64: string) => {
@@ -246,10 +337,20 @@ export default function ScanScreen() {
     setScanningLabel("Extracting PDF with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const receipt = await callApi("parse-pdf", { pdfBase64: base64 });
+      const { receipts } = await callApi<{ receipts: SavedReceipt[] }>("parse-pdf", {
+        pdfBase64: base64,
+      });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       invalidateAll();
-      router.replace(`/receipt/${receipt.id}`);
+      // One page → straight to that receipt. Multiple pages each became their
+      // own receipt → batch-review so the user can merge any that belong
+      // together.
+      if (receipts.length === 1) {
+        router.replace(`/receipt/${receipts[0].id}`);
+      } else {
+        setBatchReceipts(receipts.map(toSummary));
+        router.replace("/batch-review");
+      }
     } catch (err) {
       if (err instanceof PremiumRequiredError) promptUpgrade();
       else showUploadFailure(err, "pdf", () => parsePdf(base64));
