@@ -113,7 +113,14 @@ function InitialLayout() {
   const needsRegion = isSignedIn && me != null && !me.countryCode;
   // After region is set, a brand-new user picks a plan once (Subscribe / trial /
   // free). planSelected flips permanently after any choice on /choose-plan.
-  const needsPlan = isSignedIn && me != null && !!me.countryCode && !me.planSelected;
+  // Web-only: native is never paywalled, so mobile onboarding must NOT be routed
+  // through the plan picker (the choice is meaningless there).
+  const needsPlan =
+    Platform.OS === "web" &&
+    isSignedIn &&
+    me != null &&
+    !!me.countryCode &&
+    !me.planSelected;
 
   // Freemium model: we no longer redirect lapsed web users to the paywall.
   // Free users keep full access to their own data; premium surfaces (AI scan,

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
@@ -281,6 +282,7 @@ export default function ImageEditor({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "x-client-platform": Platform.OS,
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ imageBase64: imgRef.current.uri.startsWith("data:")

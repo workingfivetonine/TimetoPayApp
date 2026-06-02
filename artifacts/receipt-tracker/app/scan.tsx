@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -79,6 +80,7 @@ export default function ScanScreen() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-client-platform": Platform.OS,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
@@ -117,6 +119,7 @@ export default function ScanScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-client-platform": Platform.OS,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ imageBase64: editedBase64 }),
