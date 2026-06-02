@@ -42,6 +42,6 @@ app.listen(port, (err) => {
 
   // Periodic opt-in email reminders (payment / list-export / receipt-inactivity
   // / spend summaries) for subscription-related users. Unref'd timer; graceful
-  // no-op when SendGrid isn't connected.
+  // no-op when Resend isn't connected.
   startReminderScheduler();
 });

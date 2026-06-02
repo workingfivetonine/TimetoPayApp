@@ -4,7 +4,7 @@ import { runReminderSweep } from "./reminders";
 // In-process opt-in email reminder scheduler. Unref'd timer (single-instance
 // deployment). Each reminder type is idempotent per period via the per-type
 // "last sent" cursors on the user row, so repeated sweeps (including after a
-// restart) never double-send. When SendGrid isn't configured the sweep is a
+// restart) never double-send. When Resend isn't configured the sweep is a
 // graceful no-op. NOTE: a scale-to-zero deployment may sleep between requests and
 // miss ticks — acceptable here (the next tick after wake catches up any reminder
 // still inside its window).

@@ -1,5 +1,5 @@
 // Playful copy helpers for the receipt-upload "you've gone quiet" nudge. The
-// SendGrid Dynamic Template owns the real layout; we only feed it a couple of
+// code-rendered email template owns the real layout; we only feed it a couple of
 // pre-baked strings so the tone is consistent and a little cheeky without being
 // mean. Personalization (a name + a specific neglected staple) is woven in when
 // we have the data, with graceful generic fallbacks when we don't.

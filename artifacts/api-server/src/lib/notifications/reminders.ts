@@ -4,9 +4,9 @@
 // period using the per-type "last sent" cursors on `usersTable`. Recipients are
 // gated to subscription-related users only (entitled trialing/active/comped, or
 // past_due) via `computeEntitlement`, and each type also honors the user's
-// opt-out toggle. Every send goes through SendGrid Dynamic Templates; when
-// SendGrid (or a template id) isn't configured the send is a graceful no-op and
-// the cursor is NOT advanced, so reminders resume once configuration lands.
+// opt-out toggle. Every send goes through Resend with code-rendered HTML (see
+// `lib/email/templates.ts`); when Resend isn't configured the send is a graceful
+// no-op and the cursor is NOT advanced, so reminders resume once config lands.
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 import {
   db,
@@ -16,7 +16,15 @@ import {
   lineItemsTable,
 } from "@workspace/db";
 import { computeEntitlement, TRIAL_DAYS } from "../billing/entitlement";
-import { sendDynamicTemplate } from "../email/sendgridClient";
+import { sendEmail } from "../email/resendClient";
+import {
+  renderTrialEnding,
+  renderPastDue,
+  renderListExport,
+  renderReceiptInactivity,
+  renderWeeklySummary,
+  renderMonthlySummary,
+} from "../email/templates";
 import {
   comparePeriods,
   monthStartOf,
@@ -39,19 +47,6 @@ const RECEIPT_INACTIVITY_COOLDOWN_DAYS = 7;
 const NEGLECTED_STAPLE_DAYS = 21;
 
 type UserRow = typeof usersTable.$inferSelect;
-
-// Template ids live in env so the SendGrid design can change without a deploy.
-function templateId(envVar: string): string | undefined {
-  return process.env[envVar]?.trim() || undefined;
-}
-const TEMPLATES = {
-  trialEnding: () => templateId("SENDGRID_TEMPLATE_TRIAL_ENDING"),
-  pastDue: () => templateId("SENDGRID_TEMPLATE_PAST_DUE"),
-  listExport: () => templateId("SENDGRID_TEMPLATE_LIST_EXPORT"),
-  receiptInactivity: () => templateId("SENDGRID_TEMPLATE_RECEIPT_INACTIVITY"),
-  weeklySummary: () => templateId("SENDGRID_TEMPLATE_WEEKLY_SUMMARY"),
-  monthlySummary: () => templateId("SENDGRID_TEMPLATE_MONTHLY_SUMMARY"),
-};
 
 function daysBetween(a: Date, b: Date): number {
   return Math.floor((a.getTime() - b.getTime()) / DAY_MS);
@@ -171,14 +166,13 @@ async function maybeTrialEnding(
   if (now < windowOpen || now >= trialEnd) return;
   const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY_MS));
 
-  const res = await sendDynamicTemplate({
+  const res = await sendEmail({
     to: user.email!,
-    templateId: TEMPLATES.trialEnding(),
-    dynamicData: {
+    ...renderTrialEnding({
       name: displayNameFromEmail(user.email),
       daysLeft,
       trialEndsAt: trialEnd.toISOString(),
-    },
+    }),
   });
   if (res.sent) {
     updates.lastTrialEndingSentAt = now;
@@ -200,15 +194,14 @@ async function maybePastDue(
   }
   if (user.lastPastDueSentAt) return; // already notified for this episode
 
-  const res = await sendDynamicTemplate({
+  const res = await sendEmail({
     to: user.email!,
-    templateId: TEMPLATES.pastDue(),
-    dynamicData: {
+    ...renderPastDue({
       name: displayNameFromEmail(user.email),
       currentPeriodEnd: user.subscriptionCurrentPeriodEnd
         ? user.subscriptionCurrentPeriodEnd.toISOString()
         : null,
-    },
+    }),
   });
   if (res.sent) {
     updates.lastPastDueSentAt = now;
@@ -232,13 +225,12 @@ async function maybeListExport(
   const listCount = await countShoppingListItems(user.id);
   if (listCount <= 0) return;
 
-  const res = await sendDynamicTemplate({
+  const res = await sendEmail({
     to: user.email!,
-    templateId: TEMPLATES.listExport(),
-    dynamicData: {
+    ...renderListExport({
       name: displayNameFromEmail(user.email),
       itemCount: listCount,
-    },
+    }),
   });
   if (res.sent) {
     updates.lastListExportSentAt = now;
@@ -276,16 +268,15 @@ async function maybeReceiptInactivity(
     displayName: displayNameFromEmail(user.email),
   });
 
-  const res = await sendDynamicTemplate({
+  const res = await sendEmail({
     to: user.email!,
-    templateId: TEMPLATES.receiptInactivity(),
-    dynamicData: {
+    ...renderReceiptInactivity({
       name: displayNameFromEmail(user.email),
       daysSinceLastReceipt: daysSince,
       headline: snark.headline,
       body: snark.body,
       neglectedStaple: neglectedStaple?.name ?? null,
-    },
+    }),
   });
   if (res.sent) {
     updates.lastReceiptInactivitySentAt = now;
@@ -314,15 +305,14 @@ async function maybeSpendSummaries(
     const previousTotal = sumReceiptsInRange(receipts, priorWeekStart, completedWeekStart);
     if (total > 0 || previousTotal > 0) {
       const cmp = comparePeriods(total, previousTotal);
-      const res = await sendDynamicTemplate({
+      const res = await sendEmail({
         to: user.email!,
-        templateId: TEMPLATES.weeklySummary(),
-        dynamicData: {
+        ...renderWeeklySummary({
           name: displayNameFromEmail(user.email),
           periodStart: completedWeekStart.toISOString().split("T")[0],
           periodEnd: new Date(currentWeekStart.getTime() - DAY_MS).toISOString().split("T")[0],
           ...cmp,
-        },
+        }),
       });
       if (res.sent) {
         updates.lastWeeklySummarySentAt = now;
@@ -351,15 +341,14 @@ async function maybeSpendSummaries(
     const previousTotal = sumReceiptsInRange(receipts, priorMonthStart, completedMonthStart);
     if (total > 0 || previousTotal > 0) {
       const cmp = comparePeriods(total, previousTotal);
-      const res = await sendDynamicTemplate({
+      const res = await sendEmail({
         to: user.email!,
-        templateId: TEMPLATES.monthlySummary(),
-        dynamicData: {
+        ...renderMonthlySummary({
           name: displayNameFromEmail(user.email),
           periodStart: completedMonthStart.toISOString().split("T")[0],
           periodEnd: new Date(currentMonthStart.getTime() - DAY_MS).toISOString().split("T")[0],
           ...cmp,
-        },
+        }),
       });
       if (res.sent) {
         updates.lastMonthlySummarySentAt = now;
