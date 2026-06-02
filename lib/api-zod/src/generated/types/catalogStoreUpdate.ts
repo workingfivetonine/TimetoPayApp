@@ -10,4 +10,6 @@ export interface CatalogStoreUpdate {
   canonicalName: string;
   /** @nullable */
   logo?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
 }

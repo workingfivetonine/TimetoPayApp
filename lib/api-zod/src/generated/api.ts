@@ -470,6 +470,7 @@ export const GetStoreSummaryResponse = zod.object({
   "address": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "openTimes": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "receiptCount": zod.number(),
   "totalSpend": zod.number(),
   "averageReceiptTotal": zod.number(),
@@ -1040,6 +1041,7 @@ export const AdminListCatalogItemsResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1065,6 +1067,7 @@ export const AdminListCatalogStoresResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1094,6 +1097,7 @@ export const AdminMergeCatalogItemsResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1117,6 +1121,7 @@ export const AdminMergeCatalogStoresResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1145,6 +1150,7 @@ export const AdminUpdateCatalogItemResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1155,7 +1161,7 @@ export const AdminUpdateCatalogItemResponse = zod.object({
 
 
 /**
- * @summary Rename a canonical store (admin only)
+ * @summary Update a canonical store — rename, logo, or website (admin only)
  */
 export const AdminUpdateCatalogStoreParams = zod.object({
   "id": zod.coerce.number()
@@ -1163,7 +1169,8 @@ export const AdminUpdateCatalogStoreParams = zod.object({
 
 export const AdminUpdateCatalogStoreBody = zod.object({
   "canonicalName": zod.string(),
-  "logo": zod.string().nullish()
+  "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish()
 })
 
 export const AdminUpdateCatalogStoreResponse = zod.object({
@@ -1172,6 +1179,7 @@ export const AdminUpdateCatalogStoreResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1198,6 +1206,7 @@ export const AdminSplitCatalogItemResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),
@@ -1224,6 +1233,7 @@ export const AdminSplitCatalogStoreResponse = zod.object({
   "icon": zod.string().nullish(),
   "category": zod.string().nullish(),
   "logo": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "members": zod.array(zod.object({
   "normalizedName": zod.string(),
   "displayName": zod.string(),

@@ -16,6 +16,8 @@ export interface CatalogEntry {
   category?: string | null;
   /** @nullable */
   logo?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
   members: CatalogMember[];
   totalCount: number;
 }

@@ -42,6 +42,8 @@ export interface CatalogEntry {
   category?: string | null;
   /** @nullable */
   logo?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
   members: CatalogMember[];
   totalCount: number;
 }
@@ -91,6 +93,8 @@ export interface CatalogStoreUpdate {
   canonicalName: string;
   /** @nullable */
   logo?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
 }
 
 export interface CatalogSplitInput {
@@ -702,6 +706,8 @@ export interface StoreSummary {
   phone?: string | null;
   /** @nullable */
   openTimes?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
   receiptCount: number;
   totalSpend: number;
   averageReceiptTotal: number;

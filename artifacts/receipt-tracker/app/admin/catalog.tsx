@@ -96,6 +96,9 @@ export default function AdminCatalogScreen() {
 
   const [renameTarget, setRenameTarget] = React.useState<CatalogEntry | null>(null);
   const [renameText, setRenameText] = React.useState("");
+  const [websiteTarget, setWebsiteTarget] = React.useState<CatalogEntry | null>(null);
+  const [websiteText, setWebsiteText] = React.useState("");
+  const [websiteError, setWebsiteError] = React.useState<string | null>(null);
   const [mergeSource, setMergeSource] = React.useState<CatalogEntry | null>(null);
   const [categoryTarget, setCategoryTarget] = React.useState<CatalogEntry | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -151,6 +154,25 @@ export default function AdminCatalogScreen() {
       else await updateStore.mutateAsync({ id: renameTarget.id, data: { canonicalName: name } });
       refetch();
       setRenameTarget(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onConfirmWebsite = async () => {
+    if (!websiteTarget) return;
+    setBusy(true);
+    setWebsiteError(null);
+    try {
+      const value = websiteText.trim();
+      await updateStore.mutateAsync({
+        id: websiteTarget.id,
+        data: { canonicalName: websiteTarget.canonicalName, websiteUrl: value === "" ? null : value },
+      });
+      refetch();
+      setWebsiteTarget(null);
+    } catch {
+      setWebsiteError("Enter a valid website URL (e.g. https://example.com)");
     } finally {
       setBusy(false);
     }
@@ -378,6 +400,11 @@ export default function AdminCatalogScreen() {
               onEditCategory={() => setCategoryTarget(item)}
               onUploadLogo={() => onUploadLogo(item)}
               onRemoveLogo={() => onRemoveLogo(item)}
+              onEditWebsite={() => {
+                setWebsiteTarget(item);
+                setWebsiteText(item.websiteUrl ?? "");
+                setWebsiteError(null);
+              }}
               aiSuggestedCategory={
                 !item.category && !rejectedCategory.has(item.id)
                   ? aiCategory[item.id] ?? null
@@ -413,6 +440,51 @@ export default function AdminCatalogScreen() {
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: colors.primary }]}
                 onPress={onConfirmRename}
+                disabled={busy}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.primaryForeground }]}>
+                  {busy ? "Saving…" : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Website modal */}
+      <Modal visible={!!websiteTarget} transparent animationType="fade" onRequestClose={() => setWebsiteTarget(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              Website for “{websiteTarget?.canonicalName}”
+            </Text>
+            <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
+              The official store site shoppers can open from the store screen. Leave blank to remove.
+            </Text>
+            <TextInput
+              value={websiteText}
+              onChangeText={setWebsiteText}
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={[
+                styles.input,
+                { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+              placeholder="https://example.com"
+              placeholderTextColor={colors.mutedForeground}
+            />
+            {websiteError ? (
+              <Text style={[styles.modalSub, { color: colors.destructive, marginTop: 8 }]}>{websiteError}</Text>
+            ) : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtn} onPress={() => setWebsiteTarget(null)} disabled={busy}>
+                <Text style={[styles.modalBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+                onPress={onConfirmWebsite}
                 disabled={busy}
               >
                 <Text style={[styles.modalBtnText, { color: colors.primaryForeground }]}>
@@ -598,6 +670,7 @@ function EntryCard({
   onEditCategory,
   onUploadLogo,
   onRemoveLogo,
+  onEditWebsite,
   aiSuggestedCategory,
   onConfirmCategory,
   onRejectCategory,
@@ -613,6 +686,7 @@ function EntryCard({
   onEditCategory: () => void;
   onUploadLogo: () => void;
   onRemoveLogo: () => void;
+  onEditWebsite: () => void;
   aiSuggestedCategory: string | null;
   onConfirmCategory: () => void;
   onRejectCategory: () => void;
@@ -673,6 +747,20 @@ function EntryCard({
               <Text style={[styles.logoBtnText, { color: colors.destructive }]}>Remove</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            style={[styles.logoBtn, { borderColor: colors.border }]}
+            onPress={onEditWebsite}
+            disabled={busy}
+            activeOpacity={0.7}
+          >
+            <Feather name="link" size={13} color={entry.websiteUrl ? colors.primary : colors.foreground} />
+            <Text
+              style={[styles.logoBtnText, { color: entry.websiteUrl ? colors.primary : colors.foreground }]}
+              numberOfLines={1}
+            >
+              {entry.websiteUrl ? "Edit website" : "Add website"}
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 

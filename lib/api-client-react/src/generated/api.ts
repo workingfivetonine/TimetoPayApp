@@ -4493,7 +4493,7 @@ export const getAdminUpdateCatalogStoreUrl = (id: number,) => {
 }
 
 /**
- * @summary Rename a canonical store (admin only)
+ * @summary Update a canonical store — rename, logo, or website (admin only)
  */
 export const adminUpdateCatalogStore = async (id: number,
     catalogStoreUpdate: CatalogStoreUpdate, options?: RequestInit): Promise<CatalogEntry> => {
@@ -4543,7 +4543,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AdminUpdateCatalogStoreMutationError = ErrorType<unknown>
 
     /**
- * @summary Rename a canonical store (admin only)
+ * @summary Update a canonical store — rename, logo, or website (admin only)
  */
 export const useAdminUpdateCatalogStore = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateCatalogStore>>, TError,{id: number;data: BodyType<CatalogStoreUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}

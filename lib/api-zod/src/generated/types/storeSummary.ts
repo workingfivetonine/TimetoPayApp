@@ -15,6 +15,8 @@ export interface StoreSummary {
   phone?: string | null;
   /** @nullable */
   openTimes?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
   receiptCount: number;
   totalSpend: number;
   averageReceiptTotal: number;

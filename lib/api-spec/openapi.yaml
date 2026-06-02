@@ -1122,7 +1122,7 @@ paths:
     patch:
       operationId: adminUpdateCatalogStore
       tags: [admin]
-      summary: Rename a canonical store (admin only)
+      summary: Update a canonical store — rename, logo, or website (admin only)
       parameters:
         - name: id
           in: path
@@ -1308,6 +1308,8 @@ components:
           type: ["string", "null"]
         logo:
           type: ["string", "null"]
+        websiteUrl:
+          type: ["string", "null"]
         members:
           type: array
           items:
@@ -1405,6 +1407,8 @@ components:
         canonicalName:
           type: string
         logo:
+          type: ["string", "null"]
+        websiteUrl:
           type: ["string", "null"]
 
     CatalogSplitInput:
@@ -2213,6 +2217,8 @@ components:
         phone:
           type: ["string", "null"]
         openTimes:
+          type: ["string", "null"]
+        websiteUrl:
           type: ["string", "null"]
         receiptCount:
           type: integer

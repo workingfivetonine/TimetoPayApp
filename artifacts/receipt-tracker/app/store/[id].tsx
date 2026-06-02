@@ -14,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetStoreSummary, useGetStoreVisits } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { resolveStoreLink } from "@/lib/storeLink";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -44,7 +45,11 @@ export default function StoreDetailScreen() {
 
   if (!summary) return null;
 
-  const hasContactInfo = summary.address || summary.phone || summary.openTimes;
+  const storeLink = resolveStoreLink({
+    websiteUrl: summary.websiteUrl,
+    storeName: summary.storeName,
+    address: summary.address,
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -79,12 +84,22 @@ export default function StoreDetailScreen() {
         </View>
 
         {/* Contact / Info Card */}
-        {hasContactInfo && (
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeaderRow}>
               <Feather name="info" size={16} color={colors.primary} />
               <Text style={[styles.cardTitle, { color: colors.foreground }]}>Store Info</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.infoRow, { borderTopColor: colors.border }]}
+              onPress={() => Linking.openURL(storeLink.url)}
+              activeOpacity={0.6}
+            >
+              <Feather name="shopping-bag" size={15} color={colors.primary} />
+              <Text style={[styles.infoText, { color: colors.primary }]} numberOfLines={1}>
+                {storeLink.isOfficial ? "Visit website" : "Find online"}
+              </Text>
+              <Feather name="external-link" size={13} color={colors.mutedForeground} />
+            </TouchableOpacity>
             {summary.address && (
               <TouchableOpacity
                 style={[styles.infoRow, { borderTopColor: colors.border }]}
@@ -113,8 +128,7 @@ export default function StoreDetailScreen() {
                 <Text style={[styles.infoText, { color: colors.foreground }]}>{summary.openTimes}</Text>
               </View>
             )}
-          </View>
-        )}
+        </View>
 
         {/* Delivery Card */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

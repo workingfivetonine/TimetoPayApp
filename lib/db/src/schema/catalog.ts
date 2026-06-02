@@ -10,6 +10,10 @@ export const catalogStoresTable = pgTable("catalog_stores", {
   canonicalName: text("canonical_name").notNull(),
   // Optional store logo as a base64 data URI (admin-uploaded, resized client-side).
   logo: text("logo"),
+  // Optional official store website (admin-set, http/https). This is the
+  // insertion point for a future affiliate / online-ordering link — resolve it
+  // through the shared store-link helper so the URL can be swapped in one place.
+  websiteUrl: text("website_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

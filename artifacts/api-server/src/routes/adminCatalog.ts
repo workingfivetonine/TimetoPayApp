@@ -45,9 +45,30 @@ type Entry = {
   icon: string | null;
   category: string | null;
   logo: string | null;
+  websiteUrl: string | null;
   members: Member[];
   totalCount: number;
 };
+
+// Normalize an admin-entered store website to a canonical http(s) URL, or null
+// to clear it. Returns `false` when the input is present but not a valid URL.
+function normalizeWebsiteUrl(raw: string | null): string | null | false {
+  if (raw === null) return null;
+  let value = raw.trim();
+  if (value === "") return null;
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  if (!parsed.hostname.includes(".")) return false;
+  const normalized = parsed.toString();
+  if (normalized.length > 2048) return false;
+  return normalized;
+}
 type Suggestion = { ids: number[]; names: string[]; reason: string };
 
 // Order-independent key: lowercase, split on non-alphanumerics, sort tokens.
@@ -219,6 +240,7 @@ router.get("/items", async (_req, res): Promise<void> => {
         icon: c.icon ?? null,
         category: c.category ?? null,
         logo: null,
+        websiteUrl: null,
         members,
         totalCount: members.reduce((sum, m) => sum + m.count, 0),
       };
@@ -232,7 +254,7 @@ router.get("/stores", async (_req, res): Promise<void> => {
   await ensureCatalog();
 
   const catStores = await db
-    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName, logo: catalogStoresTable.logo })
+    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName, logo: catalogStoresTable.logo, websiteUrl: catalogStoresTable.websiteUrl })
     .from(catalogStoresTable);
 
   const aliases = await db
@@ -272,6 +294,7 @@ router.get("/stores", async (_req, res): Promise<void> => {
         icon: null,
         category: null,
         logo: c.logo ?? null,
+        websiteUrl: c.websiteUrl ?? null,
         members,
         totalCount: members.reduce((sum, m) => sum + m.count, 0),
       };
@@ -298,12 +321,12 @@ async function buildItemEntry(id: number): Promise<Entry | null> {
     displayName: a.displayName,
     count: 0,
   }));
-  return { id: c.id, canonicalName: c.name, icon: c.icon ?? null, category: c.category ?? null, logo: null, members, totalCount: 0 };
+  return { id: c.id, canonicalName: c.name, icon: c.icon ?? null, category: c.category ?? null, logo: null, websiteUrl: null, members, totalCount: 0 };
 }
 
 async function buildStoreEntry(id: number): Promise<Entry | null> {
   const [c] = await db
-    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName, logo: catalogStoresTable.logo })
+    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName, logo: catalogStoresTable.logo, websiteUrl: catalogStoresTable.websiteUrl })
     .from(catalogStoresTable)
     .where(eq(catalogStoresTable.id, id));
   if (!c) return null;
@@ -316,7 +339,7 @@ async function buildStoreEntry(id: number): Promise<Entry | null> {
     displayName: a.displayName,
     count: 0,
   }));
-  return { id: c.id, canonicalName: c.name, icon: null, category: null, logo: c.logo ?? null, members, totalCount: 0 };
+  return { id: c.id, canonicalName: c.name, icon: null, category: null, logo: c.logo ?? null, websiteUrl: c.websiteUrl ?? null, members, totalCount: 0 };
 }
 
 // ---- Merge ----------------------------------------------------------------
@@ -427,9 +450,17 @@ router.patch("/stores/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const update: { canonicalName: string; logo?: string | null } = {
+  const update: { canonicalName: string; logo?: string | null; websiteUrl?: string | null } = {
     canonicalName: parsed.data.canonicalName,
   };
+  if (parsed.data.websiteUrl !== undefined) {
+    const normalized = normalizeWebsiteUrl(parsed.data.websiteUrl);
+    if (normalized === false) {
+      res.status(400).json({ error: "Website must be a valid http(s) URL" });
+      return;
+    }
+    update.websiteUrl = normalized;
+  }
   if (parsed.data.logo !== undefined) {
     const logo = parsed.data.logo;
     if (logo !== null) {

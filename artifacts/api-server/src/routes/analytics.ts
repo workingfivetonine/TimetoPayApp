@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { eq, sql, and, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { receiptsTable, storesTable, lineItemsTable, itemsTable } from "@workspace/db";
+import { receiptsTable, storesTable, lineItemsTable, itemsTable, catalogStoresTable, catalogStoreAliasesTable } from "@workspace/db";
 import { requirePremium } from "../middlewares/requireEntitlement";
 import { groupReceiptsByWeek } from "../lib/analytics/spend";
+import { normalizeName } from "../lib/catalog";
 
 const router = Router();
 
@@ -171,6 +172,20 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
   const totalSpend = receipts.reduce((sum, r) => sum + Number(r.total), 0);
   const avgReceipt = receipts.length ? totalSpend / receipts.length : 0;
 
+  // Resolve the user's private store to its canonical catalog store (by
+  // normalized name alias) so we can surface the admin-set website. Null when
+  // there's no matching catalog entry or no website on file.
+  let websiteUrl: string | null = null;
+  const norm = normalizeName(store.name);
+  if (norm) {
+    const [match] = await db
+      .select({ websiteUrl: catalogStoresTable.websiteUrl })
+      .from(catalogStoreAliasesTable)
+      .innerJoin(catalogStoresTable, eq(catalogStoresTable.id, catalogStoreAliasesTable.catalogStoreId))
+      .where(eq(catalogStoreAliasesTable.normalizedName, norm));
+    websiteUrl = match?.websiteUrl ?? null;
+  }
+
   const deliveryFee = store.deliveryFee ? Number(store.deliveryFee) : null;
   const minOrder = store.minimumOrderAmount ? Number(store.minimumOrderAmount) : null;
 
@@ -195,6 +210,7 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
     address: store.address ?? null,
     phone: store.phone ?? null,
     openTimes: store.openTimes ?? null,
+    websiteUrl,
     receiptCount: receipts.length,
     totalSpend: Math.round(totalSpend * 100) / 100,
     averageReceiptTotal: Math.round(avgReceipt * 100) / 100,
