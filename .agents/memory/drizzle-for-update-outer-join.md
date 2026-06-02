@@ -11,10 +11,10 @@ outer join`. In Drizzle this means a bare `.for("update")` on a query that uses
 **Fix:** scope the lock to the non-nullable table(s):
 `.for("update", { of: receiptsTable })` → emits `FOR UPDATE OF receipts`.
 
-**Why:** the receipt-merge endpoint loads + row-locks receipts while LEFT JOINing
-stores (to read the store name). Locking the nullable joined side is illegal, so
-every merge 500'd. Only e2e (real DB round-trip) caught it — typecheck and curl
-of unrelated paths did not.
+**Why:** locking the nullable joined side is illegal in Postgres, so any
+row-locked read that also LEFT JOINs a lookup table (e.g. receipts + store name)
+fails at runtime. Symptom pattern: feature works in typecheck but 500s on the
+real DB round-trip — only e2e against the database catches it.
 
 **How to apply:** any time you add `.for("update"/"share"/...)` to a Drizzle
 query that has a `leftJoin`/`rightJoin`/`fullJoin`, pass `{ of: <table you
