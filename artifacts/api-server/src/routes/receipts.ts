@@ -40,6 +40,120 @@ const PDF_MAX_PAGES = 4;
 // ignores SIGTERM.
 const PDFTOPPM_TIMEOUT_MS = 25_000;
 
+// --- Image-based PDF rasterization (poppler-only) ---------------------------
+// Rendering a page at a fixed DPI can produce an image too large for the vision
+// model when a page is extremely tall (e.g. a single long "invoice"/order-
+// confirmation page) or very wide. We pick a DPI that keeps the rendered width
+// within MAX_IMG_WIDTH_PX, then split a too-tall page into stacked vertical
+// bands via pdftoppm's crop flags (-x/-y/-W/-H) so every emitted image stays
+// within model limits. No ImageMagick dependency.
+const PDF_RENDER_DPI = 150;
+const MAX_IMG_WIDTH_PX = 1600; // cap rendered width; lower the DPI if exceeded
+const MAX_BAND_HEIGHT_PX = 2200; // split a page taller than this into bands
+const MAX_RENDER_IMAGES = 8; // hard cap on total band images sent to the model
+
+// Read the page count and first-page media-box size (assumed uniform across
+// pages) via pdfinfo. Returns null if pdfinfo is unavailable or its output is
+// unparseable, so the caller can fall back to a plain full-page render.
+async function readPdfDims(
+  pdfPath: string,
+): Promise<{ pages: number; widthPt: number; heightPt: number } | null> {
+  try {
+    const { stdout } = await execFileAsync("pdfinfo", [pdfPath], {
+      timeout: PDFTOPPM_TIMEOUT_MS,
+      maxBuffer: 1024 * 1024,
+    });
+    const pages = Number(stdout.match(/^Pages:\s+(\d+)/m)?.[1]);
+    const size = stdout.match(/^Page size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts/m);
+    const widthPt = Number(size?.[1]);
+    const heightPt = Number(size?.[2]);
+    if (!pages || !widthPt || !heightPt) return null;
+    return { pages, widthPt, heightPt };
+  } catch {
+    return null;
+  }
+}
+
+// Collect the JPEG files pdftoppm produced for a given output prefix, in page
+// order, as absolute paths.
+async function collectJpegs(prefix: string): Promise<string[]> {
+  const dir = tmpdir();
+  const base = prefix.slice(dir.length + 1);
+  return (await readdir(dir))
+    .filter((f) => f.startsWith(base) && f.endsWith(".jpg"))
+    .sort()
+    .map((f) => join(dir, f));
+}
+
+// Rasterize the first PDF_MAX_PAGES of an image-based PDF into JPEG files,
+// width-capped and split into vertical bands as needed. Returns absolute file
+// paths in reading order (top-to-bottom, page-by-page), capped at
+// MAX_RENDER_IMAGES. Each pdftoppm invocation is bounded by a wall-clock
+// timeout + SIGKILL so a crafted PDF cannot pin a worker.
+//
+// Every file produced is pushed into `tempFiles` AS IT IS CREATED (not only on
+// success) so the caller's finally-block always cleans them up even if a later
+// band render throws mid-way.
+async function renderPdfToImages(
+  pdfPath: string,
+  imgPrefix: string,
+  tempFiles: string[],
+): Promise<string[]> {
+  const dims = await readPdfDims(pdfPath);
+
+  // Fallback: no reliable dims — render full pages at the base DPI (original
+  // behavior), still bounded to the first PDF_MAX_PAGES.
+  if (!dims) {
+    await execFileAsync(
+      "pdftoppm",
+      ["-jpeg", "-r", String(PDF_RENDER_DPI), "-f", "1", "-l", String(PDF_MAX_PAGES), pdfPath, imgPrefix],
+      { timeout: PDFTOPPM_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
+    );
+    const files = (await collectJpegs(imgPrefix)).slice(0, PDF_MAX_PAGES);
+    tempFiles.push(...files);
+    return files;
+  }
+
+  // Pick a DPI that keeps the rendered page width within MAX_IMG_WIDTH_PX. The
+  // floor is 1 (not a larger value) so the width cap is truly absolute even for
+  // a pathologically wide media box — readability is secondary to bounding the
+  // raster job's pixel count.
+  const widthPxAtBase = (dims.widthPt * PDF_RENDER_DPI) / 72;
+  const dpi =
+    widthPxAtBase > MAX_IMG_WIDTH_PX
+      ? Math.max(1, Math.floor((MAX_IMG_WIDTH_PX * 72) / dims.widthPt))
+      : PDF_RENDER_DPI;
+  const widthPx = Math.ceil((dims.widthPt * dpi) / 72);
+  const heightPx = Math.ceil((dims.heightPt * dpi) / 72);
+  const bandsPerPage = Math.max(1, Math.ceil(heightPx / MAX_BAND_HEIGHT_PX));
+  const pageCount = Math.min(dims.pages, PDF_MAX_PAGES);
+
+  const out: string[] = [];
+  for (let page = 1; page <= pageCount; page++) {
+    for (let band = 0; band < bandsPerPage; band++) {
+      if (out.length >= MAX_RENDER_IMAGES) return out;
+      const y = band * MAX_BAND_HEIGHT_PX;
+      const h = Math.min(MAX_BAND_HEIGHT_PX, heightPx - y);
+      if (h <= 0) break;
+      const bandPrefix = `${imgPrefix}-p${page}-b${band}`;
+      await execFileAsync(
+        "pdftoppm",
+        [
+          "-jpeg", "-r", String(dpi),
+          "-f", String(page), "-l", String(page),
+          "-x", "0", "-y", String(y), "-W", String(widthPx), "-H", String(h),
+          pdfPath, bandPrefix,
+        ],
+        { timeout: PDFTOPPM_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
+      );
+      const produced = await collectJpegs(bandPrefix);
+      tempFiles.push(...produced);
+      out.push(...produced);
+    }
+  }
+  return out.slice(0, MAX_RENDER_IMAGES);
+}
+
 // Guards for image endpoints vs the heavier PDF endpoint.
 const imageGuard = aiAbuseGuard({
   windowMs: 60_000,
@@ -454,8 +568,13 @@ async function persistParsedReceipt(userId: string, parsed: {
     .where(eq(usersTable.id, userId));
   const userRegion = { countryCode: u?.countryCode ?? null, stateCode: u?.stateCode ?? null };
 
+  // Guard against a blank/whitespace storeName from the model: a "" value still
+  // satisfies the NOT NULL column but creates an unnamed store the user reads as
+  // "no store was created". Fall back to a sensible placeholder instead.
+  const storeName = parsed.storeName?.trim() || "Unknown Store";
+
   // Find or create store (scoped to this user)
-  let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${parsed.storeName})`)))[0];
+  let store = (await db.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${storeName})`)))[0];
   if (!store) {
     const region = resolveScanRegion(
       { country: parsed.storeCountryCode, state: parsed.storeStateCode },
@@ -463,7 +582,7 @@ async function persistParsedReceipt(userId: string, parsed: {
     );
     [store] = await db
       .insert(storesTable)
-      .values({ name: parsed.storeName, userId, countryCode: region.countryCode, stateCode: region.stateCode })
+      .values({ name: storeName, userId, countryCode: region.countryCode, stateCode: region.stateCode })
       .returning();
   } else if (!store.countryCode) {
     // Lazy-backfill region on a pre-existing store that has none yet.
@@ -635,7 +754,7 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
     { "name": "item name", "icon": "a single emoji best representing the product", "category": "one of the fixed categories", "price": price per unit as number, "quantity": quantity as number }
   ]
 }`;
-    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null.`;
+    const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null. This may be a forwarded email or a delivery/marketplace order confirmation: set "storeName" to the actual merchant or retailer the goods were bought from (look for labels like "Store", "Merchant", "Sold by", or "Vendor") — never the email sender or recipient, a person's name, the delivery service, or the marketplace platform. "storeName" must always be a non-empty merchant name.`;
 
     if (extractedText.length >= 50) {
       // Text-based PDF: structural parsing succeeded — charge global budget
@@ -657,27 +776,14 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
         return;
       }
     } else {
-      // Image-based PDF: render pages with pdftoppm then use Vision.
-      // CRITICAL: bound the rasterization itself with -f/-l so only the first
-      // PDF_MAX_PAGES are ever rendered (the expensive step). Without this, a
-      // crafted high-page-count PDF would rasterize every page before the later
-      // slice() threw the rest away — a CPU/disk DoS. A wall-clock timeout +
-      // SIGKILL guarantees a pathological page can't pin a worker indefinitely.
+      // Image-based PDF: rasterize pages with pdftoppm then use Vision.
+      // renderPdfToImages bounds the work to the first PDF_MAX_PAGES (the
+      // expensive step) and wraps every pdftoppm call in a wall-clock timeout +
+      // SIGKILL, so a crafted high-page-count or pathological page can't pin a
+      // worker or balloon CPU/disk — while also width-capping and band-splitting
+      // very tall/wide pages so each image stays within the vision model limits.
       await writeFile(pdfPath, buffer);
-      await execFileAsync(
-        "pdftoppm",
-        ["-jpeg", "-r", "150", "-f", "1", "-l", String(PDF_MAX_PAGES), pdfPath, imgPrefix],
-        { timeout: PDFTOPPM_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
-      );
-
-      // Collect generated JPEG files (pdftoppm names them prefix-1.jpg, prefix-01.jpg, etc.)
-      const allFiles = await readdir(tmpdir());
-      const pageFiles = allFiles
-        .filter((f) => f.startsWith(`receipt-${id}`) && f.endsWith(".jpg"))
-        .sort()
-        .slice(0, PDF_MAX_PAGES); // defense-in-depth: -f/-l already bounds this
-
-      for (const f of pageFiles) tempFiles.push(join(tmpdir(), f));
+      const pageFiles = await renderPdfToImages(pdfPath, imgPrefix, tempFiles);
 
       if (pageFiles.length === 0) {
         res.status(422).json({ error: "Could not render PDF pages — the file may be corrupted." });
@@ -690,7 +796,7 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
 
       const imageContents = await Promise.all(
         pageFiles.map(async (f) => {
-          const imgBuf = await readFile(join(tmpdir(), f));
+          const imgBuf = await readFile(f);
           return {
             type: "image_url" as const,
             image_url: {

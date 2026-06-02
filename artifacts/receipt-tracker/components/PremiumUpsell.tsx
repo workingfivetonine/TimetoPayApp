@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
+import { PremiumBadge } from "@/components/PremiumBadge";
 
 // Shared upsell card shown to free (unpaid/lapsed) web users where a premium
 // feature would otherwise be. Routes to the paywall to subscribe.
@@ -32,6 +33,7 @@ export function PremiumUpsell({
       <View style={[styles.iconBadge, { backgroundColor: colors.accent }]}>
         <Feather name={icon} size={24} color={colors.primary} />
       </View>
+      <PremiumBadge />
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
       <TouchableOpacity

@@ -49,10 +49,11 @@ function isMobile(): boolean {
  *
  * - Chrome/Edge/Android: captures `beforeinstallprompt` and triggers the
  *   browser's native install prompt on tap.
- * - iOS Safari (no programmatic prompt): shows brief Share → Add to Home Screen
- *   instructions instead.
- * - Renders nothing on the native app build, when already installed
- *   (standalone display mode), or when no install path is available.
+ * - Any browser without a programmatic prompt (iOS Safari, Firefox, desktop
+ *   before the heuristic fires, etc.): tapping reveals concise manual
+ *   instructions tailored to the device so the button is ALWAYS actionable.
+ * - Renders nothing only on the native app build or when already installed
+ *   (standalone display mode).
  */
 export function InstallAppButton({ style }: Props) {
   const colors = useColors();
@@ -60,7 +61,7 @@ export function InstallAppButton({ style }: Props) {
     React.useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = React.useState(false);
   const [standalone, setStandalone] = React.useState(false);
-  const [showIosHelp, setShowIosHelp] = React.useState(false);
+  const [showHelp, setShowHelp] = React.useState(false);
 
   const ios = React.useMemo(() => isIos(), []);
   const mobile = React.useMemo(() => isMobile(), []);
@@ -91,10 +92,7 @@ export function InstallAppButton({ style }: Props) {
   // Hidden on native, when already installed/standalone.
   if (Platform.OS !== "web" || installed || standalone) return null;
 
-  // No native prompt and not iOS → nothing actionable to show.
-  if (!deferredPrompt && !ios) return null;
-
-  const label = mobile ? "Add to Home Screen" : "Add to Desktop";
+  const label = mobile ? "Add to Home Screen" : "Install App";
 
   const handleInstall = async () => {
     if (deferredPrompt) {
@@ -108,8 +106,8 @@ export function InstallAppButton({ style }: Props) {
       setDeferredPrompt(null);
       return;
     }
-    // iOS Safari: no programmatic prompt, surface manual instructions.
-    setShowIosHelp((v) => !v);
+    // No programmatic prompt available — surface manual instructions.
+    setShowHelp((v) => !v);
   };
 
   return (
@@ -125,7 +123,7 @@ export function InstallAppButton({ style }: Props) {
         </Text>
       </TouchableOpacity>
 
-      {showIosHelp && !deferredPrompt ? (
+      {showHelp && !deferredPrompt ? (
         <View
           style={[
             styles.help,
@@ -133,14 +131,32 @@ export function InstallAppButton({ style }: Props) {
           ]}
         >
           <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
-            Tap the{" "}
-            <Text style={{ fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-              Share
-            </Text>{" "}
-            button in your browser, then choose{" "}
-            <Text style={{ fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-              “Add to Home Screen.”
-            </Text>
+            {ios ? (
+              <>
+                Tap the{" "}
+                <Text style={styles.helpStrong}>Share</Text> button in your
+                browser, then choose{" "}
+                <Text style={styles.helpStrong}>“Add to Home Screen.”</Text>
+              </>
+            ) : mobile ? (
+              <>
+                Open your browser menu{" "}
+                <Text style={styles.helpStrong}>(⋮)</Text>, then choose{" "}
+                <Text style={styles.helpStrong}>
+                  “Install app”
+                </Text>{" "}
+                or{" "}
+                <Text style={styles.helpStrong}>“Add to Home Screen.”</Text>
+              </>
+            ) : (
+              <>
+                Click the{" "}
+                <Text style={styles.helpStrong}>install icon</Text> in your
+                browser's address bar, or open the browser menu{" "}
+                <Text style={styles.helpStrong}>(⋮)</Text> and choose{" "}
+                <Text style={styles.helpStrong}>“Install Receipt Tracker.”</Text>
+              </>
+            )}
           </Text>
         </View>
       ) : null}
@@ -166,4 +182,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   helpText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  helpStrong: { fontFamily: "Inter_600SemiBold" },
 });

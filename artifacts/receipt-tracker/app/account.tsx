@@ -32,7 +32,7 @@ import { ShareInvite } from "@/components/ShareInvite";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { notify } from "@/lib/confirm";
+import { notify, confirmAction } from "@/lib/confirm";
 
 type EntitlementStatus =
   | "trialing"
@@ -101,12 +101,20 @@ export default function AccountScreen() {
       notify("You're offline", "Connect to the internet to start your trial.");
       return;
     }
-    setTrialError(null);
-    startTrial.mutate(undefined, {
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+    confirmAction({
+      title: "Start your 30-day free trial?",
+      message:
+        "You'll get full premium access for 30 days. No charge now, and you can subscribe anytime. This one-time trial can't be restarted later.",
+      confirmLabel: "Start free trial",
+      onConfirm: () => {
+        setTrialError(null);
+        startTrial.mutate(undefined, {
+          onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+          },
+          onError: () => setTrialError("Couldn't start your free trial. Please try again."),
+        });
       },
-      onError: () => setTrialError("Couldn't start your free trial. Please try again."),
     });
   };
 

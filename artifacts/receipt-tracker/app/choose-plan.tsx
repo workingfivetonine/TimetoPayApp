@@ -21,6 +21,7 @@ import {
   useStartFreeTrial,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { confirmAction } from "@/lib/confirm";
 
 type Provider = "stripe" | "paypal";
 
@@ -69,14 +70,22 @@ export default function ChoosePlanScreen() {
   };
 
   const handleStartTrial = () => {
-    setError(null);
-    startTrial.mutate(undefined, {
-      onSuccess: async () => {
-        await recordSelection();
-        await refreshMe();
-        router.replace("/");
+    confirmAction({
+      title: "Start your 30-day free trial?",
+      message:
+        "You'll get full premium access for 30 days. No charge now, and you can subscribe anytime. This one-time trial can't be restarted later.",
+      confirmLabel: "Start free trial",
+      onConfirm: () => {
+        setError(null);
+        startTrial.mutate(undefined, {
+          onSuccess: async () => {
+            await recordSelection();
+            await refreshMe();
+            router.replace("/");
+          },
+          onError: () => setError("We couldn't start your free trial. Please try again."),
+        });
       },
-      onError: () => setError("We couldn't start your free trial. Please try again."),
     });
   };
 

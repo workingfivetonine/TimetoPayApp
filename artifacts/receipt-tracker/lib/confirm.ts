@@ -21,6 +21,23 @@ export function confirmDestructive({ title, message, confirmLabel, onConfirm }: 
 }
 
 /**
+ * Non-destructive confirmation (web `window.confirm`, native default-styled
+ * button). Use for positive actions like starting a free trial.
+ */
+export function confirmAction({ title, message, confirmLabel, onConfirm }: ConfirmOptions): void {
+  if (Platform.OS === "web") {
+    const webConfirm = (globalThis as unknown as { confirm?: (msg: string) => boolean }).confirm;
+    const ok = webConfirm ? webConfirm(`${title}\n\n${message}`) : true;
+    if (ok) onConfirm();
+    return;
+  }
+  Alert.alert(title, message, [
+    { text: "Cancel", style: "cancel" },
+    { text: confirmLabel, style: "default", onPress: onConfirm },
+  ]);
+}
+
+/**
  * Simple web-friendly notice (RN's Alert.alert renders nothing useful on web).
  * Used to tell the user an action can't proceed while offline.
  */

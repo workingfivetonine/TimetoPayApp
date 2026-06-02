@@ -15,6 +15,7 @@ import {
 } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { InstallAppButton } from "@/components/InstallAppButton";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
@@ -159,6 +160,7 @@ export default function LandingPage() {
               <Text style={styles.ctaSecondaryText}>I already have an account</Text>
             </TouchableOpacity>
           </View>
+          <InstallAppButton style={styles.installBtn} />
         </View>
 
         {/* Features */}
@@ -356,6 +358,11 @@ function makeStyles(colors: ReturnType<typeof useColors>, isWide: boolean) {
       alignItems: "center",
       alignSelf: "stretch",
       justifyContent: "center",
+    },
+    installBtn: {
+      marginTop: 14,
+      alignSelf: isWide ? "center" : "stretch",
+      ...(isWide ? { minWidth: 240 } : {}),
     },
     ctaPrimary: {
       flexDirection: "row",

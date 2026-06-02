@@ -30,6 +30,7 @@ import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingRecei
 import { getApiOrigin } from "@/lib/apiBase";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
+import { PremiumBadge } from "@/components/PremiumBadge";
 
 interface PendingImage {
   uri: string;
@@ -215,6 +216,7 @@ export default function ScanScreen() {
           <Feather name="upload" size={36} color={colors.primary} />
         </View>
 
+        {locked ? <PremiumBadge style={styles.premiumBadge} /> : null}
         <Text style={[styles.headline, { color: colors.foreground }]}>
           {locked ? "AI receipt scanning" : "Upload a receipt"}
         </Text>
@@ -357,6 +359,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
+  },
+  premiumBadge: {
+    marginBottom: 10,
   },
   headline: {
     fontSize: 22,

@@ -389,7 +389,9 @@ function printHtmlOnWeb(html: string): Promise<void> {
     iframe.style.width = "0";
     iframe.style.height = "0";
     iframe.style.border = "0";
-    iframe.style.visibility = "hidden";
+    // NOTE: deliberately NOT visibility:hidden / display:none — some browsers
+    // skip rendering (and thus printing) a non-visible iframe, producing a blank
+    // page. Keeping it 0x0 and pinned off-screen hides it while still printing.
     document.body.appendChild(iframe);
 
     let cleaned = false;
