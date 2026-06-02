@@ -67,10 +67,61 @@ export default function ScanScreen() {
     }
   }
 
+  // Carries the HTTP status (and any server message) so we can show the user a
+  // specific reason for an upload failure + the right recommendation.
+  class UploadError extends Error {
+    status: number;
+    constructor(status: number, message?: string) {
+      super(message ?? `API error ${status}`);
+      this.status = status;
+    }
+  }
+
   const promptUpgrade = () => {
     Alert.alert("Subscribe for access to premium AI features", undefined, [
       { text: "Not now", style: "cancel" },
       { text: "Subscribe", onPress: () => router.push("/paywall") },
+    ]);
+  };
+
+  // Turn an upload failure into a plain-language reason + recommendation. Always
+  // ends by pointing the user at the manual entry fallback.
+  const failureReason = (err: unknown, kind: "image" | "pdf"): string => {
+    if (err instanceof UploadError) {
+      switch (err.status) {
+        case 413:
+          return kind === "pdf"
+            ? "This PDF is too large to process. Try a smaller file (fewer pages), or add the details manually."
+            : "This image is too large to process. Try a smaller or lower-resolution photo, or add the details manually.";
+        case 429:
+          return "You've reached the limit for AI scans right now. Please wait a few minutes and try again, or add the details manually.";
+        case 422:
+          return kind === "pdf"
+            ? "We couldn't read this PDF — it may be a scanned image, password-protected, or corrupted. Try a text-based order confirmation, or add the details manually."
+            : "We couldn't read this photo clearly. Try a sharper, well-lit picture with the whole receipt in frame, or add the details manually.";
+        case 400:
+          return "That file didn't look like a receipt we could read. Try a different file, or add the details manually.";
+        default:
+          if (err.status >= 500)
+            return "Our scanner had a temporary problem. Please try again in a moment, or add the details manually.";
+          return "Something went wrong reading this receipt. Please try again, or add the details manually.";
+      }
+    }
+    // No HTTP status — almost always a network/connectivity problem.
+    return "We couldn't reach the scanner. Check your internet connection and try again, or add the details manually.";
+  };
+
+  // Show the failure with a reason and clear next steps: retry the same upload,
+  // or switch to manual entry.
+  const showUploadFailure = (
+    err: unknown,
+    kind: "image" | "pdf",
+    retry: () => void,
+  ) => {
+    Alert.alert("Couldn't read this receipt", failureReason(err, kind), [
+      { text: "Add manually", onPress: () => router.push("/manual-entry") },
+      { text: "Try again", onPress: retry },
+      { text: "Cancel", style: "cancel" },
     ]);
   };
 
@@ -87,7 +138,7 @@ export default function ScanScreen() {
       body: JSON.stringify(body),
     });
     if (response.status === 403) throw new PremiumRequiredError();
-    if (!response.ok) throw new Error(`API error ${response.status}`);
+    if (!response.ok) throw new UploadError(response.status);
     return response.json() as Promise<{ id: number }>;
   };
 
@@ -110,6 +161,10 @@ export default function ScanScreen() {
 
   const handleEditorConfirm = async (editedBase64: string) => {
     setPendingImage(null);
+    await parseImage(editedBase64);
+  };
+
+  const parseImage = async (editedBase64: string) => {
     setScanning(true);
     setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -126,13 +181,13 @@ export default function ScanScreen() {
         body: JSON.stringify({ imageBase64: editedBase64 }),
       });
       if (response.status === 403) throw new PremiumRequiredError();
-      if (!response.ok) throw new Error(`API error ${response.status}`);
+      if (!response.ok) throw new UploadError(response.status);
       const parsed = (await response.json()) as ParsedReceiptData;
       setPendingReceipt(parsed, editedBase64);
       router.push("/review-receipt");
     } catch (err) {
       if (err instanceof PremiumRequiredError) promptUpgrade();
-      else Alert.alert("Error", "Could not read this receipt image. Please try again.");
+      else showUploadFailure(err, "image", () => parseImage(editedBase64));
     } finally {
       setScanning(false);
     }
@@ -154,42 +209,50 @@ export default function ScanScreen() {
 
     if (result.canceled || !result.assets[0]?.uri) return;
 
-    setScanning(true);
-    setScanningLabel("Extracting PDF with AI…");
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
+    // Read the picked file into base64 first, then hand off to parsePdf so a
+    // failed parse can be retried without re-picking the file.
+    let base64: string;
     try {
       const fileResponse = await expoFetch(result.assets[0].uri);
       const blob = await fileResponse.blob();
-
-      await new Promise<void>((resolve, reject) => {
+      base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = async () => {
-          try {
-            const dataUrl = reader.result as string;
-            const base64 = dataUrl.split(",")[1];
-            if (!base64) throw new Error("Empty file");
-            const receipt = await callApi("parse-pdf", { pdfBase64: base64 });
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            invalidateAll();
-            router.replace(`/receipt/${receipt.id}`);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const b64 = dataUrl.split(",")[1];
+          if (!b64) reject(new Error("Empty file"));
+          else resolve(b64);
         };
         reader.onerror = () => reject(new Error("FileReader error"));
         reader.readAsDataURL(blob);
       });
+    } catch {
+      Alert.alert(
+        "Couldn't open this file",
+        "We couldn't read the selected PDF. Try choosing it again, or add the details manually.",
+        [
+          { text: "Add manually", onPress: () => router.push("/manual-entry") },
+          { text: "OK", style: "cancel" },
+        ],
+      );
+      return;
+    }
+
+    await parsePdf(base64);
+  };
+
+  const parsePdf = async (base64: string) => {
+    setScanning(true);
+    setScanningLabel("Extracting PDF with AI…");
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const receipt = await callApi("parse-pdf", { pdfBase64: base64 });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      invalidateAll();
+      router.replace(`/receipt/${receipt.id}`);
     } catch (err) {
-      if (err instanceof PremiumRequiredError) {
-        promptUpgrade();
-      } else {
-        Alert.alert(
-          "Error",
-          "Could not process this PDF. Make sure it's a text-based order confirmation."
-        );
-      }
+      if (err instanceof PremiumRequiredError) promptUpgrade();
+      else showUploadFailure(err, "pdf", () => parsePdf(base64));
     } finally {
       setScanning(false);
     }
