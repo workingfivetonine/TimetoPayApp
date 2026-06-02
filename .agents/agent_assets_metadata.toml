@@ -168,3 +168,9 @@ id = "J7h8g9aAKOOYEOKI7NASL"
 uri = "file://docs/brand-kit/Receipt-Tracker-Marketing-Copy.pdf"
 type = "pdf"
 title = "TimetoPay — Marketing Copy & Feature List (PDF)"
+
+[[outputs]]
+id = "mLfJJDhhb0t4PuZkbHVdT"
+uri = "file://dist/Receipt-Tracker-Documentation.zip"
+type = "unspecified"
+title = "Receipt Tracker — All Documentation"
