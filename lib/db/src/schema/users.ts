@@ -22,13 +22,20 @@ export const usersTable = pgTable(
     // webhooks / provider API reads — never by client-reported success.
     //   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled" | "none" (null = never subscribed)
     //   subscriptionProvider: "stripe" | "paypal" (null = never subscribed)
-    // A null status falls back to the implicit app trial (30 days from createdAt)
-    // so existing users and brand-new accounts are never instantly locked out.
+    // There is NO automatic trial: a brand-new account starts with no
+    // subscription (entitlement status "none"). The free trial is OPT-IN — the
+    // user explicitly starts it from the account/paywall screen, which stamps
+    // `trialStartedAt`. Entitlement derives the "trialing" window from that
+    // timestamp (see lib/billing/entitlement.ts).
     subscriptionStatus: text("subscription_status"),
     subscriptionProvider: text("subscription_provider"),
     subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end", {
       withTimezone: true,
     }),
+    // When the user opted into the one-time free trial. Null = trial never
+    // started (the free-trial offer is still available). Set once and never
+    // cleared, so a trial can't be re-claimed after it elapses.
+    trialStartedAt: timestamp("trial_started_at", { withTimezone: true }),
     // Provider-side identifiers used to reconcile webhook events back to a user.
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),

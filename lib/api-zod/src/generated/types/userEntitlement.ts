@@ -22,4 +22,6 @@ export interface UserEntitlement {
      * @nullable
      */
   currentPeriodEnd: string | null;
+  /** Whether the one-time free trial offer is still available */
+  canStartTrial: boolean;
 }

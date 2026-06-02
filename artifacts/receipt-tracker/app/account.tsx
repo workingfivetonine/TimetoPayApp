@@ -16,8 +16,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  getGetCurrentUserQueryKey,
   useGetCurrentUser,
   useManageBillingSubscription,
+  useStartFreeTrial,
 } from "@workspace/api-client-react";
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
@@ -39,7 +41,7 @@ function subscriptionLabel(
     : null;
   switch (status) {
     case "trialing":
-      return end ? `Free trial · renews ${end}` : "Free trial";
+      return end ? `Free trial · ends ${end}` : "Free trial";
     case "active":
       return end ? `Active · renews ${end}` : "Active";
     case "past_due":
@@ -49,7 +51,7 @@ function subscriptionLabel(
     case "canceled":
       return "Canceled";
     default:
-      return "No active subscription";
+      return "No subscription";
   }
 }
 
@@ -62,6 +64,8 @@ export default function AccountScreen() {
   const { signOut } = useClerk();
   const { data: me, isLoading } = useGetCurrentUser();
   const manage = useManageBillingSubscription();
+  const startTrial = useStartFreeTrial();
+  const [trialError, setTrialError] = React.useState<string | null>(null);
 
   const entitlement = me?.entitlement ?? null;
   const isWeb = Platform.OS === "web";
@@ -69,6 +73,23 @@ export default function AccountScreen() {
   // (native is never paywalled; admins/comped users have no provider record).
   const hasProviderSub =
     entitlement?.provider === "stripe" || entitlement?.provider === "paypal";
+  // Offer the Start-trial / Subscribe actions whenever the user has no
+  // provider-backed subscription and isn't comped or already active (admins).
+  const showSubActions =
+    !!entitlement &&
+    !hasProviderSub &&
+    entitlement.status !== "comped" &&
+    entitlement.status !== "active";
+
+  const handleStartTrial = () => {
+    setTrialError(null);
+    startTrial.mutate(undefined, {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+      },
+      onError: () => setTrialError("Couldn't start your free trial. Please try again."),
+    });
+  };
 
   const handleManage = () => {
     manage.mutate(
@@ -170,39 +191,75 @@ export default function AccountScreen() {
         </TouchableOpacity>
 
         {isWeb && entitlement ? (
-          <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="credit-card" size={18} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Subscription</Text>
-              <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-                {subscriptionLabel(entitlement.status as EntitlementStatus, entitlement.currentPeriodEnd)}
-              </Text>
-            </View>
-            {entitlement.status === "comped" ? null : hasProviderSub ? (
-              <TouchableOpacity
-                onPress={handleManage}
-                disabled={manage.isPending}
-                style={[styles.manageBtn, { backgroundColor: colors.accent }]}
-                activeOpacity={0.8}
-              >
-                {manage.isPending ? (
-                  <ActivityIndicator size="small" color={colors.accentForeground} />
-                ) : (
-                  <Text style={[styles.manageBtnText, { color: colors.accentForeground }]}>
-                    Manage
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ) : entitlement.status === "trialing" || !entitlement.entitled ? (
-              <TouchableOpacity
-                onPress={() => router.push("/paywall")}
-                style={[styles.manageBtn, { backgroundColor: colors.primary }]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.manageBtnText, { color: colors.primaryForeground }]}>
-                  {entitlement.status === "trialing" ? "Add payment" : "Subscribe"}
+          <View style={[styles.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.subHeader}>
+              <Feather name="credit-card" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowText, { color: colors.foreground }]}>Subscription</Text>
+                <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+                  {subscriptionLabel(entitlement.status as EntitlementStatus, entitlement.currentPeriodEnd)}
                 </Text>
-              </TouchableOpacity>
+              </View>
+              {hasProviderSub ? (
+                <TouchableOpacity
+                  onPress={handleManage}
+                  disabled={manage.isPending}
+                  style={[styles.manageBtn, { backgroundColor: colors.accent }]}
+                  activeOpacity={0.8}
+                >
+                  {manage.isPending ? (
+                    <ActivityIndicator size="small" color={colors.accentForeground} />
+                  ) : (
+                    <Text style={[styles.manageBtnText, { color: colors.accentForeground }]}>
+                      Manage
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {showSubActions ? (
+              <View style={styles.subActions}>
+                {entitlement.canStartTrial ? (
+                  <TouchableOpacity
+                    onPress={handleStartTrial}
+                    disabled={startTrial.isPending}
+                    style={[styles.subActionBtn, { backgroundColor: colors.primary }]}
+                    activeOpacity={0.85}
+                  >
+                    {startTrial.isPending ? (
+                      <ActivityIndicator size="small" color={colors.primaryForeground} />
+                    ) : (
+                      <Text style={[styles.subActionText, { color: colors.primaryForeground }]}>
+                        Start free trial
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  onPress={() => router.push("/paywall")}
+                  style={[
+                    styles.subActionBtn,
+                    entitlement.canStartTrial
+                      ? { borderWidth: 1.5, borderColor: colors.primary }
+                      : { backgroundColor: colors.primary },
+                  ]}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      styles.subActionText,
+                      { color: entitlement.canStartTrial ? colors.primary : colors.primaryForeground },
+                    ]}
+                  >
+                    {entitlement.status === "trialing" ? "Subscribe now" : "Subscribe"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {trialError ? (
+              <Text style={[styles.subError, { color: colors.destructive }]}>{trialError}</Text>
             ) : null}
           </View>
         ) : null}
@@ -321,6 +378,23 @@ const styles = StyleSheet.create({
     minWidth: 76,
   },
   manageBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  subCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 14,
+  },
+  subHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  subActions: { gap: 10 },
+  subActionBtn: {
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  subActionText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  subError: { fontSize: 13, fontFamily: "Inter_500Medium" },
   signOut: {
     flexDirection: "row",
     alignItems: "center",

@@ -745,6 +745,23 @@ paths:
         "404":
           description: Subscription not found
 
+  /billing/start-trial:
+    post:
+      operationId: startFreeTrial
+      tags: [billing]
+      summary: Start the one-time, no-payment free trial
+      responses:
+        "200":
+          description: The updated current user with refreshed entitlement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "400":
+          description: A free trial isn't available for this account
+        "404":
+          description: User not found
+
   /billing/redeem:
     post:
       operationId: redeemPromoCode
@@ -1358,7 +1375,7 @@ components:
 
     UserEntitlement:
       type: object
-      required: [entitled, status, provider, currentPeriodEnd]
+      required: [entitled, status, provider, currentPeriodEnd, canStartTrial]
       properties:
         entitled:
           type: boolean
@@ -1373,6 +1390,9 @@ components:
         currentPeriodEnd:
           type: ["string", "null"]
           description: ISO timestamp the current paid/trial period ends, if known
+        canStartTrial:
+          type: boolean
+          description: Whether the one-time free trial offer is still available
 
     BillingCheckoutInput:
       type: object

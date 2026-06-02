@@ -642,7 +642,8 @@ export const GetCurrentUserResponse = zod.object({
   "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
   "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
   "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
+  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available')
 })
 })
 
@@ -666,7 +667,8 @@ export const UpdateMyRegionResponse = zod.object({
   "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
   "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
   "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
+  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available')
 })
 })
 
@@ -710,7 +712,28 @@ export const FinalizePaypalSubscriptionResponse = zod.object({
   "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
   "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
   "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
+  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available')
+})
+})
+
+
+/**
+ * @summary Start the one-time, no-payment free trial
+ */
+export const StartFreeTrialResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['master_admin', 'family', 'general']),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
+  "entitlement": zod.object({
+  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
+  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
+  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available')
 })
 })
 
@@ -736,7 +759,8 @@ export const RedeemPromoCodeResponse = zod.object({
   "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
   "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
   "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known')
+  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
+  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available')
 })
 })
 

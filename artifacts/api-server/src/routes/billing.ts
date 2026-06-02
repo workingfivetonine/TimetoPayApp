@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import {
   CreateBillingCheckoutBody,
@@ -17,7 +17,7 @@ import {
   getPaypalSubscription,
   mapPaypalStatus,
 } from "../lib/billing/paypalClient";
-import { TRIAL_DAYS, formatCurrentUser } from "../lib/billing/entitlement";
+import { computeEntitlement, formatCurrentUser } from "../lib/billing/entitlement";
 import { isValidPromoCode } from "../lib/billing/promo";
 
 const router = Router();
@@ -92,11 +92,13 @@ router.post("/checkout", async (req, res): Promise<void> => {
         .where(eq(usersTable.id, user.id));
     }
 
+    // No provider-side trial: the free trial is a separate, opt-in path
+    // (/billing/start-trial). "Subscribe" means a paid subscription, so a user
+    // can't stack the app trial and a Stripe trial for double free time.
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: { trial_period_days: TRIAL_DAYS },
       success_url: `${base}/?checkout=success`,
       cancel_url: `${base}/?checkout=cancel`,
     });
@@ -265,6 +267,35 @@ router.post("/redeem", async (req, res): Promise<void> => {
   }
 
   res.json(formatCurrentUser(user));
+});
+
+// Start the one-time, no-payment free trial. Available only to users who have
+// never started a trial and never had a provider subscription (see
+// computeEntitlement().canStartTrial). Idempotent/race-safe: the update only
+// stamps trialStartedAt when it is still null, so a second call can't extend it.
+router.post("/start-trial", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const user = await loadUser(userId);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (!computeEntitlement(user).canStartTrial) {
+    res.status(400).json({ error: "A free trial isn't available for this account." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ trialStartedAt: new Date() })
+    .where(and(eq(usersTable.id, userId), isNull(usersTable.trialStartedAt)))
+    .returning();
+  if (!updated) {
+    res.status(400).json({ error: "A free trial isn't available for this account." });
+    return;
+  }
+
+  res.json(formatCurrentUser(updated));
 });
 
 export default router;

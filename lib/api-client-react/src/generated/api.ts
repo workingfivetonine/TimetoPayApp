@@ -2945,6 +2945,76 @@ export const useFinalizePaypalSubscription = <TError = ErrorType<void>,
       return useMutation(getFinalizePaypalSubscriptionMutationOptions(options));
     }
 
+export const getStartFreeTrialUrl = () => {
+
+
+
+
+  return `/api/billing/start-trial`
+}
+
+/**
+ * @summary Start the one-time, no-payment free trial
+ */
+export const startFreeTrial = async ( options?: RequestInit): Promise<CurrentUser> => {
+
+  return customFetch<CurrentUser>(getStartFreeTrialUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getStartFreeTrialMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startFreeTrial>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startFreeTrial>>, TError,void, TContext> => {
+
+const mutationKey = ['startFreeTrial'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startFreeTrial>>, void> = () => {
+
+
+          return  startFreeTrial(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartFreeTrialMutationResult = NonNullable<Awaited<ReturnType<typeof startFreeTrial>>>
+
+    export type StartFreeTrialMutationError = ErrorType<void>
+
+    /**
+ * @summary Start the one-time, no-payment free trial
+ */
+export const useStartFreeTrial = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startFreeTrial>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startFreeTrial>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getStartFreeTrialMutationOptions(options));
+    }
+
 export const getRedeemPromoCodeUrl = () => {
 
 

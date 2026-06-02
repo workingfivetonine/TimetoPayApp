@@ -21,6 +21,7 @@ import {
   useFinalizePaypalSubscription,
   useGetCurrentUser,
   useRedeemPromoCode,
+  useStartFreeTrial,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 
@@ -58,9 +59,23 @@ export default function PaywallScreen() {
   const checkout = useCreateBillingCheckout();
   const finalize = useFinalizePaypalSubscription();
   const redeem = useRedeemPromoCode();
+  const startTrial = useStartFreeTrial();
+
+  const canStartTrial = me?.entitlement?.canStartTrial ?? false;
 
   const refreshMe = async () => {
     await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+  };
+
+  const handleStartTrial = () => {
+    setError(null);
+    startTrial.mutate(undefined, {
+      onSuccess: async () => {
+        await refreshMe();
+        router.replace("/");
+      },
+      onError: () => setError("We couldn't start your free trial. Please try again."),
+    });
   };
 
   // Handle the PayPal return: PayPal appends ?subscription_id to the return URL
@@ -145,11 +160,12 @@ export default function PaywallScreen() {
         </View>
 
         <Text style={[styles.title, { color: colors.foreground }]}>
-          Your free trial has ended
+          {canStartTrial ? "Try it free for 30 days" : "Unlock premium features"}
         </Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Subscribe to keep scanning receipts, tracking prices, and building your
-          smart shopping list.
+          {canStartTrial
+            ? "Start a free 30-day trial — no payment required — to scan receipts, track prices, and build your smart shopping list."
+            : "Subscribe to keep scanning receipts, tracking prices, and building your smart shopping list."}
         </Text>
 
         <View style={[styles.priceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -174,18 +190,53 @@ export default function PaywallScreen() {
           <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text>
         ) : null}
 
+        {canStartTrial ? (
+          <TouchableOpacity
+            style={[styles.payBtn, { backgroundColor: colors.primary }]}
+            onPress={handleStartTrial}
+            disabled={startTrial.isPending || pending !== null}
+            activeOpacity={0.85}
+          >
+            {startTrial.isPending ? (
+              <ActivityIndicator color={colors.primaryForeground} />
+            ) : (
+              <Text style={[styles.payBtnText, { color: colors.primaryForeground }]}>
+                Start 30-day free trial
+              </Text>
+            )}
+          </TouchableOpacity>
+        ) : null}
+
+        {canStartTrial ? (
+          <Text style={[styles.orLabel, { color: colors.mutedForeground }]}>
+            or subscribe now
+          </Text>
+        ) : null}
+
         <TouchableOpacity
-          style={[styles.payBtn, { backgroundColor: colors.primary }]}
+          style={[
+            canStartTrial ? styles.payBtnOutline : styles.payBtn,
+            canStartTrial ? { borderColor: colors.primary } : { backgroundColor: colors.primary },
+          ]}
           onPress={() => startCheckout("stripe")}
           disabled={pending !== null}
           activeOpacity={0.85}
         >
           {pending === "stripe" ? (
-            <ActivityIndicator color={colors.primaryForeground} />
+            <ActivityIndicator color={canStartTrial ? colors.primary : colors.primaryForeground} />
           ) : (
             <>
-              <Feather name="credit-card" size={18} color={colors.primaryForeground} />
-              <Text style={[styles.payBtnText, { color: colors.primaryForeground }]}>
+              <Feather
+                name="credit-card"
+                size={18}
+                color={canStartTrial ? colors.primary : colors.primaryForeground}
+              />
+              <Text
+                style={[
+                  styles.payBtnText,
+                  { color: canStartTrial ? colors.primary : colors.primaryForeground },
+                ]}
+              >
                 Pay with card
               </Text>
             </>
@@ -312,6 +363,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   payBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  orLabel: { fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "center", marginTop: 2 },
   promoSection: { marginTop: 10, gap: 8 },
   promoLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   promoRow: { flexDirection: "row", gap: 8 },
