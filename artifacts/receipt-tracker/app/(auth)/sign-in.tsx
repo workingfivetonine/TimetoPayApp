@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { PasswordRequirements } from "@/components/PasswordRequirements";
 import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 
@@ -180,6 +181,8 @@ export default function SignInPage() {
                   <Text style={[styles.link, { color: colors.primary }]}>Sign up</Text>
                 </Link>
               </View>
+
+              <InstallAppButton style={styles.install} />
             </>
           ) : (
             <>
@@ -328,4 +331,5 @@ const styles = StyleSheet.create({
   buttonText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   linkRow: { flexDirection: "row", justifyContent: "center", marginTop: 22 },
   link: { fontFamily: "Inter_600SemiBold" },
+  install: { marginTop: 24 },
 });

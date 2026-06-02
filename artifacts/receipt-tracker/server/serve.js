@@ -418,6 +418,87 @@ function getAppName() {
   }
 }
 
+// --- PWA (installable web app) ------------------------------------------------
+// Brand colors (kept in sync with constants/colors.ts teal/violet theme).
+const PWA_THEME_COLOR = "#7c3aed";
+const PWA_BACKGROUND_COLOR = "#faf8ff";
+
+// scope/start_url honor BASE_PATH; basePath is "" when mounted at root → "/".
+const PWA_SCOPE = `${basePath}/`;
+
+function buildWebManifest(appName) {
+  return {
+    name: appName,
+    short_name: appName,
+    description:
+      "Scan receipts with AI, track grocery prices over time, and build a smart shopping list.",
+    start_url: PWA_SCOPE,
+    scope: PWA_SCOPE,
+    display: "standalone",
+    orientation: "portrait",
+    background_color: PWA_BACKGROUND_COLOR,
+    theme_color: PWA_THEME_COLOR,
+    icons: [
+      {
+        src: `${basePath}/pwa/icon-192.png`,
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: `${basePath}/pwa/icon-512.png`,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: `${basePath}/pwa/icon-maskable-512.png`,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+  };
+}
+
+function serveWebManifest(res, appName) {
+  res.writeHead(200, {
+    "content-type": "application/manifest+json; charset=utf-8",
+    "cache-control": "public, max-age=3600",
+  });
+  res.end(JSON.stringify(buildWebManifest(appName)));
+}
+
+// Minimal service worker: a fetch handler is required for installability on
+// some browsers (Chrome/Edge). It is a pass-through — no offline caching.
+const SERVICE_WORKER_SOURCE = `self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("fetch", () => {});
+`;
+
+function serveServiceWorker(res) {
+  res.writeHead(200, {
+    "content-type": "application/javascript; charset=utf-8",
+    "cache-control": "no-cache",
+    "service-worker-allowed": PWA_SCOPE,
+  });
+  res.end(SERVICE_WORKER_SOURCE);
+}
+
+function buildPwaHead(appName) {
+  const safeName = escapeHtml(appName);
+  return [
+    `<link rel="manifest" href="${basePath}/manifest.webmanifest" />`,
+    `<meta name="theme-color" content="${PWA_THEME_COLOR}" />`,
+    `<link rel="apple-touch-icon" href="${basePath}/pwa/apple-touch-icon.png" />`,
+    `<meta name="apple-mobile-web-app-capable" content="yes" />`,
+    `<meta name="mobile-web-app-capable" content="yes" />`,
+    `<meta name="apple-mobile-web-app-status-bar-style" content="default" />`,
+    `<meta name="apple-mobile-web-app-title" content="${safeName}" />`,
+    `<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("${basePath}/sw.js",{scope:"${PWA_SCOPE}"}).catch(function(){})});}</script>`,
+  ].join("\n    ");
+}
+
 function serveManifest(platform, res) {
   const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
 
@@ -479,7 +560,7 @@ function injectSeo(html, baseUrl, appName) {
   let out = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${seoTitle}</title>`);
   out = out.replace(
     /<\/head>/i,
-    `    ${buildSeoHead(baseUrl, appName)}\n  </head>`,
+    `    ${buildSeoHead(baseUrl, appName)}\n    ${buildPwaHead(appName)}\n  </head>`,
   );
   return out;
 }
@@ -548,6 +629,14 @@ const server = http.createServer((req, res) => {
 
   if (pathname === "/sitemap.xml") {
     return serveSitemap(req, res);
+  }
+
+  if (pathname === "/manifest.webmanifest") {
+    return serveWebManifest(res, appName);
+  }
+
+  if (pathname === "/sw.js") {
+    return serveServiceWorker(res);
   }
 
   if (pathname === "/privacy") {

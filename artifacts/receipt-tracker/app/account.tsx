@@ -29,6 +29,7 @@ import {
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
 import { ShareInvite } from "@/components/ShareInvite";
+import { InstallAppButton } from "@/components/InstallAppButton";
 
 type EntitlementStatus =
   | "trialing"
@@ -318,6 +319,8 @@ export default function AccountScreen() {
             </TouchableOpacity>
           </>
         ) : null}
+
+        <InstallAppButton />
 
         <ShareInvite />
 

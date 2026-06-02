@@ -188,6 +188,28 @@ function buildWebExport(expoPublicDomain, expoPublicReplId) {
   });
 }
 
+function copyPwaAssets() {
+  const srcDir = path.join(projectRoot, "assets", "pwa");
+  const destDir = path.join(projectRoot, "static-build", "web", "pwa");
+
+  if (!fs.existsSync(srcDir)) {
+    exitWithError(`PWA assets directory missing: ${srcDir}`);
+  }
+
+  fs.mkdirSync(destDir, { recursive: true });
+
+  const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".png"));
+  if (files.length === 0) {
+    exitWithError(`No PWA icons found in ${srcDir}`);
+  }
+
+  for (const file of files) {
+    fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+  }
+
+  console.log(`Copied ${files.length} PWA icon(s) into web build`);
+}
+
 async function startMetro(expoPublicDomain, expoPublicReplId) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
@@ -587,6 +609,9 @@ async function main() {
   // Build the browser web app first (its own bundler run), before we start the
   // Metro server for the Expo Go bundles, to avoid port 8081 contention.
   await buildWebExport(domain, expoPublicReplId);
+
+  // Copy PWA icons into the web build so they're served at stable /pwa/* URLs.
+  copyPwaAssets();
 
   await startMetro(domain, expoPublicReplId);
 
