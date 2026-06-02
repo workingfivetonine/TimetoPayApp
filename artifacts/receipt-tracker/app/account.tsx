@@ -178,7 +178,7 @@ export default function AccountScreen() {
                 {subscriptionLabel(entitlement.status as EntitlementStatus, entitlement.currentPeriodEnd)}
               </Text>
             </View>
-            {hasProviderSub ? (
+            {entitlement.status === "comped" ? null : hasProviderSub ? (
               <TouchableOpacity
                 onPress={handleManage}
                 disabled={manage.isPending}
@@ -193,14 +193,14 @@ export default function AccountScreen() {
                   </Text>
                 )}
               </TouchableOpacity>
-            ) : !entitlement.entitled ? (
+            ) : entitlement.status === "trialing" || !entitlement.entitled ? (
               <TouchableOpacity
                 onPress={() => router.push("/paywall")}
                 style={[styles.manageBtn, { backgroundColor: colors.primary }]}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.manageBtnText, { color: colors.primaryForeground }]}>
-                  Subscribe
+                  {entitlement.status === "trialing" ? "Add payment" : "Subscribe"}
                 </Text>
               </TouchableOpacity>
             ) : null}
