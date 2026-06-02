@@ -200,14 +200,16 @@ function copyPwaAssets() {
 
   const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".png"));
   if (files.length === 0) {
-    exitWithError(`No PWA icons found in ${srcDir}`);
+    exitWithError(`No PWA assets found in ${srcDir}`);
   }
 
   for (const file of files) {
     fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
   }
 
-  console.log(`Copied ${files.length} PWA icon(s) into web build`);
+  console.log(
+    `Copied ${files.length} PWA asset(s) (icons, screenshots, shortcuts) into web build`,
+  );
 }
 
 async function startMetro(expoPublicDomain, expoPublicReplId) {

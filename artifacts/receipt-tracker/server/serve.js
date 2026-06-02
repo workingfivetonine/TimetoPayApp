@@ -458,6 +458,56 @@ function buildWebManifest(appName) {
         purpose: "maskable",
       },
     ],
+    // App screenshots trigger Chrome/Edge/Android's richer install dialog
+    // (a large preview instead of the plain mini-banner). form_factor "wide"
+    // is shown on desktop; "narrow" on mobile.
+    screenshots: [
+      {
+        src: `${basePath}/pwa/screenshot-desktop.png`,
+        sizes: "1280x800",
+        type: "image/png",
+        form_factor: "wide",
+        label: "Track weekly grocery spending and price trends",
+      },
+      {
+        src: `${basePath}/pwa/screenshot-mobile.png`,
+        sizes: "414x896",
+        type: "image/png",
+        form_factor: "narrow",
+        label: "Your smart shopping list with the best price per item",
+      },
+    ],
+    // Quick actions surfaced on long-press of the installed app icon.
+    shortcuts: [
+      {
+        name: "Scan a receipt",
+        short_name: "Scan",
+        description: "Snap a receipt and let AI read the items and prices",
+        url: `${basePath}/scan`,
+        icons: [
+          {
+            src: `${basePath}/pwa/shortcut-scan.png`,
+            sizes: "96x96",
+            type: "image/png",
+            purpose: "any",
+          },
+        ],
+      },
+      {
+        name: "Shopping list",
+        short_name: "List",
+        description: "Open your smart shopping list",
+        url: `${basePath}/shopping`,
+        icons: [
+          {
+            src: `${basePath}/pwa/shortcut-list.png`,
+            sizes: "96x96",
+            type: "image/png",
+            purpose: "any",
+          },
+        ],
+      },
+    ],
   };
 }
 
