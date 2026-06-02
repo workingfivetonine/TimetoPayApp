@@ -90,7 +90,9 @@ export default function PaywallScreen() {
         {
           onSuccess: async () => {
             await refreshMe();
-            router.replace("/");
+            // Match the Stripe success_url so the home screen shows the same
+            // post-subscribe celebration + share prompt.
+            router.replace("/?checkout=success");
           },
           onError: () =>
             setError("We couldn't confirm your PayPal subscription. Please try again."),

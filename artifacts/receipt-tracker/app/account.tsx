@@ -23,6 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
+import { ShareInvite } from "@/components/ShareInvite";
 
 type EntitlementStatus =
   | "trialing"
@@ -306,6 +307,8 @@ export default function AccountScreen() {
             </TouchableOpacity>
           </>
         ) : null}
+
+        <ShareInvite />
 
         <TouchableOpacity
           style={[styles.signOut, { borderColor: colors.destructive }]}

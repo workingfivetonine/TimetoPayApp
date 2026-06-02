@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
   RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -25,6 +26,7 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
+import { ShareInvite } from "@/components/ShareInvite";
 
 type ReceiptSort = "recent" | "price" | "store";
 const RECEIPT_SORT: SortOption<ReceiptSort>[] = [
@@ -41,6 +43,25 @@ export default function ReceiptsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ReceiptSort>("recent");
+  const [showCelebrate, setShowCelebrate] = useState(false);
+
+  // After a successful subscription checkout the user is returned to
+  // `/?checkout=success` (Stripe success_url + the PayPal finalize redirect).
+  // Show a one-time celebration + share prompt, then strip the query param so a
+  // refresh doesn't re-trigger it. Web-only (native is never paywalled).
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    setShowCelebrate(true);
+    params.delete("checkout");
+    const qs = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + (qs ? `?${qs}` : ""),
+    );
+  }, []);
 
   const { data: receipts, isLoading } = useListReceipts();
   const deleteMutation = useDeleteReceipt();
@@ -172,6 +193,42 @@ export default function ReceiptsScreen() {
           )}
         />
       )}
+
+      <Modal
+        visible={showCelebrate}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCelebrate(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.modalIcon, { backgroundColor: colors.accent }]}>
+              <Feather name="check-circle" size={30} color={colors.primary} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              You're all set!
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.mutedForeground }]}>
+              Thanks for subscribing. Know someone who'd love TimetoPay? Share it
+              with them.
+            </Text>
+            <ShareInvite
+              style={styles.modalShare}
+              title="Love it? Share it"
+              subtitle="Tell friends & family about TimetoPay"
+            />
+            <TouchableOpacity
+              style={[styles.modalDone, { backgroundColor: colors.primary }]}
+              onPress={() => setShowCelebrate(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.modalDoneText, { color: colors.primaryForeground }]}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -226,4 +283,43 @@ const styles = StyleSheet.create({
   emptyList: {
     flex: 1,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalSheet: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
+  },
+  modalIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  modalTitle: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
+  modalSubtitle: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  modalShare: { alignSelf: "stretch", marginTop: 6 },
+  modalDone: {
+    alignSelf: "stretch",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  modalDoneText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
