@@ -7,3 +7,5 @@
 - [Tall/wide PDF rasterization](tall-pdf-rasterization.md) — poppler-only (pdftoppm+pdfinfo, no ImageMagick); width-cap DPI + vertical band split so huge pages don't exceed vision-model image limits; register temp files as created.
 - [Native premium-bypass header](native-premium-bypass-header.md) — raw expoFetch calls to requirePremium routes must manually send x-client-platform:Platform.OS or native users get wrongly 403'd.
 - [Native React Query online detection](native-onlinemanager-netinfo.md) — onlineManager assumes always-online on RN; wire NetInfo (Expo-bundled version) on native only, web keeps its default listener.
+- [Replit secrets == shared env vars](replit-secrets-envvars-same-store.md) — same underlying store; deleting the shared env var also deletes the "secret". Don't dedupe them.
+- [connectors-sdk in code_execution sandbox](connectors-sdk-sandbox-import.md) — sandbox can't import the workspace @replit/connectors-sdk; use the listConnections() callback for settings.api_key and call the vendor API directly.
