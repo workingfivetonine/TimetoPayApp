@@ -36,6 +36,14 @@ export const usersTable = pgTable(
     // started (the free-trial offer is still available). Set once and never
     // cleared, so a trial can't be re-claimed after it elapses.
     trialStartedAt: timestamp("trial_started_at", { withTimezone: true }),
+    // When the user made their one-time post-signup plan choice (subscribe /
+    // start trial / continue free). Null = the "Choose your plan" onboarding
+    // step has not been completed yet. Set once; gates the onboarding redirect.
+    planSelectedAt: timestamp("plan_selected_at", { withTimezone: true }),
+    // When the user dismissed the one-time "20% off annual" offer shown to free
+    // users after their trial ends. Null = offer not yet dismissed. Set once so
+    // the offer popup is not shown again.
+    annualOfferDismissedAt: timestamp("annual_offer_dismissed_at", { withTimezone: true }),
     // Provider-side identifiers used to reconcile webhook events back to a user.
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),

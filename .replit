@@ -99,6 +99,8 @@ channel = "stable-25_05"
 [userenv.shared]
 PAYPAL_API_BASE = "https://api-m.paypal.com"
 PAYPAL_PLAN_ID = "P-3A129630RR8921826NIO2U3I"
+STRIPE_ANNUAL_PRICE_ID = "price_1TdgraAJLMeP925Si9qMwcFY"
+STRIPE_ANNUAL_COUPON_ID = "POBLHNX0"
 
 [userenv.development]
 STRIPE_PRICE_ID = "price_1TdZ90AJLMeP925SHBnxlXuf"

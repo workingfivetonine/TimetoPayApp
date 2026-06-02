@@ -17,6 +17,7 @@ export * from './adminSubscriberStatus';
 export * from './adminUser';
 export * from './adminUserReceipts';
 export * from './billingCheckoutInput';
+export * from './billingCheckoutInputPlan';
 export * from './billingCheckoutInputProvider';
 export * from './billingCheckoutResponse';
 export * from './billingCheckoutResponseProvider';

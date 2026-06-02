@@ -54,6 +54,14 @@ router.post("/checkout", async (req, res): Promise<void> => {
   }
 
   const base = webBaseUrl(req);
+  const plan = parsed.data.plan ?? "monthly";
+
+  // Annual billing is Stripe-only for now (the 20%-off post-trial offer). PayPal
+  // keeps the monthly plan only.
+  if (plan === "annual" && parsed.data.provider !== "stripe") {
+    res.status(400).json({ error: "Annual billing is available with card (Stripe) only." });
+    return;
+  }
 
   if (parsed.data.provider === "stripe") {
     if (!(await isStripeConfigured())) {
@@ -62,21 +70,46 @@ router.post("/checkout", async (req, res): Promise<void> => {
     }
     const stripe = await getUncachableStripeClient();
 
-    let priceId = process.env.STRIPE_PRICE_ID;
-    if (!priceId) {
-      const prices = await stripe.prices.list({
-        active: true,
-        type: "recurring",
-        limit: 1,
-      });
-      priceId = prices.data[0]?.id;
-    }
-    if (!priceId) {
-      res.status(400).json({
-        error:
-          "No Stripe price configured. Run the seed-stripe-price script first.",
-      });
-      return;
+    // The annual offer uses a dedicated annual price plus a 20%-off coupon
+    // (applied as a checkout discount). Monthly is the default plan.
+    let priceId: string | undefined;
+    let discounts: { coupon: string }[] | undefined;
+    if (plan === "annual") {
+      priceId = process.env.STRIPE_ANNUAL_PRICE_ID;
+      if (!priceId) {
+        res.status(400).json({
+          error:
+            "No annual Stripe price configured. Run the seed-stripe-price script first.",
+        });
+        return;
+      }
+      // The 20% coupon is the ONE-TIME post-trial offer. Enforce eligibility
+      // server-side (not just in the client modal) so it can't be requested
+      // repeatedly for unlimited discounted checkouts: apply the coupon ONLY when
+      // the user currently qualifies (computeEntitlement.showAnnualOffer = free,
+      // trial ended, not dismissed). Ineligible users may still buy annual, but
+      // at full price.
+      const coupon = process.env.STRIPE_ANNUAL_COUPON_ID;
+      if (coupon && computeEntitlement(user).showAnnualOffer) {
+        discounts = [{ coupon }];
+      }
+    } else {
+      priceId = process.env.STRIPE_PRICE_ID;
+      if (!priceId) {
+        const prices = await stripe.prices.list({
+          active: true,
+          type: "recurring",
+          limit: 1,
+        });
+        priceId = prices.data[0]?.id;
+      }
+      if (!priceId) {
+        res.status(400).json({
+          error:
+            "No Stripe price configured. Run the seed-stripe-price script first.",
+        });
+        return;
+      }
     }
 
     let customerId = user.stripeCustomerId;
@@ -99,6 +132,7 @@ router.post("/checkout", async (req, res): Promise<void> => {
       customer: customerId,
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
+      ...(discounts ? { discounts } : {}),
       success_url: `${base}/?checkout=success`,
       cancel_url: `${base}/?checkout=cancel`,
     });
@@ -296,6 +330,43 @@ router.post("/start-trial", async (req, res): Promise<void> => {
   }
 
   res.json(formatCurrentUser(updated));
+});
+
+// Mark the one-time post-signup "Choose your plan" onboarding step complete so
+// the client stops redirecting the user to it. Idempotent: only stamps
+// planSelectedAt when still null (a later call won't move the timestamp).
+router.post("/plan-selected", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const [updated] = await db
+    .update(usersTable)
+    .set({ planSelectedAt: new Date() })
+    .where(and(eq(usersTable.id, userId), isNull(usersTable.planSelectedAt)))
+    .returning();
+  // Already stamped (or row vanished): re-load and report current state so the
+  // call stays idempotent rather than erroring on a second tap.
+  const user = updated ?? (await loadUser(userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(formatCurrentUser(user));
+});
+
+// Dismiss the one-time 20%-off annual upsell so it isn't shown again. Idempotent:
+// only stamps annualOfferDismissedAt when still null.
+router.post("/dismiss-annual-offer", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const [updated] = await db
+    .update(usersTable)
+    .set({ annualOfferDismissedAt: new Date() })
+    .where(and(eq(usersTable.id, userId), isNull(usersTable.annualOfferDismissedAt)))
+    .returning();
+  const user = updated ?? (await loadUser(userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(formatCurrentUser(user));
 });
 
 export default router;

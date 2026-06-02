@@ -3015,6 +3015,146 @@ export const useStartFreeTrial = <TError = ErrorType<void>,
       return useMutation(getStartFreeTrialMutationOptions(options));
     }
 
+export const getMarkPlanSelectedUrl = () => {
+
+
+
+
+  return `/api/billing/plan-selected`
+}
+
+/**
+ * @summary Mark the one-time post-signup "Choose your plan" onboarding step done
+ */
+export const markPlanSelected = async ( options?: RequestInit): Promise<CurrentUser> => {
+
+  return customFetch<CurrentUser>(getMarkPlanSelectedUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getMarkPlanSelectedMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPlanSelected>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markPlanSelected>>, TError,void, TContext> => {
+
+const mutationKey = ['markPlanSelected'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markPlanSelected>>, void> = () => {
+
+
+          return  markPlanSelected(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkPlanSelectedMutationResult = NonNullable<Awaited<ReturnType<typeof markPlanSelected>>>
+
+    export type MarkPlanSelectedMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark the one-time post-signup "Choose your plan" onboarding step done
+ */
+export const useMarkPlanSelected = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPlanSelected>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markPlanSelected>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkPlanSelectedMutationOptions(options));
+    }
+
+export const getDismissAnnualOfferUrl = () => {
+
+
+
+
+  return `/api/billing/dismiss-annual-offer`
+}
+
+/**
+ * @summary Dismiss the one-time 20%-off annual upsell so it isn't shown again
+ */
+export const dismissAnnualOffer = async ( options?: RequestInit): Promise<CurrentUser> => {
+
+  return customFetch<CurrentUser>(getDismissAnnualOfferUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDismissAnnualOfferMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissAnnualOffer>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissAnnualOffer>>, TError,void, TContext> => {
+
+const mutationKey = ['dismissAnnualOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissAnnualOffer>>, void> = () => {
+
+
+          return  dismissAnnualOffer(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissAnnualOfferMutationResult = NonNullable<Awaited<ReturnType<typeof dismissAnnualOffer>>>
+
+    export type DismissAnnualOfferMutationError = ErrorType<void>
+
+    /**
+ * @summary Dismiss the one-time 20%-off annual upsell so it isn't shown again
+ */
+export const useDismissAnnualOffer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissAnnualOffer>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissAnnualOffer>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDismissAnnualOfferMutationOptions(options));
+    }
+
 export const getRedeemPromoCodeUrl = () => {
 
 

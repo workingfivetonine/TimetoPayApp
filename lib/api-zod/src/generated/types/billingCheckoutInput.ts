@@ -5,8 +5,11 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingCheckoutInputPlan } from './billingCheckoutInputPlan';
 import type { BillingCheckoutInputProvider } from './billingCheckoutInputProvider';
 
 export interface BillingCheckoutInput {
   provider: BillingCheckoutInputProvider;
+  /** Billing cadence. Defaults to monthly. "annual" (Stripe only) uses the annual price and applies the 20%-off coupon for the post-trial offer. */
+  plan?: BillingCheckoutInputPlan;
 }

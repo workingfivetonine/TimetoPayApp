@@ -12,8 +12,13 @@ import { getUncachableStripeClient } from "./stripeClient";
 // then set the printed STRIPE_PRICE_ID as the PRODUCTION secret.
 
 const PRODUCT_NAME = "Receipt Tracker Pro";
-const UNIT_AMOUNT = 599; // $5.99 in cents
+const UNIT_AMOUNT = 599; // $5.99 in cents (monthly)
+const ANNUAL_UNIT_AMOUNT = 7188; // $71.88 in cents (12 × $5.99, annual list price)
 const CURRENCY = "usd";
+// The post-trial 20%-off annual offer. Applied as a checkout discount on the
+// annual price. duration "once" = 20% off the FIRST year, renews at full price.
+const ANNUAL_COUPON_NAME = "Annual 20% off (first year)";
+const ANNUAL_COUPON_PERCENT = 20;
 
 async function main(): Promise<void> {
   const stripe = await getUncachableStripeClient();
@@ -52,7 +57,48 @@ async function main(): Promise<void> {
     console.log(`Reusing price ${price.id}`);
   }
 
+  // Find or create the annual recurring price ($71.88/yr).
+  let annualPrice = prices.data.find(
+    (p) =>
+      p.unit_amount === ANNUAL_UNIT_AMOUNT &&
+      p.currency === CURRENCY &&
+      p.recurring?.interval === "year",
+  );
+  if (!annualPrice) {
+    annualPrice = await stripe.prices.create({
+      product: product.id,
+      unit_amount: ANNUAL_UNIT_AMOUNT,
+      currency: CURRENCY,
+      recurring: { interval: "year" },
+    });
+    console.log(`Created annual price ${annualPrice.id}`);
+  } else {
+    console.log(`Reusing annual price ${annualPrice.id}`);
+  }
+
+  // Find or create the 20%-off coupon for the annual offer (first year only).
+  const coupons = await stripe.coupons.list({ limit: 100 });
+  let coupon = coupons.data.find(
+    (c) =>
+      c.valid &&
+      c.percent_off === ANNUAL_COUPON_PERCENT &&
+      c.duration === "once" &&
+      c.name === ANNUAL_COUPON_NAME,
+  );
+  if (!coupon) {
+    coupon = await stripe.coupons.create({
+      name: ANNUAL_COUPON_NAME,
+      percent_off: ANNUAL_COUPON_PERCENT,
+      duration: "once",
+    });
+    console.log(`Created annual coupon ${coupon.id}`);
+  } else {
+    console.log(`Reusing annual coupon ${coupon.id}`);
+  }
+
   console.log(`STRIPE_PRICE_ID=${price.id}`);
+  console.log(`STRIPE_ANNUAL_PRICE_ID=${annualPrice.id}`);
+  console.log(`STRIPE_ANNUAL_COUPON_ID=${coupon.id}`);
 }
 
 main().catch((err) => {

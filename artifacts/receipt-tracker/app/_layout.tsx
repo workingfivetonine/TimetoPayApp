@@ -24,6 +24,7 @@ import {
 } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { DataProvider } from "@/context/DataContext";
 import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
 
@@ -60,6 +61,7 @@ function RootLayoutNav() {
       <Stack.Screen name="store/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="catalog" options={{ headerShown: false }} />
       <Stack.Screen name="region-setup" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="choose-plan" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
       <Stack.Screen name="paywall" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="help" options={{ headerShown: false }} />
@@ -100,6 +102,7 @@ function InitialLayout() {
   const onLanding = segments[0] === "landing";
   const onPricing = segments[0] === "pricing";
   const onRegionSetup = segments[0] === "region-setup";
+  const onChoosePlan = segments[0] === "choose-plan";
   const isPublicRoute = inAuthGroup || onLanding || onPricing;
 
   // Region gate: a signed-in user must pick a region before using the app, since
@@ -108,6 +111,9 @@ function InitialLayout() {
     query: { queryKey: getGetCurrentUserQueryKey(), enabled: isSignedIn },
   });
   const needsRegion = isSignedIn && me != null && !me.countryCode;
+  // After region is set, a brand-new user picks a plan once (Subscribe / trial /
+  // free). planSelected flips permanently after any choice on /choose-plan.
+  const needsPlan = isSignedIn && me != null && !!me.countryCode && !me.planSelected;
 
   // Freemium model: we no longer redirect lapsed web users to the paywall.
   // Free users keep full access to their own data; premium surfaces (AI scan,
@@ -122,6 +128,8 @@ function InitialLayout() {
       router.replace("/");
     } else if (needsRegion && !onRegionSetup) {
       router.replace("/region-setup");
+    } else if (needsPlan && !onChoosePlan && !onRegionSetup) {
+      router.replace("/choose-plan");
     }
     // Note: we do NOT bounce users who already have a region off /region-setup —
     // that screen doubles as the "edit my region" settings screen.
@@ -130,7 +138,9 @@ function InitialLayout() {
     isSignedIn,
     isPublicRoute,
     needsRegion,
+    needsPlan,
     onRegionSetup,
+    onChoosePlan,
     router,
   ]);
 
@@ -142,7 +152,12 @@ function InitialLayout() {
     );
   }
 
-  return <RootLayoutNav />;
+  return (
+    <>
+      <RootLayoutNav />
+      <AnnualOfferModal />
+    </>
+  );
 }
 
 export default function RootLayout() {

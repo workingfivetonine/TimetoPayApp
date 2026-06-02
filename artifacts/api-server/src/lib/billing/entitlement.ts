@@ -32,6 +32,11 @@ export interface Entitlement {
   // started a trial and never had a provider subscription). Drives the
   // "Start free trial" CTA on the account/paywall screens.
   canStartTrial: boolean;
+  // Whether to show the one-time "20% off annual" upsell popup. True only for a
+  // free (not entitled) user whose opt-in trial has ENDED, who hasn't already
+  // dismissed the offer, and who isn't admin/comped. Never on the public landing
+  // page (that's signed-out, so this is always false there).
+  showAnnualOffer: boolean;
 }
 
 type UserRow = typeof usersTable.$inferSelect;
@@ -65,21 +70,37 @@ export function computeEntitlement(
     !user.trialStartedAt &&
     (status === null || status === "none");
 
+  // The "20% off annual" upsell targets a free user whose opt-in trial has
+  // already ELAPSED (so it's offered "after the standard free trial"), who has
+  // not yet dismissed it, and who isn't admin/comped. It can only ever be true
+  // in the final not-entitled (free) return below — every entitled early-return
+  // reports false. Combined with the trial-ended check this is naturally
+  // one-time + post-trial.
+  const trialEnded =
+    user.trialStartedAt != null &&
+    now >= new Date(user.trialStartedAt.getTime() + TRIAL_DAYS * DAY_MS);
+  const annualOfferEligible =
+    !user.isAdmin &&
+    !user.compAccess &&
+    !isCompEmail(user.email) &&
+    !user.annualOfferDismissedAt &&
+    trialEnded;
+
   // Admins (operator accounts) are never paywalled.
   if (user.isAdmin) {
-    return { entitled: true, status: "active", provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false };
+    return { entitled: true, status: "active", provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false, showAnnualOffer: false };
   }
 
   // Complimentary access override: a redeemed promo code (persisted as
   // `compAccess`) or a deployer-controlled comp-email allowlist grants free full
   // access regardless of subscription state. This is the "secret override".
   if (user.compAccess || isCompEmail(user.email)) {
-    return { entitled: true, status: "comped", provider, currentPeriodEnd: null, canStartTrial: false };
+    return { entitled: true, status: "comped", provider, currentPeriodEnd: null, canStartTrial: false, showAnnualOffer: false };
   }
 
   // Active provider subscription always wins.
   if (status === "trialing" || status === "active") {
-    return { entitled: true, status, provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false };
+    return { entitled: true, status, provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false, showAnnualOffer: false };
   }
 
   // past_due: short grace after the paid period end. If the provider gave us no
@@ -89,7 +110,7 @@ export function computeEntitlement(
       ? new Date(periodEnd.getTime() + PAST_DUE_GRACE_DAYS * DAY_MS)
       : null;
     if (graceEnd && now < graceEnd) {
-      return { entitled: true, status: "past_due", provider, currentPeriodEnd: iso(periodEnd), canStartTrial };
+      return { entitled: true, status: "past_due", provider, currentPeriodEnd: iso(periodEnd), canStartTrial, showAnnualOffer: false };
     }
     // grace elapsed or unknown → fall through to the opt-in trial / lockout.
   }
@@ -105,6 +126,7 @@ export function computeEntitlement(
         provider,
         currentPeriodEnd: trialEnd.toISOString(),
         canStartTrial: false,
+        showAnnualOffer: false,
       };
     }
   }
@@ -113,7 +135,7 @@ export function computeEntitlement(
   // the most specific terminal status so the UI can explain why.
   const lockedStatus: EntitlementStatus =
     status === "canceled" ? "canceled" : status === "past_due" ? "past_due" : "none";
-  return { entitled: false, status: lockedStatus, provider, currentPeriodEnd: iso(periodEnd), canStartTrial };
+  return { entitled: false, status: lockedStatus, provider, currentPeriodEnd: iso(periodEnd), canStartTrial, showAnnualOffer: annualOfferEligible };
 }
 
 // Shared shape for the OpenAPI `CurrentUser` response, used by /me and the
@@ -126,6 +148,8 @@ export function formatCurrentUser(user: UserRow) {
     role: user.role,
     countryCode: user.countryCode,
     stateCode: user.stateCode,
+    // One-time post-signup "Choose your plan" onboarding step completed?
+    planSelected: user.planSelectedAt != null,
     entitlement: computeEntitlement(user),
   };
 }

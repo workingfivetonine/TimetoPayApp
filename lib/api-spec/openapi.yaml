@@ -762,6 +762,36 @@ paths:
         "404":
           description: User not found
 
+  /billing/plan-selected:
+    post:
+      operationId: markPlanSelected
+      tags: [billing]
+      summary: Mark the one-time post-signup "Choose your plan" onboarding step done
+      responses:
+        "200":
+          description: The updated current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "404":
+          description: User not found
+
+  /billing/dismiss-annual-offer:
+    post:
+      operationId: dismissAnnualOffer
+      tags: [billing]
+      summary: Dismiss the one-time 20%-off annual upsell so it isn't shown again
+      responses:
+        "200":
+          description: The updated current user with refreshed entitlement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "404":
+          description: User not found
+
   /billing/redeem:
     post:
       operationId: redeemPromoCode
@@ -1354,7 +1384,7 @@ components:
 
     CurrentUser:
       type: object
-      required: [id, isAdmin, role, entitlement]
+      required: [id, isAdmin, role, planSelected, entitlement]
       properties:
         id:
           type: string
@@ -1370,12 +1400,15 @@ components:
         stateCode:
           type: ["string", "null"]
           description: USPS 2-letter state code; only set when countryCode is "US"
+        planSelected:
+          type: boolean
+          description: Whether the one-time post-signup "Choose your plan" step is done
         entitlement:
           $ref: "#/components/schemas/UserEntitlement"
 
     UserEntitlement:
       type: object
-      required: [entitled, status, provider, currentPeriodEnd, canStartTrial]
+      required: [entitled, status, provider, currentPeriodEnd, canStartTrial, showAnnualOffer]
       properties:
         entitled:
           type: boolean
@@ -1393,6 +1426,9 @@ components:
         canStartTrial:
           type: boolean
           description: Whether the one-time free trial offer is still available
+        showAnnualOffer:
+          type: boolean
+          description: Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)
 
     BillingCheckoutInput:
       type: object
@@ -1401,6 +1437,12 @@ components:
         provider:
           type: string
           enum: [stripe, paypal]
+        plan:
+          type: string
+          enum: [monthly, annual]
+          description: >-
+            Billing cadence. Defaults to monthly. "annual" (Stripe only) uses the
+            annual price and applies the 20%-off coupon for the post-trial offer.
 
     BillingCheckoutResponse:
       type: object

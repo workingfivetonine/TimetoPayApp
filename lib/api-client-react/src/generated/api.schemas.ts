@@ -150,6 +150,8 @@ export interface UserEntitlement {
   currentPeriodEnd: string | null;
   /** Whether the one-time free trial offer is still available */
   canStartTrial: boolean;
+  /** Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed) */
+  showAnnualOffer: boolean;
 }
 
 export interface CurrentUser {
@@ -168,6 +170,8 @@ export interface CurrentUser {
      * @nullable
      */
   stateCode?: string | null;
+  /** Whether the one-time post-signup "Choose your plan" step is done */
+  planSelected: boolean;
   entitlement: UserEntitlement;
 }
 
@@ -179,8 +183,21 @@ export const BillingCheckoutInputProvider = {
   paypal: 'paypal',
 } as const;
 
+/**
+ * Billing cadence. Defaults to monthly. "annual" (Stripe only) uses the annual price and applies the 20%-off coupon for the post-trial offer.
+ */
+export type BillingCheckoutInputPlan = typeof BillingCheckoutInputPlan[keyof typeof BillingCheckoutInputPlan];
+
+
+export const BillingCheckoutInputPlan = {
+  monthly: 'monthly',
+  annual: 'annual',
+} as const;
+
 export interface BillingCheckoutInput {
   provider: BillingCheckoutInputProvider;
+  /** Billing cadence. Defaults to monthly. "annual" (Stripe only) uses the annual price and applies the 20%-off coupon for the post-trial offer. */
+  plan?: BillingCheckoutInputPlan;
 }
 
 export type BillingCheckoutResponseProvider = typeof BillingCheckoutResponseProvider[keyof typeof BillingCheckoutResponseProvider];

@@ -24,4 +24,6 @@ export interface UserEntitlement {
   currentPeriodEnd: string | null;
   /** Whether the one-time free trial offer is still available */
   canStartTrial: boolean;
+  /** Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed) */
+  showAnnualOffer: boolean;
 }

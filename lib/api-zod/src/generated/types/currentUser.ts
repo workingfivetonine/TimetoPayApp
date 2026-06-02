@@ -24,5 +24,7 @@ export interface CurrentUser {
      * @nullable
      */
   stateCode?: string | null;
+  /** Whether the one-time post-signup "Choose your plan" step is done */
+  planSelected: boolean;
   entitlement: UserEntitlement;
 }
