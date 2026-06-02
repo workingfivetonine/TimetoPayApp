@@ -27,6 +27,9 @@ import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { notify } from "@/lib/confirm";
 
 type SortKey = "category" | "az" | "price" | "store";
 type FilterKey = "all" | "history";
@@ -59,7 +62,8 @@ export default function CatalogBrowseScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const locked = usePremiumLock();
-  const { data, isLoading, error } = useBrowseCatalog({
+  const isOnline = useOnlineStatus();
+  const { data, isLoading, error, dataUpdatedAt } = useBrowseCatalog({
     query: { queryKey: getBrowseCatalogQueryKey(), enabled: !locked },
   });
   const { data: me } = useGetCurrentUser();
@@ -127,6 +131,10 @@ export default function CatalogBrowseScreen() {
 
   const handleToggle = async (item: CatalogBrowseItem) => {
     if (pendingId != null) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to update your list.");
+      return;
+    }
     setPendingId(item.catalogItemId);
     try {
       if (item.inList && item.userItemId != null) {
@@ -152,6 +160,8 @@ export default function CatalogBrowseScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Browse Catalog</Text>
         <View style={styles.backBtn} />
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       {locked ? (
         <PremiumUpsell

@@ -30,6 +30,9 @@ import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
 import { ShareInvite } from "@/components/ShareInvite";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { notify } from "@/lib/confirm";
 
 type EntitlementStatus =
   | "trialing"
@@ -69,7 +72,8 @@ export default function AccountScreen() {
   const queryClient = useQueryClient();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { data: me, isLoading } = useGetCurrentUser();
+  const { data: me, isLoading, dataUpdatedAt } = useGetCurrentUser();
+  const isOnline = useOnlineStatus();
   const manage = useManageBillingSubscription();
   const startTrial = useStartFreeTrial();
   const [trialError, setTrialError] = React.useState<string | null>(null);
@@ -93,6 +97,10 @@ export default function AccountScreen() {
     entitlement.status !== "active";
 
   const handleStartTrial = () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to start your trial.");
+      return;
+    }
     setTrialError(null);
     startTrial.mutate(undefined, {
       onSuccess: async () => {
@@ -103,6 +111,10 @@ export default function AccountScreen() {
   };
 
   const handleManage = () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to manage your subscription.");
+      return;
+    }
     manage.mutate(
       undefined,
       {
@@ -120,6 +132,14 @@ export default function AccountScreen() {
         },
       },
     );
+  };
+
+  const handleSubscribe = () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to subscribe.");
+      return;
+    }
+    router.push("/paywall");
   };
 
   const email =
@@ -160,6 +180,8 @@ export default function AccountScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Account</Text>
         <View style={styles.backBtn} />
       </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -248,7 +270,7 @@ export default function AccountScreen() {
                   </TouchableOpacity>
                 ) : null}
                 <TouchableOpacity
-                  onPress={() => router.push("/paywall")}
+                  onPress={handleSubscribe}
                   style={[
                     styles.subActionBtn,
                     entitlement.canStartTrial
@@ -372,6 +394,7 @@ const NOTIFICATION_TOGGLES: {
 function NotificationsSection() {
   const colors = useColors();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const { data: prefs } = useGetMyNotificationPreferences();
   const update = useUpdateMyNotificationPreferences();
   // Optimistic local copy so toggles feel instant.
@@ -385,6 +408,10 @@ function NotificationsSection() {
 
   const toggle = (key: keyof NotificationPreferences) => {
     if (!current) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to change your reminder settings.");
+      return;
+    }
     const next = { ...current, [key]: !current[key] };
     setLocal(next);
     update.mutate(
