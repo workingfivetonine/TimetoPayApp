@@ -12,6 +12,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const WEB_ROOT = path.join(STATIC_ROOT, "web");
@@ -519,20 +520,175 @@ function serveWebManifest(res, appName) {
   res.end(JSON.stringify(buildWebManifest(appName)));
 }
 
-// Minimal service worker: a fetch handler is required for installability on
-// some browsers (Chrome/Edge). It is a pass-through — no offline caching.
-const SERVICE_WORKER_SOURCE = `self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
-self.addEventListener("fetch", () => {});
+// Branded offline fallback shown when a navigation is requested with no network
+// and no cached app shell available. Kept tiny + self-contained (no external
+// assets) so it always renders. Precached by the service worker on install.
+function buildOfflinePage(appName) {
+  const safeName = escapeHtml(appName);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${safeName} — Offline</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: ${PWA_BACKGROUND_COLOR}; color: #1e1b2e; padding: 24px; text-align: center;
+    }
+    .card { max-width: 360px; }
+    .badge {
+      width: 72px; height: 72px; border-radius: 20px; margin: 0 auto 20px;
+      display: flex; align-items: center; justify-content: center;
+      background: ${PWA_THEME_COLOR}; color: #fff; font-size: 34px;
+    }
+    h1 { font-size: 22px; margin: 0 0 10px; }
+    p { font-size: 15px; line-height: 1.5; color: #4b465c; margin: 0 0 22px; }
+    button {
+      appearance: none; border: 0; cursor: pointer; font-size: 15px; font-weight: 600;
+      color: #fff; background: ${PWA_THEME_COLOR}; padding: 12px 22px; border-radius: 999px;
+    }
+    button:active { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="badge" aria-hidden="true">📡</div>
+    <h1>You're offline</h1>
+    <p>${safeName} can't reach the internet right now. Reconnect to scan receipts, view prices, and sync your shopping list.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </main>
+</body>
+</html>
 `;
+}
 
-function serveServiceWorker(res) {
+// App-shell caching service worker. Caches the shell (HTML, JS, icons) so the
+// installed app launches instantly on repeat opens, and falls back to a branded
+// offline page when there's no network and no cached shell. The cache name is
+// versioned (from a hash of the current web build + base path) so a republish
+// produces fresh bytes; the browser detects the changed SW and old caches are
+// pruned on activate. User data (receipts/prices/API responses) is never cached.
+function buildServiceWorkerSource(appName) {
+  const version = computeServiceWorkerVersion();
+  const shell = JSON.stringify(`${basePath}/`);
+  const offlineUrl = JSON.stringify(`${basePath}/offline.html`);
+  const precache = JSON.stringify([
+    `${basePath}/`,
+    `${basePath}/offline.html`,
+    `${basePath}/manifest.webmanifest`,
+    `${basePath}/pwa/icon-192.png`,
+    `${basePath}/pwa/icon-512.png`,
+    `${basePath}/pwa/icon-maskable-512.png`,
+    `${basePath}/pwa/apple-touch-icon.png`,
+  ]);
+  const apiPrefix = JSON.stringify(`${basePath}/api/`);
+  return `const VERSION = ${JSON.stringify(version)};
+const CACHE = "rt-shell-" + VERSION;
+const APP_SHELL = ${shell};
+const OFFLINE_URL = ${offlineUrl};
+const PRECACHE = ${precache};
+const API_PREFIX = ${apiPrefix};
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((cache) => Promise.all(
+        PRECACHE.map((url) =>
+          cache.add(new Request(url, { cache: "reload" })).catch(() => {})
+        )
+      ))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  // Never cache API traffic — it's per-user, auth'd, and must stay live.
+  if (url.pathname.indexOf(API_PREFIX) === 0) return;
+
+  // Navigations: network-first so fresh shells win, falling back to the cached
+  // shell (instant offline launch) and finally the branded offline page.
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(APP_SHELL, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() =>
+          caches.match(APP_SHELL).then((cached) => cached || caches.match(OFFLINE_URL))
+        )
+    );
+    return;
+  }
+
+  // Static assets (JS/CSS/fonts/icons): cache-first, revalidating in the
+  // background so updates are picked up after the next load.
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      const network = fetch(req)
+        .then((res) => {
+          if (res && res.status === 200 && res.type === "basic") {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => cached);
+      return cached || network;
+    })
+  );
+});
+`;
+}
+
+// Versions the SW cache from the current web build (index.html bytes) plus the
+// base path. When the app is rebuilt the hashed bundles referenced by index.html
+// change, so this hash changes, the SW bytes change, and the browser rolls out
+// the update + prunes the old cache on activate.
+function computeServiceWorkerVersion() {
+  const h = crypto.createHash("sha256");
+  h.update(getWebIndexRaw() || "no-web-build");
+  h.update("\n");
+  h.update(basePath || "/");
+  return h.digest("hex").slice(0, 12);
+}
+
+function serveServiceWorker(res, appName) {
   res.writeHead(200, {
     "content-type": "application/javascript; charset=utf-8",
     "cache-control": "no-cache",
     "service-worker-allowed": PWA_SCOPE,
   });
-  res.end(SERVICE_WORKER_SOURCE);
+  res.end(buildServiceWorkerSource(appName));
+}
+
+function serveOfflinePage(res, appName) {
+  res.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-cache",
+  });
+  res.end(buildOfflinePage(appName));
 }
 
 function buildPwaHead(appName) {
@@ -686,7 +842,11 @@ const server = http.createServer((req, res) => {
   }
 
   if (pathname === "/sw.js") {
-    return serveServiceWorker(res);
+    return serveServiceWorker(res, appName);
+  }
+
+  if (pathname === "/offline.html") {
+    return serveOfflinePage(res, appName);
   }
 
   if (pathname === "/privacy") {
