@@ -159,6 +159,35 @@ export default function CatalogBrowseScreen() {
           title="Global price catalog"
           subtitle="See what items cost across stores, aggregated from shoppers near you. Subscribe to browse the catalog and add items to your list."
         />
+      ) : !me ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : /* Defensive fallback: the _layout region gate normally redirects a
+            region-less user to /region-setup before they reach the catalog, but
+            if they ever land here without a region, prompt them to pick one so
+            they understand it unlocks other local shoppers' item/price data. */
+      !me.countryCode ? (
+        <View style={styles.center}>
+          <View style={styles.regionPrompt}>
+            <View style={[styles.regionIcon, { backgroundColor: colors.accent }]}>
+              <Feather name="map-pin" size={28} color={colors.primary} />
+            </View>
+            <Text style={[styles.regionTitle, { color: colors.foreground }]}>Pick your region</Text>
+            <Text style={[styles.regionSubtitle, { color: colors.mutedForeground }]}>
+              Choose where you shop to see items and prices uploaded by other shoppers in your area.
+            </Text>
+            <TouchableOpacity
+              style={[styles.regionBtn, { backgroundColor: colors.primary }]}
+              onPress={() => router.push("/region-setup")}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.regionBtnText, { color: colors.primaryForeground }]}>
+                Choose region
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
         <>
       {/* Search */}
@@ -372,6 +401,26 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  regionPrompt: { alignItems: "center", gap: 10, paddingHorizontal: 24, maxWidth: 360 },
+  regionIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  regionTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  regionSubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  regionBtn: {
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  regionBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",

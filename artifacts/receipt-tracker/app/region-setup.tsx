@@ -65,9 +65,9 @@ export default function RegionSetupScreen() {
           {isEditing ? "Your region" : "Where do you shop?"}
         </Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          We use your region to show prices from stores near you. Shoppers only see
-          stores and price trends from their own country (and US shoppers, their own
-          state). You can change this anytime in your account.
+          Pick your region to see items and prices uploaded by other shoppers near
+          you. You only see stores and price trends from your own country (and US
+          shoppers, your own state). You can change this anytime in your account.
         </Text>
 
         <RegionPicker
