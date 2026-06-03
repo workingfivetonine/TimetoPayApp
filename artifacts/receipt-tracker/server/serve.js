@@ -230,7 +230,7 @@ function servePrivacy(req, res, appName) {
             list: [
               "<strong>Clerk</strong> — account authentication and sign-in.",
               "<strong>OpenAI</strong> — reading the receipts you scan.",
-              "<strong>Replit</strong> — application hosting and database storage.",
+              "<strong>Railway & Vercel</strong> — application hosting and database storage.",
             ],
           },
           {
