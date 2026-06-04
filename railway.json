@@ -3,9 +3,6 @@
   "build": {
     "builder": "RAILPACK",
     "buildCommand": "pnpm install --no-frozen-lockfile && pnpm run build",
-    "watchPatterns": [
-      "/artifacts/api-server/**"
-    ],
     "buildEnvironment": "V3"
   },
   "deploy": {
