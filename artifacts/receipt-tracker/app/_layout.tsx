@@ -34,6 +34,7 @@ import {
   asyncStoragePersister,
   OFFLINE_CACHE_MAX_AGE,
 } from "@/lib/queryClient";
+import { Analytics } from "@vercel/analytics/react";
 
 // Set base URL for API calls. On production web this resolves to the live
 // serving origin so the app works on the custom domain AND the *.replit.app
@@ -220,6 +221,7 @@ export default function RootLayout() {
           </ErrorBoundary>
         </SafeAreaProvider>
       </ClerkLoaded>
+      {Platform.OS === "web" && <Analytics />}
     </ClerkProvider>
   );
 }
