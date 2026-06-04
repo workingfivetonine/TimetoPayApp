@@ -126,13 +126,6 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   // the `stripe.*` tables are never created. Copy the migrations next to the
   // bundle so they resolve to dist/migrations.
   const require2 = createRequire(import.meta.url);
-  const stripeSyncMigrations = path.join(
-    path.dirname(require2.resolve("stripe-replit-sync")),
-    "migrations",
-  );
-  await cp(stripeSyncMigrations, path.resolve(distDir, "migrations"), {
-    recursive: true,
-  });
 }
 
 buildAll().catch((err) => {
