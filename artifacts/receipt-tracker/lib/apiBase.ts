@@ -27,6 +27,10 @@ function isProdWeb(): boolean {
 }
 
 export function getApiOrigin(): string {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (apiUrl) {
+    return apiUrl;
+  }
   if (isProdWeb()) {
     return window.location.origin;
   }
