@@ -49,7 +49,7 @@ export function getClerkProxyUrl(): string | undefined {
   const configured = process.env.EXPO_PUBLIC_CLERK_PROXY_URL;
   if (!configured) return undefined;
   if (isProdWeb()) {
-    return `${window.location.origin}${CLERK_PROXY_PATH}`;
+    return `${process.env.EXPO_PUBLIC_API_URL}${CLERK_PROXY_PATH}`;
   }
   return configured;
 }
