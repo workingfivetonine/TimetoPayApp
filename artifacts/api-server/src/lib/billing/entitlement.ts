@@ -85,6 +85,7 @@ const canStartTrial =
     !user.compAccess &&
     !isCompEmail(user.email) &&
     !user.annualOfferDismissedAt &&
+    user.role !== "family" &&
     trialEnded;
 
   // Admins (operator accounts) are never paywalled.
