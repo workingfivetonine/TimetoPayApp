@@ -34,7 +34,7 @@ async function tick(): Promise<void> {
 export function startReminderScheduler(): void {
   // Hourly by default: granular enough to catch trial-ending windows and
   // start-of-week/month boundaries without hammering the DB.
-  const intervalMs = envInt("REMINDER_INTERVAL_MS", 60 * 60 * 1000);
+const intervalMs = envInt("REMINDER_INTERVAL_MS", 24 * 60 * 60 * 1000);
   const initialDelayMs = envInt("REMINDER_INITIAL_DELAY_MS", 90 * 1000);
 
   const first = setTimeout(() => void tick(), initialDelayMs);
