@@ -63,10 +63,11 @@ export function computeEntitlement(
   // The one-time free trial is available only to users who have never started a
   // trial AND never had a provider subscription (status null/none). A canceled or
   // past_due user has already had access and re-subscribes instead.
-  const canStartTrial =
-    !user.isAdmin &&
-    !user.compAccess &&
-    !isCompEmail(user.email) &&
+const canStartTrial =
+  !user.isAdmin &&
+  user.role !== "family" &&
+  !user.compAccess &&
+  !isCompEmail(user.email) &&
     !user.trialStartedAt &&
     (status === null || status === "none");
 
@@ -90,6 +91,9 @@ export function computeEntitlement(
   if (user.isAdmin) {
     return { entitled: true, status: "active", provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false, showAnnualOffer: false };
   }
+ if (user.role === "family") {
+  return { entitled: true, status: "comped", provider, currentPeriodEnd: null, canStartTrial: false, showAnnualOffer: false };
+}
 
   // Complimentary access override: a redeemed promo code (persisted as
   // `compAccess`) or a deployer-controlled comp-email allowlist grants free full
