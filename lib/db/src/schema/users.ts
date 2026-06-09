@@ -62,19 +62,16 @@ export const usersTable = pgTable(
     //   notifyListExport:       weekly grocery-list export nudge
     //   notifyReceiptReminders: "upload a receipt" inactivity nudge
     //   notifySpendSummary:     end-of-week / end-of-month spend recaps
-    notifyPaymentReminders: boolean("notify_payment_reminders").notNull().default(true),
-    notifyListExport: boolean("notify_list_export").notNull().default(true),
-    notifyReceiptReminders: boolean("notify_receipt_reminders").notNull().default(true),
-    notifySpendSummary: boolean("notify_spend_summary").notNull().default(true),
+notifyPaymentReminders: boolean("notify_payment_reminders").notNull().default(false),
+notifyListExport: boolean("notify_list_export").notNull().default(false),
+notifyReceiptReminders: boolean("notify_receipt_reminders").notNull().default(false),
+notifySpendSummary: boolean("notify_spend_summary").notNull().default(false),
     // ── Per-email-type "last sent" cursors (dedupe / once-per-period) ──────
     // The scheduler records when each email type was last sent to this user so a
     // reminder fires at most once per relevant period across repeated runs.
     lastTrialEndingSentAt: timestamp("last_trial_ending_sent_at", { withTimezone: true }),
-    lastPastDueSentAt: timestamp("last_past_due_sent_at", { withTimezone: true }),
-    lastListExportSentAt: timestamp("last_list_export_sent_at", { withTimezone: true }),
-    lastReceiptInactivitySentAt: timestamp("last_receipt_inactivity_sent_at", { withTimezone: true }),
-    lastWeeklySummarySentAt: timestamp("last_weekly_summary_sent_at", { withTimezone: true }),
-    lastMonthlySummarySentAt: timestamp("last_monthly_summary_sent_at", { withTimezone: true }),
+    lastWeeklySummarySentAt: timestamp("last_weekly_summary_sent_at", { withTimezone: false }),
+    lastMonthlySummarySentAt: timestamp("last_monthly_summary_sent_at", { withTimezone: false }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
