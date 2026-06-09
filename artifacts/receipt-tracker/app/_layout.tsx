@@ -23,6 +23,7 @@ import {
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
@@ -174,6 +175,7 @@ function InitialLayout() {
       <RootLayoutNav />
       <AnnualOfferModal />
       <UpdatePrompt />
+      {Platform.OS === 'web' && <SpeedInsights />}
     </>
   );
 }
