@@ -28,7 +28,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { DataProvider } from "@/context/DataContext";
-import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
+import { getApiOrigin } from "@/lib/apiBase";
 import {
   queryClient,
   asyncStoragePersister,
@@ -48,7 +48,6 @@ setClientPlatform(Platform.OS);
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 // Same-origin Clerk proxy on production web (works on any serving domain);
 // undefined in dev (Clerk hits the dev FAPI directly).
-const proxyUrl = getClerkProxyUrl();
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -195,7 +194,10 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} proxyUrl={proxyUrl}>
+    <ClerkProvider 
+  publishableKey={publishableKey} 
+  tokenCache={tokenCache}
+>
       <ClerkLoaded>
         <SafeAreaProvider>
           <ErrorBoundary>
