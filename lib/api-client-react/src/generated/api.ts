@@ -181,22 +181,22 @@ export const getListStoresUrl = () => {
 /**
  * @summary List all stores
  */
-export const listStores = async ( options?: RequestInit): Promise<Store[]> => {
-
-  return customFetch<Store[]>(getListStoresUrl(),
+export const listStores = async (
+  params?: { limit?: number; offset?: number },
+  options?: RequestInit
+): Promise<Store[]> => {
+  const url = new URL(getListStoresUrl(), 'http://localhost');
+  if (params?.limit) url.searchParams.set('limit', String(params.limit));
+  if (params?.offset) url.searchParams.set('offset', String(params.offset));
+  
+  return customFetch<Store[]>(url.toString(),
   {
     ...options,
     method: 'GET'
-
-
   }
-);}
-
-
-
-
-
-export const getListStoresQueryKey = () => {
+);
+}
+  export const getListStoresQueryKey = () => {
     return [
     `/api/stores`
     ] as const;
@@ -230,13 +230,13 @@ export type ListStoresQueryError = ErrorType<unknown>
  */
 
 export function useListStores<TData = Awaited<ReturnType<typeof listStores>>, TError = ErrorType<unknown>>(
+  params?: { limit?: number; offset?: number },
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStores>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListStoresQueryOptions(options)
 
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+ const queryFn: QueryFunction<Awaited<ReturnType<typeof listStores>>> = ({ signal }) => listStores(params, { signal, ...requestOptions });
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
