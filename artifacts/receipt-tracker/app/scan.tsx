@@ -32,6 +32,7 @@ import { getApiOrigin } from "@/lib/apiBase";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { PremiumBadge } from "@/components/PremiumBadge";
+import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 
 interface PendingImage {
   uri: string;
@@ -71,12 +72,12 @@ export default function ScanScreen() {
   const [scanningLabel, setScanningLabel] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
- const invalidateAll = () => {
-  // Only invalidate receipts - the main data that changed
-  queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-  // Let other queries refresh naturally when needed
-};
-  
+  const invalidateAll = () => {
+    // Only invalidate receipts - the main data that changed
+    queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+    // Let other queries refresh naturally when needed
+  };
+
   // Thrown when the server returns 403 (premium feature, free web user). Lets
   // the call sites show an upsell + route to the paywall instead of a generic
   // "could not read" error.
@@ -198,25 +199,25 @@ export default function ScanScreen() {
     const summaries: BatchReceiptSummary[] = [];
     let premiumBlocked = false;
     let failures = 0;
-   try {
-  const results = await batchProcess(
-    imagesBase64,
-    async (base64, index) => {
-      setScanningLabel(`Analyzing photo ${index + 1} of ${imagesBase64.length}…`);
-      return callApi<SavedReceipt>("parse-and-save", {
-        imageBase64: base64,
-      });
-    },
-    { concurrency: 3 }
-  );  
-  summaries.push(...results.map(toSummary));
-} catch (err) {
-  if (err instanceof PremiumRequiredError) {
-    premiumBlocked = true;
-  } else {
-    failures++;
-  }
-}
+    try {
+      const results = await batchProcess(
+        imagesBase64,
+        async (base64, index) => {
+          setScanningLabel(`Analyzing photo ${index + 1} of ${imagesBase64.length}…`);
+          return callApi<SavedReceipt>("parse-and-save", {
+            imageBase64: base64,
+          });
+        },
+        { concurrency: 3 }
+      );
+
+      summaries.push(...results.map(toSummary));
+    } catch (err) {
+      if (err instanceof PremiumRequiredError) {
+        premiumBlocked = true;
+      } else {
+        failures++;
+      }
     } finally {
       setScanning(false);
     }
