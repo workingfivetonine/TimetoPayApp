@@ -32,7 +32,6 @@ import { getApiOrigin } from "@/lib/apiBase";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { PremiumBadge } from "@/components/PremiumBadge";
-import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface PendingImage {
@@ -211,24 +210,21 @@ export default function ScanScreen() {
     let premiumBlocked = false;
     let failures = 0;
     try {
-      const results = await batchProcess(
-        imagesBase64,
-        async (base64, index) => {
+      await Promise.all(
+        imagesBase64.map(async (base64, index) => {
           setScanningLabel(`Analyzing photo ${index + 1} of ${imagesBase64.length}…`);
-          return callApi<SavedReceipt>("parse-and-save", {
-            imageBase64: base64,
-          });
-        },
-        { concurrency: 3 }
+          try {
+            const result = await callApi<SavedReceipt>("parse-and-save", { imageBase64: base64 });
+            summaries.push(toSummary(result));
+          } catch (err) {
+            if (err instanceof PremiumRequiredError) {
+              premiumBlocked = true;
+            } else {
+              failures++;
+            }
+          }
+        })
       );
-
-      summaries.push(...results.map(toSummary));
-    } catch (err) {
-      if (err instanceof PremiumRequiredError) {
-        premiumBlocked = true;
-      } else {
-        failures++;
-      }
     } finally {
       setScanning(false);
     }
