@@ -71,14 +71,12 @@ export default function ScanScreen() {
   const [scanningLabel, setScanningLabel] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
-  };
-
+ const invalidateAll = () => {
+  // Only invalidate receipts - the main data that changed
+  queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+  // Let other queries refresh naturally when needed
+};
+  
   // Thrown when the server returns 403 (premium feature, free web user). Lets
   // the call sites show an upsell + route to the paywall instead of a generic
   // "could not read" error.
