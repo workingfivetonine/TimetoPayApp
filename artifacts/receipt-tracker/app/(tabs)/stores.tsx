@@ -251,10 +251,10 @@ export default function StoresScreen() {
         <FlatList
           data={visibleStores}
           keyExtractor={(s) => String(s.id)}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
           contentContainerStyle={[
-            styles.list,
-            { paddingBottom },
-            visibleStores.length === 0 && styles.emptyList,
           ]}
           scrollEnabled={visibleStores.length > 0}
           refreshControl={
