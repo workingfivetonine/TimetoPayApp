@@ -200,22 +200,25 @@ export default function ScanScreen() {
     const summaries: BatchReceiptSummary[] = [];
     let premiumBlocked = false;
     let failures = 0;
-    try {
-      for (let i = 0; i < imagesBase64.length; i++) {
-        setScanningLabel(`Analyzing photo ${i + 1} of ${imagesBase64.length}…`);
-        try {
-          const saved = await callApi<SavedReceipt>("parse-and-save", {
-            imageBase64: imagesBase64[i],
-          });
-          summaries.push(toSummary(saved));
-        } catch (err) {
-          if (err instanceof PremiumRequiredError) {
-            premiumBlocked = true;
-            break;
-          }
-          failures++;
-        }
-      }
+   try {
+  const results = await batchProcess(
+    imagesBase64,
+    async (base64, index) => {
+      setScanningLabel(`Analyzing photo ${index + 1} of ${imagesBase64.length}…`);
+      return callApi<SavedReceipt>("parse-and-save", {
+        imageBase64: base64,
+      });
+    },
+    { concurrency: 3 }
+  );  
+  summaries.push(...results.map(toSummary));
+} catch (err) {
+  if (err instanceof PremiumRequiredError) {
+    premiumBlocked = true;
+  } else {
+    failures++;
+  }
+}
     } finally {
       setScanning(false);
     }
