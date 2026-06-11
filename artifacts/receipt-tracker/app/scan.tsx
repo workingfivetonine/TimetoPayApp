@@ -33,6 +33,7 @@ import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { PremiumBadge } from "@/components/PremiumBadge";
 import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface PendingImage {
   uri: string;
@@ -45,10 +46,20 @@ interface PendingImage {
 // parse-pdf page) to build a batch-review summary.
 interface SavedReceipt {
   id: number;
+  isDuplicate?: false;
   storeName?: string | null;
   total?: number | null;
   purchasedAt?: string | null;
   lineItems?: unknown[];
+}
+
+// A PDF page that matched an already-saved receipt; not persisted to the DB.
+interface DuplicateReceipt {
+  isDuplicate: true;
+  potentialDuplicateOf: number | null;
+  storeName: string;
+  total: number;
+  purchasedAt: string;
 }
 
 function toSummary(saved: SavedReceipt): BatchReceiptSummary {
@@ -238,10 +249,12 @@ export default function ScanScreen() {
     invalidateAll();
 
     if (failures > 0) {
-      Alert.alert(
+      showErrorToast(
         "Some photos couldn't be read",
-        `We saved ${summaries.length} of ${imagesBase64.length} photos. The rest couldn't be read — you can add those manually.`,
+        `Saved ${summaries.length} of ${imagesBase64.length} photos. Add the rest manually.`,
       );
+    } else {
+      showSuccessToast("Receipt scanned", `${summaries.length} photo${summaries.length === 1 ? "" : "s"} processed`);
     }
 
     if (summaries.length === 1) {
@@ -336,21 +349,49 @@ export default function ScanScreen() {
 
   const parsePdf = async (base64: string) => {
     setScanning(true);
-    setScanningLabel("Extracting PDF with AI…");
+    setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const { receipts } = await callApi<{ receipts: SavedReceipt[] }>("parse-pdf", {
-        pdfBase64: base64,
-      });
+      const { receipts } = await callApi<{ receipts: (SavedReceipt | DuplicateReceipt)[] }>(
+        "parse-pdf",
+        { pdfBase64: base64 },
+      );
+
+      const saved = receipts.filter((r): r is SavedReceipt => !r.isDuplicate);
+      const dupCount = receipts.length - saved.length;
+
+      if (saved.length === 0) {
+        // Every page matched an existing receipt — nothing new was saved.
+        showErrorToast(
+          "Already uploaded",
+          dupCount === 1
+            ? "This receipt looks like one you've already scanned."
+            : "These receipts look like ones you've already scanned.",
+        );
+        return;
+      }
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       invalidateAll();
-      // One page → straight to that receipt. Multiple pages each became their
-      // own receipt → batch-review so the user can merge any that belong
-      // together.
-      if (receipts.length === 1) {
-        router.replace(`/receipt/${receipts[0].id}`);
+
+      if (dupCount > 0) {
+        showSuccessToast(
+          "PDF scanned",
+          `${saved.length} of ${receipts.length} page${receipts.length === 1 ? "" : "s"} saved — ${dupCount} duplicate${dupCount === 1 ? "" : "s"} skipped`,
+        );
       } else {
-        setBatchReceipts(receipts.map(toSummary));
+        showSuccessToast(
+          "PDF scanned",
+          `${saved.length} receipt${saved.length === 1 ? "" : "s"} extracted`,
+        );
+      }
+
+      // One new receipt → go straight to it. Multiple → batch-review so the
+      // user can merge pages that belong to the same purchase.
+      if (saved.length === 1) {
+        router.replace(`/receipt/${saved[0].id}`);
+      } else {
+        setBatchReceipts(saved.map(toSummary));
         router.replace("/batch-review");
       }
     } catch (err) {

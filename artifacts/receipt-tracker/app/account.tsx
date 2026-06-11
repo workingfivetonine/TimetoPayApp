@@ -33,6 +33,7 @@ import { InstallAppButton } from "@/components/InstallAppButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify, confirmAction } from "@/lib/confirm";
+import { showSuccessToast } from "@/lib/toast";
 
 type EntitlementStatus =
   | "trialing"
@@ -111,6 +112,7 @@ export default function AccountScreen() {
         startTrial.mutate(undefined, {
           onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+            showSuccessToast("Welcome to your free trial!", "30 days of full premium access");
           },
           onError: () => setTrialError("Couldn't start your free trial. Please try again."),
         });

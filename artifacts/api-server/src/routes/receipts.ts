@@ -846,10 +846,72 @@ router.post("/save-parsed", async (req, res): Promise<void> => {
   }
 });
 
-// Parse and save a PDF receipt — handles text-based and image-based (scanned)
-// PDFs. EACH PAGE is parsed independently and saved as its OWN receipt, so a
-// multi-page PDF (e.g. a stack of receipts scanned into one file) yields one
-// receipt per page; the client can then merge any that belong together.
+// Check whether a receipt with the same (user, store, purchase date, total,
+// AND overlapping items) already exists, indicating a potential duplicate
+// upload. Requiring item overlap prevents false positives when two different
+// purchases at the same store on the same day happen to share a total.
+// Returns the matching receipt id, or null when no duplicate is found.
+async function findDuplicate(
+  userId: string,
+  storeName: string,
+  purchasedAt: string,
+  total: number,
+  lineItemNames: string[],
+): Promise<number | null> {
+  if (lineItemNames.length === 0) return null;
+
+  const purchaseDate = new Date(purchasedAt);
+  if (isNaN(purchaseDate.getTime())) return null;
+  const dayStart = new Date(purchaseDate);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+  // Step 1: find receipts that match on store + date + total.
+  const candidates = await db
+    .select({ id: receiptsTable.id })
+    .from(receiptsTable)
+    .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+    .where(
+      and(
+        eq(receiptsTable.userId, userId),
+        sql`${receiptsTable.purchasedAt} >= ${dayStart.toISOString()}`,
+        sql`${receiptsTable.purchasedAt} < ${dayEnd.toISOString()}`,
+        sql`ABS(${receiptsTable.total}::numeric - ${total}::numeric) < 0.01`,
+        sql`LOWER(${storesTable.name}) = LOWER(${storeName.trim()})`,
+      ),
+    )
+    .limit(5);
+
+  if (candidates.length === 0) return null;
+
+  // Step 2: confirm by checking item overlap. Require at least half of the
+  // parsed items to appear by name in the existing receipt.
+  const parsedNames = new Set(lineItemNames.map((n) => n.toLowerCase().trim()).filter(Boolean));
+  const threshold = Math.ceil(parsedNames.size / 2);
+
+  for (const { id } of candidates) {
+    const rows = await db
+      .select({ name: itemsTable.name })
+      .from(lineItemsTable)
+      .innerJoin(itemsTable, eq(lineItemsTable.itemId, itemsTable.id))
+      .where(eq(lineItemsTable.receiptId, id));
+
+    const matchCount = rows.filter((r) => parsedNames.has(r.name.toLowerCase().trim())).length;
+    if (matchCount >= threshold) return id;
+  }
+
+  return null;
+}
+
+// Parse and save a PDF receipt. Every page is rasterized to JPEG(s) and sent
+// to the vision model using the same prompt as a camera-captured receipt image,
+// so text-based and scanned PDFs are processed identically. Each page yields
+// its own receipt; the client can merge any that belong together.
+//
+// Before persisting, each page is checked against existing receipts for the
+// same (store, date, total) — pages that look like duplicates are returned
+// with isDuplicate:true and skipped in the DB so retrying a PDF never creates
+// duplicate rows.
 router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
@@ -870,58 +932,48 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
     lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
   };
 
-  const today = new Date().toISOString();
-  const jsonSchema = `{
-  "storeName": "store or retailer name",
-  "storeCountryCode": "ISO-3166 alpha-2 country code of the store, or null if unknown",
-  "storeStateCode": "for a US store only, the USPS 2-letter state code, else null",
-  "purchasedAt": "ISO 8601 date string (use today if unclear: ${today})",
-  "total": total order amount as number,
-  "lineItems": [
-    { "name": "item name", "icon": "a single emoji best representing the product", "category": "one of the fixed categories", "price": price per unit as number, "quantity": quantity as number }
-  ]
-}`;
-  const jsonInstructions = `Normalize item names (title case, remove special chars). If quantity is not shown, use 1. Only include actual purchased items — exclude delivery fees, taxes, discounts, and subtotals. For each item, set "icon" to exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots); use 🛒 if unsure. Set "category" to EXACTLY one of: "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". For "storeCountryCode", infer the store's country (uppercase ISO-3166 alpha-2, e.g. "US", "GB", "CA", "AU") from the address, currency, or tax labels; use null if you can't tell. For "storeStateCode", only for a US store return the USPS 2-letter state code from the address, else null. This may be a forwarded email or a delivery/marketplace order confirmation: set "storeName" to the actual merchant or retailer the goods were bought from (look for labels like "Store", "Merchant", "Sold by", or "Vendor") — never the email sender or recipient, a person's name, the delivery service, or the marketplace platform. "storeName" must always be a non-empty merchant name. This is a SINGLE page from a larger PDF — only extract what is visible on this page.`;
-
-  // Tolerant JSON parse: strip ```json fences the model sometimes adds. Returns
-  // null on failure so one bad page is skipped instead of failing the request.
+  // Tolerant JSON parse: handles code fences and prose wrapping the model sometimes adds.
+  // Returns null on failure so one bad page is skipped instead of failing the request.
   const parseJson = (content: string): ParsedReceipt | null => {
-    try {
-      const cleaned = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-      return JSON.parse(cleaned) as ParsedReceipt;
-    } catch {
-      return null;
+    const candidates: string[] = [];
+    const trimmed = content.trim();
+    // 1. Direct parse (no fences, common case)
+    candidates.push(trimmed);
+    // 2. Strip ```json … ``` or ``` … ``` fences
+    candidates.push(trimmed.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/m, "").trim());
+    // 3. Extract first {...} block from anywhere in the content
+    const jsonBlock = trimmed.match(/\{[\s\S]*\}/);
+    if (jsonBlock) candidates.push(jsonBlock[0]);
+
+    for (const candidate of candidates) {
+      try {
+        const obj = JSON.parse(candidate) as ParsedReceipt;
+        if (obj && typeof obj === "object") return obj;
+      } catch {
+        // try next candidate
+      }
     }
+    return null;
   };
 
   try {
     const buffer = Buffer.from(pdfBase64, "base64");
-    // We may need to rasterize any page that has too little extractable text, so
-    // write the PDF to disk up front.
     await writeFile(pdfPath, buffer);
 
-    // Collect each page's text separately (pdf-parse calls pagerender per page,
-    // in order). Image-only pages come back as "" but still occupy a slot, so
-    // pageTexts.length is a reliable page count, capped at PDF_MAX_PAGES.
-    const pageTexts: string[] = [];
-    await pdfParse(buffer, {
-      max: PDF_MAX_PAGES,
-      pagerender: async (pageData) => {
-        try {
-          const tc = await pageData.getTextContent();
-          const text = tc.items.map((i) => i.str).join(" ");
-          pageTexts.push(text);
-          return text;
-        } catch {
-          pageTexts.push("");
-          return "";
-        }
-      },
-    });
-
-    // Fall back to a single page if pagerender produced nothing (e.g. an
-    // unusual PDF structure) so we still attempt an image-based parse.
-    const pageCount = Math.min(Math.max(pageTexts.length, 1), PDF_MAX_PAGES);
+    // Determine page count: prefer pdfinfo (fast, no rendering), fall back to
+    // pdf-parse (slower but works without poppler tools), then assume 1.
+    let pageCount = 1;
+    const dims = await readPdfDims(pdfPath);
+    if (dims) {
+      pageCount = Math.min(dims.pages, PDF_MAX_PAGES);
+    } else {
+      try {
+        const { numpages } = await pdfParse(buffer, { max: PDF_MAX_PAGES });
+        pageCount = Math.min(numpages, PDF_MAX_PAGES);
+      } catch {
+        pageCount = 1;
+      }
+    }
 
     // Charge the shared AI budget once for this request before any model call.
     if (!chargeGlobalAiBudget(res)) return;
@@ -930,71 +982,78 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
 
     for (let i = 0; i < pageCount; i++) {
       const pageNum = i + 1;
-      const pageText = (pageTexts[i] ?? "").trim();
 
-      // Each page is processed and persisted INDEPENDENTLY: a failure on one
-      // page (model error, render error, bad JSON, DB insert) must not discard
-      // pages already saved nor abort the whole request — otherwise a retry
-      // would silently re-create the earlier pages as duplicates. We catch
-      // per-page, skip the failed page, and still return whatever succeeded.
+      // Each page is processed and persisted INDEPENDENTLY so a per-page error
+      // doesn't discard pages already saved and doesn't cause duplicate rows on
+      // retry. Because pages are saved sequentially, findDuplicate also catches
+      // duplicate pages within the same PDF (a saved page is already in the DB
+      // before the next page is checked).
       try {
-        let parsed: ParsedReceipt | null = null;
+        const pagePrefix = join(tmpdir(), `receipt-${id}-page${pageNum}`);
+        const pageFiles = await renderPdfToImages(pdfPath, pagePrefix, tempFiles, pageNum);
+        if (pageFiles.length === 0) continue;
 
-        if (pageText.length >= 50) {
-          // Text-based page: cheaper + more accurate than rasterizing.
-          const response = await openai.chat.completions.create({
-            model: "gpt-5.2",
-            max_completion_tokens: 2048,
-            messages: [{
-              role: "user",
-              content: `Extract receipt data from the following text (one page of an order confirmation PDF) and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}\n\nPDF page text:\n${pageText.slice(0, 8000)}`,
-            }],
-          });
-          parsed = parseJson(response.choices[0]?.message?.content ?? "{}");
-        } else {
-          // Image-based page: rasterize just this page (width-capped + banded).
-          const pagePrefix = join(tmpdir(), `receipt-${id}-page${pageNum}`);
-          const pageFiles = await renderPdfToImages(pdfPath, pagePrefix, tempFiles, pageNum);
-          if (pageFiles.length === 0) continue;
+        const imageContents = await Promise.all(
+          pageFiles.map(async (f) => {
+            const imgBuf = await readFile(f);
+            return {
+              type: "image_url" as const,
+              image_url: {
+                url: `data:image/jpeg;base64,${imgBuf.toString("base64")}`,
+                detail: "high" as const,
+              },
+            };
+          }),
+        );
 
-          const imageContents = await Promise.all(
-            pageFiles.map(async (f) => {
-              const imgBuf = await readFile(f);
-              return {
-                type: "image_url" as const,
-                image_url: {
-                  url: `data:image/jpeg;base64,${imgBuf.toString("base64")}`,
-                  detail: "high" as const,
-                },
-              };
-            }),
-          );
+        // Use the same detailed receipt prompt as camera-captured images so
+        // the model applies identical OCR rules regardless of PDF type.
+        const response = await openai.chat.completions.create({
+          model: "gpt-5.2",
+          max_completion_tokens: 4096,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: receiptPrompt() },
+              ...imageContents,
+            ],
+          }],
+        });
 
-          const response = await openai.chat.completions.create({
-            model: "gpt-5.2",
-            max_completion_tokens: 2048,
-            messages: [{
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `This is one page from a receipt or order confirmation PDF. Extract the receipt data and return ONLY valid JSON (no markdown, no code blocks):\n${jsonSchema}\n${jsonInstructions}`,
-                },
-                ...imageContents,
-              ],
-            }],
-          });
-          parsed = parseJson(response.choices[0]?.message?.content ?? "{}");
-        }
+        const parsed = parseJson(response.choices[0]?.message?.content ?? "{}");
 
-        // Skip blank/unreadable pages (no items) so a cover page or trailing
-        // blank page doesn't create an empty receipt.
+        // Skip blank/unreadable pages (no items) so cover pages or trailing
+        // blanks don't create empty receipts.
         if (!parsed || !Array.isArray(parsed.lineItems) || parsed.lineItems.length === 0) {
           continue;
         }
 
+        const storeName = (parsed.storeName ?? "").trim() || "Unknown Store";
+
+        // Duplicate detection: requires matching store + date + total AND item
+        // overlap, so two different same-day purchases that happen to share a
+        // total don't get incorrectly flagged.
+        const duplicateOfId = await findDuplicate(
+          req.userId!,
+          storeName,
+          parsed.purchasedAt ?? "",
+          parsed.total ?? 0,
+          parsed.lineItems.map((li) => li.name),
+        );
+
+        if (duplicateOfId !== null) {
+          results.push({
+            isDuplicate: true,
+            potentialDuplicateOf: duplicateOfId,
+            storeName,
+            total: parsed.total ?? 0,
+            purchasedAt: parsed.purchasedAt ?? new Date().toISOString(),
+          });
+          continue;
+        }
+
         const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
-        results.push({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
+        results.push({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems, isDuplicate: false });
       } catch (pageErr) {
         req.log.warn({ err: pageErr, pageNum }, "Failed to parse one PDF page; skipping");
       }

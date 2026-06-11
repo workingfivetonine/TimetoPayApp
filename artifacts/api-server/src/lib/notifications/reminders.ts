@@ -7,7 +7,6 @@
 // opt-out toggle. Every send goes through Resend with code-rendered HTML (see
 // `lib/email/templates.ts`); when Resend isn't configured the send is a graceful
 // no-op and the cursor is NOT advanced, so reminders resume once config lands.
-const MAX_INACTIVE_DAYS = 60;
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 import {
   db,
@@ -41,12 +40,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // How close to trial end the "trial ending" reminder fires.
 const TRIAL_ENDING_WINDOW_DAYS = 3;
 // Re-nudge cadences (a reminder for an ongoing condition won't repeat faster).
-const LIST_EXPORT_COOLDOWN_DAYS = 30;
-const RECEIPT_INACTIVITY_THRESHOLD_DAYS = 14;
-const RECEIPT_INACTIVITY_COOLDOWN_DAYS = 14;
+const LIST_EXPORT_COOLDOWN_DAYS = 7;
+const RECEIPT_INACTIVITY_THRESHOLD_DAYS = 7;
+const RECEIPT_INACTIVITY_COOLDOWN_DAYS = 7;
 // A staple counts as "neglected" for the personalized jab after this long.
-const NEGLECTED_STAPLE_DAYS = 45;
-const RECEIPT_INACTIVITY_MAX_DAYS = 60;
+const NEGLECTED_STAPLE_DAYS = 21;
 
 type UserRow = typeof usersTable.$inferSelect;
 
@@ -248,11 +246,10 @@ async function maybeReceiptInactivity(
   updates: Partial<UserRow>,
   bump: (t: string) => void,
 ): Promise<void> {
-const daysSince = lastReceiptAt ? daysBetween(now, lastReceiptAt) : null;
+  const daysSince = lastReceiptAt ? daysBetween(now, lastReceiptAt) : null;
   // Only nudge once the user has actually been inactive for the threshold. A
   // brand-new user with zero receipts is also nudged (gentle first-scan prompt).
-if (daysSince != null && daysSince > RECEIPT_INACTIVITY_MAX_DAYS) return;
-if (daysSince != null && daysSince > 60) return; // stop after 2 months
+  if (daysSince != null && daysSince < RECEIPT_INACTIVITY_THRESHOLD_DAYS) return;
 
   // Re-nudge rules: send if never sent, if they scanned since the last nudge
   // (new episode), or after the cooldown for an ongoing dry spell.

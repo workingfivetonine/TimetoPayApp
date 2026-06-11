@@ -23,6 +23,7 @@ import {
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
+import Toast from "react-native-toast-message";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
@@ -222,6 +223,7 @@ export default function RootLayout() {
           </ErrorBoundary>
         </SafeAreaProvider>
       </ClerkLoaded>
+      <Toast />
     </ClerkProvider>
   );
 }

@@ -21,6 +21,7 @@ import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { getApiOrigin } from "@/lib/apiBase";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
@@ -136,9 +137,10 @@ export default function ReviewReceiptScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       clearPendingReceipt();
       invalidateAll();
+      showSuccessToast("Receipt saved", `${receipt.lineItems.length} item${receipt.lineItems.length === 1 ? "" : "s"} added`);
       router.replace(`/receipt/${saved.id}`);
     } catch {
-      Alert.alert("Error", "Could not save receipt. Please try again.");
+      showErrorToast("Couldn't save receipt", "Please try again.");
     } finally {
       setSaving(false);
     }

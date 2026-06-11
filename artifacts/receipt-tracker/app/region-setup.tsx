@@ -19,6 +19,7 @@ import {
 import { isStateScoped } from "@workspace/geo";
 import { RegionPicker } from "@/components/RegionPicker";
 import { useColors } from "@/hooks/useColors";
+import { showSuccessToast } from "@/lib/toast";
 
 export default function RegionSetupScreen() {
   const colors = useColors();
@@ -61,6 +62,7 @@ export default function RegionSetupScreen() {
               : old,
           );
           queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+          showSuccessToast("Region saved");
           router.replace("/");
         },
       },
