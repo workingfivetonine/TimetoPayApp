@@ -374,7 +374,7 @@ const NOTIFICATION_TOGGLES: {
   label: string;
   description: string;
   icon: keyof typeof Feather.glyphMap;
-  frequencyKey?: keyof NotificationPreferences;
+  frequencyKey?: string;
 }[] = [
   {
     key: "notifyPaymentReminders",
@@ -445,7 +445,7 @@ function NotificationsSection() {
     );
   };
 
-  const setFrequency = (frequencyKey: keyof NotificationPreferences, value: "weekly" | "monthly") => {
+  const setFrequency = (frequencyKey: string, value: "weekly" | "monthly") => {
     if (!current) return;
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to change your reminder settings.");
@@ -473,7 +473,7 @@ function NotificationsSection() {
       </View>
       {NOTIFICATION_TOGGLES.map((t, idx) => {
         const isEnabled = current ? (current[t.key] as boolean) : true;
-        const freq = t.frequencyKey ? ((current?.[t.frequencyKey] as string | undefined) ?? "weekly") : null;
+        const freq = t.frequencyKey ? (((current as Record<string, unknown>)?.[t.frequencyKey] as string | undefined) ?? "weekly") : null;
         return (
           <View key={t.key as string}>
             <View

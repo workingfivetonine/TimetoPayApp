@@ -30,7 +30,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { notify } from "@/lib/confirm";
+import { notify, confirmDestructive } from "@/lib/confirm";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import type { LineItem } from "@workspace/api-client-react";
 
