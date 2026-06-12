@@ -33,9 +33,59 @@ export interface SendEmailParams {
   text: string;
 }
 
+export interface SendTemplateParams {
+  to: string;
+  templateId: string;
+  variables: Record<string, string>;
+}
+
 export interface SendResult {
   sent: boolean;
   reason?: "not-configured" | "send-failed";
+}
+
+export async function sendEmailWithTemplate(params: SendTemplateParams): Promise<SendResult> {
+  const sender = fromEmail();
+  if (!isResendConfigured() || !sender) {
+    logger.warn(
+      "Resend not configured (missing RESEND_API_KEY or RESEND_FROM_EMAIL) — skipping template email send",
+    );
+    return { sent: false, reason: "not-configured" };
+  }
+
+  const body = {
+    from: fromHeader(sender),
+    to: [params.to],
+    template: {
+      id: params.templateId,
+      variables: params.variables,
+    },
+  };
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      logger.error(
+        { status: res.status, detail: detail.slice(0, 500) },
+        "Resend template send failed",
+      );
+      return { sent: false, reason: "send-failed" };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    logger.error({ err }, "Resend template send threw");
+    return { sent: false, reason: "send-failed" };
+  }
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<SendResult> {

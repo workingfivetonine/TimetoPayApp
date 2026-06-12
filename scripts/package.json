@@ -9,6 +9,7 @@
     "generate-guide:check": "tsx ./src/generate-guide.ts --check",
     "seed-stripe-price": "tsx ./src/seed-stripe-price.ts",
     "seed-paypal-plan": "tsx ./src/seed-paypal-plan.ts",
+    "seed-resend-templates": "tsx ./src/seed-resend-templates.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
