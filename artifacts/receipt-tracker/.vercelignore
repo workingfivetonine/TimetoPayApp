@@ -1,0 +1,8 @@
+artifacts/api-server
+artifacts/pitch-deck
+artifacts/mockup-sandbox
+artifacts/showcase-video
+lib/db
+lib/api-spec
+lib/integrations-openai-ai-server
+lib/integrations-openai-ai-react

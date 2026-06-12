@@ -14,8 +14,6 @@ import {
   Share,
   Alert,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -179,6 +177,9 @@ export default function AnalyticsScreen() {
         XLSX.writeFile(wb, "TimetoPay_Export.xlsx");
       } else {
         const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string;
+        // Dynamic imports keep these native-only modules out of the web bundle
+        const FileSystem = await import("expo-file-system");
+        const Sharing = await import("expo-sharing");
         const fileUri = `${FileSystem.cacheDirectory}TimetoPay_Export.xlsx`;
         await FileSystem.writeAsStringAsync(fileUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
