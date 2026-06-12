@@ -26,6 +26,7 @@ export default function SignUpPage() {
   const [emailAddress, setEmailAddress] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [code, setCode] = React.useState("");
+  const [pendingVerification, setPendingVerification] = React.useState(false);
 
   const busy = fetchStatus === "fetching";
 
@@ -34,6 +35,7 @@ export default function SignUpPage() {
     const { error } = await signUp.password({ emailAddress, password });
     if (error) return;
     await signUp.verifications.sendEmailCode();
+    setPendingVerification(true);
   };
 
   const handleVerify = async () => {
@@ -57,10 +59,7 @@ export default function SignUpPage() {
     return null;
   }
 
-  const isVerifying =
-    signUp.status === "missing_requirements" &&
-    signUp.unverifiedFields.includes("email_address") &&
-    signUp.missingFields.length === 0;
+  const isVerifying = pendingVerification;
 
   const formError =
     errors.fields.emailAddress?.message ||

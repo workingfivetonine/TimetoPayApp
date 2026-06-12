@@ -103,10 +103,11 @@ function InitialLayout() {
   const segments = useSegments();
   const router = useRouter();
 
-  // Attach the Clerk bearer token to every generated API request.
-  useEffect(() => {
-    setAuthTokenGetter(() => getToken());
-  }, [getToken]);
+  // Keep the module-level token getter current on every render so React Query
+  // always has the latest getToken before firing a request. Called during render
+  // (not in an effect) to eliminate the race where a query fires between the
+  // render that enabled it and the effect that would have updated the getter.
+  setAuthTokenGetter(() => getToken());
 
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";

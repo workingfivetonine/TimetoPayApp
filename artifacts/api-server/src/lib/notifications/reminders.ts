@@ -40,9 +40,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // How close to trial end the "trial ending" reminder fires.
 const TRIAL_ENDING_WINDOW_DAYS = 3;
 // Re-nudge cadences (a reminder for an ongoing condition won't repeat faster).
-const LIST_EXPORT_COOLDOWN_DAYS = 7;
+const LIST_EXPORT_COOLDOWN_DAYS_WEEKLY = 7;
+const LIST_EXPORT_COOLDOWN_DAYS_MONTHLY = 30;
 const RECEIPT_INACTIVITY_THRESHOLD_DAYS = 7;
-const RECEIPT_INACTIVITY_COOLDOWN_DAYS = 7;
+const RECEIPT_INACTIVITY_COOLDOWN_DAYS_WEEKLY = 7;
+const RECEIPT_INACTIVITY_COOLDOWN_DAYS_MONTHLY = 30;
 // A staple counts as "neglected" for the personalized jab after this long.
 const NEGLECTED_STAPLE_DAYS = 21;
 
@@ -216,9 +218,13 @@ async function maybeListExport(
   updates: Partial<UserRow>,
   bump: (t: string) => void,
 ): Promise<void> {
+  const cooldownDays =
+    user.notifyListExportFrequency === "monthly"
+      ? LIST_EXPORT_COOLDOWN_DAYS_MONTHLY
+      : LIST_EXPORT_COOLDOWN_DAYS_WEEKLY;
   if (
     user.lastListExportSentAt &&
-    now.getTime() - user.lastListExportSentAt.getTime() < LIST_EXPORT_COOLDOWN_DAYS * DAY_MS
+    now.getTime() - user.lastListExportSentAt.getTime() < cooldownDays * DAY_MS
   )
     return;
 
@@ -253,10 +259,14 @@ async function maybeReceiptInactivity(
 
   // Re-nudge rules: send if never sent, if they scanned since the last nudge
   // (new episode), or after the cooldown for an ongoing dry spell.
+  const inactivityCooldownDays =
+    user.notifyReceiptRemindersFrequency === "monthly"
+      ? RECEIPT_INACTIVITY_COOLDOWN_DAYS_MONTHLY
+      : RECEIPT_INACTIVITY_COOLDOWN_DAYS_WEEKLY;
   if (user.lastReceiptInactivitySentAt) {
     const sentAt = user.lastReceiptInactivitySentAt;
     const scannedSince = lastReceiptAt != null && lastReceiptAt > sentAt;
-    const cooldownElapsed = now.getTime() - sentAt.getTime() >= RECEIPT_INACTIVITY_COOLDOWN_DAYS * DAY_MS;
+    const cooldownElapsed = now.getTime() - sentAt.getTime() >= inactivityCooldownDays * DAY_MS;
     if (!scannedSince && !cooldownElapsed) return;
   }
 
@@ -292,6 +302,8 @@ async function maybeSpendSummaries(
   updates: Partial<UserRow>,
   bump: (t: string) => void,
 ): Promise<void> {
+  const spendFrequency = user.notifySpendSummaryFrequency ?? "weekly";
+
   // Weekly: recap the just-completed Mon–Sun week vs the week before it. The
   // recap becomes available at the start of the current week.
   const currentWeekStart = mondayOf(now);
@@ -300,7 +312,8 @@ async function maybeSpendSummaries(
   const weeklyAlreadySent =
     user.lastWeeklySummarySentAt != null &&
     user.lastWeeklySummarySentAt >= currentWeekStart;
-  if (!weeklyAlreadySent) {
+  // "monthly" frequency: skip weekly emails, send only the monthly recap.
+  if (!weeklyAlreadySent && spendFrequency !== "monthly") {
     const total = sumReceiptsInRange(receipts, completedWeekStart, currentWeekStart);
     const previousTotal = sumReceiptsInRange(receipts, priorWeekStart, completedWeekStart);
     if (total > 0 || previousTotal > 0) {
