@@ -126,6 +126,8 @@ export default function AnalyticsScreen() {
   const { getToken } = useAuth();
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const isDesktop = useDesktop();
+  const locked = usePremiumLock();
 
   const { data: analytics, isLoading: analyticsLoading, dataUpdatedAt } = useGetSpendAnalytics();
   const { data: dailySpend, isLoading: calendarLoading } = useGetDailySpend();
@@ -195,8 +197,6 @@ export default function AnalyticsScreen() {
     }
   };
 
-  const isDesktop = useDesktop();
-  const locked = usePremiumLock();
   const isOnline = useOnlineStatus();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
   const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;

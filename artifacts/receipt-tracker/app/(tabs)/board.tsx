@@ -119,7 +119,10 @@ export default function BoardScreen() {
         <View style={[styles.header, { paddingTop }]}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Community</Text>
         </View>
-        <PremiumUpsell />
+        <PremiumUpsell
+          title="Community is a premium feature"
+          subtitle="Upgrade to share tips, feedback, and ideas with other shoppers."
+        />
       </View>
     );
   }

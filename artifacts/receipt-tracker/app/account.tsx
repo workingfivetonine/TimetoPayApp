@@ -475,7 +475,7 @@ function NotificationsSection() {
         const isEnabled = current ? (current[t.key] as boolean) : true;
         const freq = t.frequencyKey ? ((current?.[t.frequencyKey] as string | undefined) ?? "weekly") : null;
         return (
-          <View key={t.key}>
+          <View key={t.key as string}>
             <View
               style={[
                 styles.notifRow,
