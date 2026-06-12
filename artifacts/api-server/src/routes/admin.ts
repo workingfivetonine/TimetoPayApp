@@ -14,6 +14,7 @@ import { requireAdmin } from "../middlewares/auth";
 import { normalizeName } from "../lib/catalog";
 import { computeEntitlement } from "../lib/billing/entitlement";
 import { runAdminDigest } from "../lib/adminDigest";
+import { seedResendTemplates } from "../lib/email/resendTemplateSeeder";
 
 const router = Router();
 
@@ -435,6 +436,23 @@ router.post("/review-digest/test", async (req, res) => {
     newStores: result.digest.stores.count,
     newUsers: result.digest.users.count,
   });
+});
+
+// TEMPORARY — remove this route once RESEND_TEMPLATE_* env vars are set in Railway.
+// Creates/updates all 6 email templates in Resend and returns the env var values to paste.
+router.get("/seed-resend-templates", async (req, res): Promise<void> => {
+  try {
+    const result = await seedResendTemplates();
+    res.json({
+      message: "Templates created/updated. Publish each one in Resend dashboard, then add these to Railway Variables:",
+      railwayEnvVars: result.envVars,
+      created: result.created,
+      updated: result.updated,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  }
 });
 
 export default router;
