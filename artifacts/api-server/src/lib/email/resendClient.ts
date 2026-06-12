@@ -14,7 +14,7 @@ function fromEmail(): string | null {
 }
 
 function fromName(): string {
-  return process.env.RESEND_FROM_NAME?.trim() || "Receipt Tracker";
+  return process.env.RESEND_FROM_NAME?.trim() || "TimetoPay";
 }
 
 function fromHeader(sender: string): string {

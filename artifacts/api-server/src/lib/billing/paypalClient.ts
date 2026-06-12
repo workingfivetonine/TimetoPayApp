@@ -113,7 +113,7 @@ export async function createPaypalSubscription(opts: {
       // finalize can authoritatively resolve the owner.
       custom_id: opts.userId,
       application_context: {
-        brand_name: "Receipt Tracker",
+        brand_name: "TimetoPay",
         user_action: "SUBSCRIBE_NOW",
         shipping_preference: "NO_SHIPPING",
         return_url: opts.returnUrl,

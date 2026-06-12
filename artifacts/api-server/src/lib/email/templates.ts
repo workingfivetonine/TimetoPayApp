@@ -8,7 +8,7 @@
 // `lib/notifications/reminders.ts`.
 import type { PeriodComparison } from "../analytics/spend";
 
-const BRAND = "Receipt Tracker";
+const BRAND = "TimetoPay";
 const TEAL = "#0d9488";
 const TEAL_DARK = "#0f766e";
 const INK = "#1f2937";

@@ -154,7 +154,7 @@ export function InstallAppButton({ style }: Props) {
                 <Text style={styles.helpStrong}>install icon</Text> in your
                 browser's address bar, or open the browser menu{" "}
                 <Text style={styles.helpStrong}>(⋮)</Text> and choose{" "}
-                <Text style={styles.helpStrong}>“Install Receipt Tracker.”</Text>
+                <Text style={styles.helpStrong}>“Install TimetoPay.”</Text>
               </>
             )}
           </Text>

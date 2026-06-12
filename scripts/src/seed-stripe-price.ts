@@ -11,7 +11,7 @@ import { getUncachableStripeClient } from "./stripeClient";
 //   STRIPE_CONNECTOR_ENVIRONMENT=production pnpm --filter @workspace/scripts run seed-stripe-price
 // then set the printed STRIPE_PRICE_ID as the PRODUCTION secret.
 
-const PRODUCT_NAME = "Receipt Tracker Pro";
+const PRODUCT_NAME = "TimetoPay Pro";
 const UNIT_AMOUNT = 599; // $5.99 in cents (monthly)
 const ANNUAL_UNIT_AMOUNT = 7188; // $71.88 in cents (12 × $5.99, annual list price)
 const CURRENCY = "usd";
