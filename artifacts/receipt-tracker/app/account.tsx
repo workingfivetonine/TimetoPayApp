@@ -473,7 +473,7 @@ function NotificationsSection() {
       </View>
       {NOTIFICATION_TOGGLES.map((t, idx) => {
         const isEnabled = current ? (current[t.key] as boolean) : true;
-        const freq = t.frequencyKey ? (((current as Record<string, unknown>)?.[t.frequencyKey] as string | undefined) ?? "weekly") : null;
+        const freq = t.frequencyKey ? ((current as unknown as Record<string, unknown> | null)?.[t.frequencyKey] as string | undefined ?? "weekly") : null;
         return (
           <View key={t.key as string}>
             <View
