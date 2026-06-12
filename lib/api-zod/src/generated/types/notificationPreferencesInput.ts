@@ -14,4 +14,7 @@ export interface NotificationPreferencesInput {
   notifyListExport?: boolean;
   notifyReceiptReminders?: boolean;
   notifySpendSummary?: boolean;
+  notifyListExportFrequency?: 'weekly' | 'monthly';
+  notifyReceiptRemindersFrequency?: 'weekly' | 'monthly';
+  notifySpendSummaryFrequency?: 'weekly' | 'monthly';
 }

@@ -56,7 +56,7 @@ router.delete("/:id", async (req, res): Promise<void> => {
     .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
     .where(and(eq(lineItemsTable.id, id), eq(receiptsTable.userId, userId)));
   if (!owned) {
-    res.status(204).send();
+    res.status(404).json({ error: "Line item not found" });
     return;
   }
   await db.delete(lineItemsTable).where(eq(lineItemsTable.id, id));

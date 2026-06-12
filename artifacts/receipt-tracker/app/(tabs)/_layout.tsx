@@ -6,6 +6,7 @@ import React from "react";
 import { ActivityIndicator, Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
+import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 
 export default function TabLayout() {
@@ -15,6 +16,7 @@ export default function TabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const isDesktop = useDesktop();
+  const locked = usePremiumLock();
   const { isLoaded, isSignedIn } = useAuth();
 
   // The app root "/" resolves to this protected group. Guard it declaratively
@@ -89,7 +91,24 @@ export default function TabLayout() {
         name="analytics"
         options={{
           title: "Analytics",
-          tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <View>
+              <Feather name="bar-chart-2" size={22} color={color} />
+              {locked && <View style={tabStyles.premiumStar}><Feather name="star" size={8} color="#F59E0B" /></View>}
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="board"
+        options={{
+          title: "Community",
+          tabBarIcon: ({ color }) => (
+            <View>
+              <Feather name="message-square" size={22} color={color} />
+              {locked && <View style={tabStyles.premiumStar}><Feather name="star" size={8} color="#F59E0B" /></View>}
+            </View>
+          ),
         }}
       />
     </Tabs>
@@ -108,6 +127,20 @@ export default function TabLayout() {
 
   return tabs;
 }
+
+const tabStyles = StyleSheet.create({
+  premiumStar: {
+    position: "absolute",
+    top: -3,
+    right: -5,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 999,
+    width: 13,
+    height: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 const styles = StyleSheet.create({
   desktopRoot: {

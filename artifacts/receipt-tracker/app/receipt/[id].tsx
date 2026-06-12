@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -30,7 +30,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { confirmDestructive, notify } from "@/lib/confirm";
+import { notify } from "@/lib/confirm";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import type { LineItem } from "@workspace/api-client-react";
 
@@ -44,6 +44,8 @@ export default function ReceiptDetailScreen() {
   const [editingItem, setEditingItem] = useState<LineItem | null>(null);
   const [editName, setEditName] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [pendingDeleteLiId, setPendingDeleteLiId] = useState<number | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const receiptId = parseInt(id ?? "0");
   const { data: receipt, isLoading, dataUpdatedAt } = useGetReceipt(receiptId);
@@ -112,32 +114,49 @@ export default function ReceiptDetailScreen() {
     );
   };
 
-  const handleDeleteLineItem = (liId: number) => {
+  const commitDeleteLineItem = (liId: number) => {
+    deleteLineItemMutation.mutate(
+      { id: liId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
+          queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+        },
+      },
+    );
+  };
+
+  const handleDeleteLineItem = async (liId: number) => {
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to remove items.");
       return;
     }
-    confirmDestructive({
-      title: "Remove Item",
-      message: "Remove this line item from the receipt?",
-      confirmLabel: "Remove",
-      onConfirm: () => {
-        deleteLineItemMutation.mutate(
-          { id: liId },
-          {
-            onSuccess: () => {
-              queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
-              queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
-              queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
-              queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
-              queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
-              queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            },
-          }
-        );
-      },
-    });
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+      if (pendingDeleteLiId !== null && pendingDeleteLiId !== liId) {
+        commitDeleteLineItem(pendingDeleteLiId);
+      }
+    }
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPendingDeleteLiId(liId);
+    undoTimerRef.current = setTimeout(() => {
+      setPendingDeleteLiId(null);
+      undoTimerRef.current = null;
+      commitDeleteLineItem(liId);
+    }, 4000);
+  };
+
+  const handleUndoDeleteLineItem = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    setPendingDeleteLiId(null);
   };
 
   if (isLoading) {
@@ -190,12 +209,12 @@ export default function ReceiptDetailScreen() {
         {/* Line Items */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.mutedForeground }]}>ITEMS</Text>
-          {receipt.lineItems.map((li, idx) => (
+          {receipt.lineItems.filter((li) => li.id !== pendingDeleteLiId).map((li, idx, arr) => (
             <View
               key={li.id}
               style={[
                 styles.lineItem,
-                idx < receipt.lineItems.length - 1 && {
+                idx < arr.length - 1 && {
                   borderBottomWidth: StyleSheet.hairlineWidth,
                   borderBottomColor: colors.border,
                 },
@@ -260,6 +279,16 @@ export default function ReceiptDetailScreen() {
           <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete Receipt</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Undo-delete banner for line items */}
+      {pendingDeleteLiId !== null && (
+        <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
+          <Text style={[styles.undoText, { color: colors.background }]}>Item removed</Text>
+          <TouchableOpacity onPress={handleUndoDeleteLineItem} activeOpacity={0.7}>
+            <Text style={[styles.undoAction, { color: colors.primary }]}>Undo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Edit Item Modal */}
       <Modal visible={!!editingItem} animationType="slide" presentationStyle="formSheet">
@@ -396,4 +425,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   deleteBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  undoBanner: {
+    position: "absolute",
+    bottom: 100,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  undoText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  undoAction: { fontSize: 14, fontFamily: "Inter_700Bold" },
 });

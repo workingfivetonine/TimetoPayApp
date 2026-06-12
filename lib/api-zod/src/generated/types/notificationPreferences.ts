@@ -15,4 +15,10 @@ export interface NotificationPreferences {
   notifyReceiptReminders: boolean;
   /** End-of-week and end-of-month spend summary emails */
   notifySpendSummary: boolean;
+  /** How often to send the grocery-list export nudge */
+  notifyListExportFrequency: 'weekly' | 'monthly';
+  /** How often to send the receipt inactivity nudge */
+  notifyReceiptRemindersFrequency: 'weekly' | 'monthly';
+  /** Whether to receive weekly or monthly-only spend summaries */
+  notifySpendSummaryFrequency: 'weekly' | 'monthly';
 }

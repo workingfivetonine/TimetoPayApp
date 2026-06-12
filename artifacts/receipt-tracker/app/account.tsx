@@ -374,30 +374,35 @@ const NOTIFICATION_TOGGLES: {
   label: string;
   description: string;
   icon: keyof typeof Feather.glyphMap;
+  frequencyKey?: keyof NotificationPreferences;
 }[] = [
   {
     key: "notifyPaymentReminders",
     label: "Payment reminders",
     description: "Trial ending soon and payment-past-due alerts",
     icon: "credit-card",
+    // No frequency setting — billing alerts fire on events, not a schedule
   },
   {
     key: "notifyListExport",
     label: "Grocery list nudge",
-    description: "A weekly reminder to export your shopping list",
+    description: "Reminder to export your shopping list",
     icon: "list",
+    frequencyKey: "notifyListExportFrequency",
   },
   {
     key: "notifyReceiptReminders",
     label: "Receipt reminders",
     description: "A nudge when you haven't scanned in a while",
     icon: "camera",
+    frequencyKey: "notifyReceiptRemindersFrequency",
   },
   {
     key: "notifySpendSummary",
     label: "Spend summaries",
-    description: "Weekly and monthly recaps of what you spent",
+    description: "Recaps of what you spent",
     icon: "bar-chart-2",
+    frequencyKey: "notifySpendSummaryFrequency",
   },
 ];
 
@@ -425,7 +430,7 @@ function NotificationsSection() {
     const next = { ...current, [key]: !current[key] };
     setLocal(next);
     update.mutate(
-      { data: { [key]: next[key] } },
+      { data: { [key]: next[key] as boolean } },
       {
         onSuccess: (saved) => {
           setLocal(saved);
@@ -434,9 +439,28 @@ function NotificationsSection() {
           });
         },
         onError: () => {
-          // Revert on failure.
           setLocal(current);
         },
+      },
+    );
+  };
+
+  const setFrequency = (frequencyKey: keyof NotificationPreferences, value: "weekly" | "monthly") => {
+    if (!current) return;
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to change your reminder settings.");
+      return;
+    }
+    const next = { ...current, [frequencyKey]: value };
+    setLocal(next);
+    update.mutate(
+      { data: { [frequencyKey]: value } as Parameters<typeof update.mutate>[0]["data"] },
+      {
+        onSuccess: (saved) => {
+          setLocal(saved);
+          void queryClient.invalidateQueries({ queryKey: getGetMyNotificationPreferencesQueryKey() });
+        },
+        onError: () => setLocal(current),
       },
     );
   };
@@ -447,31 +471,81 @@ function NotificationsSection() {
         <Feather name="bell" size={18} color={colors.primary} />
         <Text style={[styles.rowText, { color: colors.foreground }]}>Email reminders</Text>
       </View>
-      {NOTIFICATION_TOGGLES.map((t, idx) => (
-        <View
-          key={t.key}
-          style={[
-            styles.notifRow,
-            idx < NOTIFICATION_TOGGLES.length - 1 && {
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: colors.border,
-            },
-          ]}
-        >
-          <Feather name={t.icon} size={16} color={colors.mutedForeground} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.notifLabel, { color: colors.foreground }]}>{t.label}</Text>
-            <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{t.description}</Text>
+      {NOTIFICATION_TOGGLES.map((t, idx) => {
+        const isEnabled = current ? (current[t.key] as boolean) : true;
+        const freq = t.frequencyKey ? ((current?.[t.frequencyKey] as string | undefined) ?? "weekly") : null;
+        return (
+          <View key={t.key}>
+            <View
+              style={[
+                styles.notifRow,
+                !t.frequencyKey && idx < NOTIFICATION_TOGGLES.length - 1 && {
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            >
+              <Feather name={t.icon} size={16} color={colors.mutedForeground} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.notifLabel, { color: colors.foreground }]}>{t.label}</Text>
+                <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{t.description}</Text>
+              </View>
+              <Switch
+                value={isEnabled}
+                onValueChange={() => toggle(t.key)}
+                disabled={!current}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            {t.frequencyKey && isEnabled && (
+              <View
+                style={[
+                  styles.freqRow,
+                  idx < NOTIFICATION_TOGGLES.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.freqLabel, { color: colors.mutedForeground }]}>Send:</Text>
+                <View style={styles.freqBtns}>
+                  {(["weekly", "monthly"] as const).map((option) => {
+                    const active = freq === option;
+                    return (
+                      <TouchableOpacity
+                        key={option}
+                        style={[
+                          styles.freqBtn,
+                          {
+                            backgroundColor: active ? colors.primary : colors.secondary,
+                            borderColor: active ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => setFrequency(t.frequencyKey!, option)}
+                        activeOpacity={0.7}
+                        disabled={!current}
+                      >
+                        <Text
+                          style={[
+                            styles.freqBtnText,
+                            { color: active ? colors.primaryForeground : colors.mutedForeground },
+                          ]}
+                        >
+                          {option === "weekly" ? "Weekly" : "Monthly"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
-          <Switch
-            value={current ? current[t.key] : true}
-            onValueChange={() => toggle(t.key)}
-            disabled={!current}
-            trackColor={{ true: colors.primary, false: colors.border }}
-            thumbColor="#ffffff"
-          />
-        </View>
-      ))}
+        );
+      })}
+      <Text style={[styles.notifNote, { color: colors.mutedForeground }]}>
+        At minimum, you'll receive one email per month per active type.
+      </Text>
     </View>
   );
 }
@@ -556,6 +630,30 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   notifLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  freqRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 28,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  freqLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  freqBtns: { flexDirection: "row", gap: 6 },
+  freqBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  freqBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  notifNote: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    paddingHorizontal: 0,
+    paddingTop: 4,
+    paddingBottom: 14,
+    lineHeight: 16,
+  },
   subActions: { gap: 10 },
   subActionBtn: {
     borderRadius: 12,

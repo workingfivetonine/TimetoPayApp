@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -67,10 +67,12 @@ export default function ReceiptsScreen() {
 
   const { data: receipts, isLoading, dataUpdatedAt } = useListReceipts();
   const deleteMutation = useDeleteReceipt();
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasReceipts = (receipts?.length ?? 0) > 0;
   const visibleReceipts = useMemo(() => {
-    const all = receipts ?? [];
+    const all = (receipts ?? []).filter((r) => r.id !== pendingDeleteId);
     const q = query.trim().toLowerCase();
     const filtered = q
       ? all.filter(
@@ -85,7 +87,7 @@ export default function ReceiptsScreen() {
       return new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime();
     });
     return filtered;
-  }, [receipts, query, sortKey]);
+  }, [receipts, query, sortKey, pendingDeleteId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -93,25 +95,37 @@ export default function ReceiptsScreen() {
     setRefreshing(false);
   };
 
-  const handleDelete = (id: number) => {
-    Alert.alert("Delete Receipt", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          deleteMutation.mutate(
-            { id },
-            {
-              onSuccess: () => {
-                queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-              },
-            }
-          );
-        },
-      },
-    ]);
+  const commitDelete = (id: number) => {
+    deleteMutation.mutate(
+      { id },
+      { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() }) },
+    );
+  };
+
+  const handleDelete = async (id: number) => {
+    // If another receipt is pending deletion, commit it immediately.
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+      if (pendingDeleteId !== null && pendingDeleteId !== id) {
+        commitDelete(pendingDeleteId);
+      }
+    }
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPendingDeleteId(id);
+    undoTimerRef.current = setTimeout(() => {
+      setPendingDeleteId(null);
+      undoTimerRef.current = null;
+      commitDelete(id);
+    }, 4000);
+  };
+
+  const handleUndoDelete = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    setPendingDeleteId(null);
   };
 
   const isDesktop = useDesktop();
@@ -235,6 +249,16 @@ export default function ReceiptsScreen() {
       </Modal>
 
       <WelcomeTour />
+
+      {/* Undo-delete banner — floats at the bottom for 4 seconds after a receipt is deleted */}
+      {pendingDeleteId !== null && (
+        <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
+          <Text style={[styles.undoText, { color: colors.background }]}>Receipt deleted</Text>
+          <TouchableOpacity onPress={handleUndoDelete} activeOpacity={0.7}>
+            <Text style={[styles.undoAction, { color: colors.primary }]}>Undo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -328,4 +352,22 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   modalDoneText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  undoBanner: {
+    position: "absolute",
+    bottom: 100,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  undoText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  undoAction: { fontSize: 14, fontFamily: "Inter_700Bold" },
 });

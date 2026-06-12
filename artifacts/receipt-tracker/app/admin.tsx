@@ -36,7 +36,14 @@ export default function AdminScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>All Users</Text>
-        <View style={styles.backBtn} />
+        <TouchableOpacity
+          style={[styles.moderateBtn, { backgroundColor: colors.accent }]}
+          onPress={() => router.push("/admin/board")}
+          activeOpacity={0.7}
+        >
+          <Feather name="message-square" size={15} color={colors.primary} />
+          <Text style={[styles.moderateBtnText, { color: colors.primary }]}>Board</Text>
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (
@@ -109,6 +116,15 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
+  moderateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  moderateBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: { padding: 16, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
   card: { borderWidth: 1, borderRadius: 14, padding: 16 },

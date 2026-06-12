@@ -37,6 +37,9 @@ router.get("/spend", async (req, res): Promise<void> => {
     totals.map((t) => Math.pow(t - weeklyAverage, 2)).reduce((a, b) => a + b, 0) / totals.length
   );
 
+  // Recommend a weekly budget once there are at least 4 weeks of data.
+  const recommendedWeeklyBudget = weeks.length >= 4 ? Math.round(weeklyAverage * 100) / 100 : null;
+
   res.json({
     weeks: weeks.map((w) => ({
       weekStart: w.weekStart.toISOString().split("T")[0],
@@ -49,6 +52,7 @@ router.get("/spend", async (req, res): Promise<void> => {
     average: Math.round(weeklyAverage * 100) / 100,
     totalSpend: Math.round(totalSpend * 100) / 100,
     weeklyAverage: Math.round(weeklyAverage * 100) / 100,
+    recommendedWeeklyBudget,
   });
 });
 
@@ -329,6 +333,146 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
     lastPurchasedAt: lastPurchasedAt ? lastPurchasedAt.toISOString() : null,
     ranOutAt: item.ranOutAt ? item.ranOutAt.toISOString() : null,
     history,
+  });
+});
+
+// Items not purchased in 30+ days, split into 30–60 day and 60+ day buckets
+router.get("/items/inactive", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+
+  const rows = await db
+    .select({
+      itemId: itemsTable.id,
+      itemName: itemsTable.name,
+      icon: itemsTable.icon,
+      category: itemsTable.category,
+      purchaseCount: itemsTable.purchaseCount,
+      lastPurchasedAt: sql<Date>`MAX(${receiptsTable.purchasedAt})`,
+    })
+    .from(itemsTable)
+    .innerJoin(lineItemsTable, eq(lineItemsTable.itemId, itemsTable.id))
+    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+    .where(and(eq(itemsTable.userId, userId), eq(receiptsTable.userId, userId)))
+    .groupBy(itemsTable.id);
+
+  const now = Date.now();
+  const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+  const inactive30to60: Array<{ itemId: number; itemName: string; icon: string | null; category: string | null; daysSinceLastPurchase: number; lastPurchasedAt: string; purchaseCount: number }> = [];
+  const inactive60plus: typeof inactive30to60 = [];
+
+  for (const row of rows) {
+    const days = Math.floor((now - new Date(row.lastPurchasedAt).getTime()) / MS_PER_DAY);
+    if (days < 30) continue;
+    const entry = {
+      itemId: row.itemId,
+      itemName: row.itemName,
+      icon: row.icon ?? null,
+      category: row.category ?? null,
+      daysSinceLastPurchase: days,
+      lastPurchasedAt: new Date(row.lastPurchasedAt).toISOString(),
+      purchaseCount: row.purchaseCount,
+    };
+    if (days >= 60) {
+      inactive60plus.push(entry);
+    } else {
+      inactive30to60.push(entry);
+    }
+  }
+
+  const byDaysDesc = (a: { daysSinceLastPurchase: number }, b: { daysSinceLastPurchase: number }) =>
+    b.daysSinceLastPurchase - a.daysSinceLastPurchase;
+
+  res.json({
+    inactive30to60: inactive30to60.sort(byDaysDesc),
+    inactive60plus: inactive60plus.sort(byDaysDesc),
+  });
+});
+
+// Spend grouped by item category
+router.get("/category-spend", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+
+  const rows = await db
+    .select({
+      category: itemsTable.category,
+      totalSpend: sql<string>`SUM(${lineItemsTable.price} * ${lineItemsTable.quantity})`,
+      itemCount: sql<string>`COUNT(DISTINCT ${itemsTable.id})`,
+      purchaseCount: sql<string>`COUNT(${lineItemsTable.id})`,
+    })
+    .from(lineItemsTable)
+    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+    .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
+    .where(eq(receiptsTable.userId, userId))
+    .groupBy(itemsTable.category)
+    .orderBy(sql`SUM(${lineItemsTable.price} * ${lineItemsTable.quantity}) DESC`);
+
+  const total = rows.reduce((sum, r) => sum + Number(r.totalSpend), 0);
+
+  res.json({
+    categories: rows.map((r) => ({
+      category: r.category ?? "Uncategorized",
+      totalSpend: Math.round(Number(r.totalSpend) * 100) / 100,
+      itemCount: Number(r.itemCount),
+      purchaseCount: Number(r.purchaseCount),
+      percentOfTotal: total > 0 ? Math.round((Number(r.totalSpend) / total) * 1000) / 10 : 0,
+    })),
+    totalSpend: Math.round(total * 100) / 100,
+  });
+});
+
+// Full data export — stores, items, and all line items for the user (used by Excel export)
+router.get("/export", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+
+  const [stores, items, lineItemRows] = await Promise.all([
+    db.select().from(storesTable).where(eq(storesTable.userId, userId)).orderBy(storesTable.name),
+    db.select().from(itemsTable).where(eq(itemsTable.userId, userId)).orderBy(itemsTable.name),
+    db
+      .select({
+        lineItemId: lineItemsTable.id,
+        receiptId: lineItemsTable.receiptId,
+        itemId: lineItemsTable.itemId,
+        itemName: itemsTable.name,
+        itemCategory: itemsTable.category,
+        storeName: storesTable.name,
+        price: lineItemsTable.price,
+        quantity: lineItemsTable.quantity,
+        purchasedAt: receiptsTable.purchasedAt,
+      })
+      .from(lineItemsTable)
+      .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+      .innerJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
+      .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
+      .where(eq(receiptsTable.userId, userId))
+      .orderBy(sql`${receiptsTable.purchasedAt} DESC`),
+  ]);
+
+  res.json({
+    stores: stores.map((s) => ({
+      storeId: s.id,
+      name: s.name,
+      address: s.address ?? null,
+      phone: s.phone ?? null,
+    })),
+    items: items.map((i) => ({
+      itemId: i.id,
+      name: i.name,
+      category: i.category ?? null,
+      icon: i.icon ?? null,
+      purchaseCount: i.purchaseCount,
+    })),
+    lineItems: lineItemRows.map((r) => ({
+      lineItemId: r.lineItemId,
+      receiptId: r.receiptId,
+      itemId: r.itemId,
+      itemName: r.itemName,
+      itemCategory: r.itemCategory ?? null,
+      storeName: r.storeName,
+      price: Number(r.price),
+      quantity: Number(r.quantity),
+      purchasedAt: r.purchasedAt.toISOString(),
+    })),
   });
 });
 
