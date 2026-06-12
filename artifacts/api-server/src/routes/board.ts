@@ -101,7 +101,7 @@ router.get("/admin/pending", requireAdmin, async (_req, res): Promise<void> => {
 
 // POST /board/admin/:id/approve
 router.post("/admin/:id/approve", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   await db
@@ -114,7 +114,7 @@ router.post("/admin/:id/approve", requireAdmin, async (req, res): Promise<void> 
 
 // POST /board/admin/:id/reject
 router.post("/admin/:id/reject", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   await db

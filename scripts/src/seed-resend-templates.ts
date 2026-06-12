@@ -2,6 +2,7 @@
 // API. Creates or updates each template idempotently by name, then prints the
 // template IDs — paste these as Railway env vars so the API server sends via
 // template instead of rebuilding HTML on every email.
+export {};
 //
 // Required env:  RESEND_API_KEY
 //
