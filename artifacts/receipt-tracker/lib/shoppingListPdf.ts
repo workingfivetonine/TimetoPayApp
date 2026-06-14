@@ -1,6 +1,5 @@
 import { Platform } from "react-native";
 import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 
 const UNKNOWN_STORE = "Other";
@@ -453,14 +452,8 @@ export async function downloadShoppingListPdf(
     return;
   }
 
-  const { uri } = await Print.printToFileAsync({ html });
-  const canShare = await Sharing.isAvailableAsync();
-  if (!canShare) {
-    throw new Error("Sharing is not available on this device.");
-  }
-  await Sharing.shareAsync(uri, {
-    mimeType: "application/pdf",
-    dialogTitle: "Shopping List",
-    UTI: "com.adobe.pdf",
-  });
+  // printToFileAsync on Android captures the current screen instead of
+  // rendering the supplied HTML. printAsync opens the system print dialog
+  // which renders the HTML template correctly; the user saves to PDF from there.
+  await Print.printAsync({ html });
 }
