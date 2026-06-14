@@ -97,18 +97,19 @@ export function InstallAppButton({ style }: Props) {
 
   const handleInstall = async () => {
     if (deferredPrompt) {
-      await deferredPrompt.prompt();
       try {
+        await deferredPrompt.prompt();
         const choice = await deferredPrompt.userChoice;
         if (choice.outcome === "accepted") {
           setInstalled(true);
           clearCapturedPrompt();
         }
+        setDeferredPrompt(null);
+        return;
       } catch {
-        // user dismissed — no-op
+        // prompt() is stale or already consumed — clear it and show manual instructions
+        setDeferredPrompt(null);
       }
-      setDeferredPrompt(null);
-      return;
     }
     // No native prompt available (iOS Safari, Firefox, already dismissed by
     // Chrome, etc.) — show platform-specific manual instructions.

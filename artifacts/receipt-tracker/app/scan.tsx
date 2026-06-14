@@ -108,10 +108,8 @@ export default function ScanScreen() {
   }
 
   const promptUpgrade = () => {
-    Alert.alert("Subscribe for access to premium AI features", undefined, [
-      { text: "Not now", style: "cancel" },
-      { text: "Subscribe", onPress: () => router.push("/paywall") },
-    ]);
+    showErrorToast("Premium required", "AI scanning is a premium feature.");
+    router.push("/paywall");
   };
 
   // Turn an upload failure into a plain-language reason + recommendation. Always
@@ -141,18 +139,14 @@ export default function ScanScreen() {
     return "We couldn't reach the scanner. Check your internet connection and try again, or add the details manually.";
   };
 
-  // Show the failure with a reason and clear next steps: retry the same upload,
-  // or switch to manual entry.
+  // Show the failure reason as a toast — visible in all environments including
+  // cross-origin iframes where window.alert() is blocked.
   const showUploadFailure = (
     err: unknown,
     kind: "image" | "pdf",
-    retry: () => void,
+    _retry: () => void,
   ) => {
-    Alert.alert("Couldn't read this receipt", failureReason(err, kind), [
-      { text: "Add manually", onPress: () => router.push("/manual-entry") },
-      { text: "Try again", onPress: retry },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    showErrorToast("Couldn't read this receipt", failureReason(err, kind));
   };
 
   const callApi = async <T,>(path: string, body: object): Promise<T> => {
@@ -340,7 +334,7 @@ export default function ScanScreen() {
         copyToCacheDirectory: true,
       });
     } catch {
-      Alert.alert("Error", "Could not open the file picker.");
+      showErrorToast("Error", "Could not open the file picker.");
       return;
     }
 
@@ -364,13 +358,9 @@ export default function ScanScreen() {
         reader.readAsDataURL(blob);
       });
     } catch {
-      Alert.alert(
+      showErrorToast(
         "Couldn't open this file",
         "We couldn't read the selected PDF. Try choosing it again, or add the details manually.",
-        [
-          { text: "Add manually", onPress: () => router.push("/manual-entry") },
-          { text: "OK", style: "cancel" },
-        ],
       );
       return;
     }

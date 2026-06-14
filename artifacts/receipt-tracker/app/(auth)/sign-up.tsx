@@ -45,6 +45,8 @@ export default function SignUpPage() {
       const { error: sendErr } = await signUp.verifications.sendEmailCode();
       if (sendErr) { setError(clerkErrMsg(sendErr)); return; }
       setPendingVerification(true);
+    } catch (e) {
+      setError(clerkErrMsg(e));
     } finally {
       setBusy(false);
     }
@@ -55,14 +57,17 @@ export default function SignUpPage() {
     setError(null);
     setBusy(true);
     try {
-      const { error: err } = await signUp.verifications.verifyEmailCode({ code });
+      const { error: err } = await signUp.verifications.verifyEmailCode({ code: code.trim() });
       if (err) { setError(clerkErrMsg(err)); return; }
       if (signUp.status === "complete") {
-        await signUp.finalize();
+        const { error: finalErr } = await signUp.finalize();
+        if (finalErr) { setError(clerkErrMsg(finalErr)); return; }
         router.replace("/" as Href);
       } else {
         setError("Verification could not be completed. Please try again.");
       }
+    } catch (e) {
+      setError(clerkErrMsg(e));
     } finally {
       setBusy(false);
     }
@@ -103,6 +108,7 @@ export default function SignUpPage() {
                 placeholderTextColor={colors.mutedForeground}
                 onChangeText={setCode}
                 keyboardType="numeric"
+                maxLength={6}
                 onSubmitEditing={handleVerify}
               />
 

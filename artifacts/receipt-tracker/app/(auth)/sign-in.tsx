@@ -53,11 +53,14 @@ export default function SignInPage() {
       const { error: err } = await signIn.password({ emailAddress, password });
       if (err) { setError(clerkErrMsg(err)); return; }
       if (signIn.status === "complete") {
-        await signIn.finalize();
+        const { error: finalErr } = await signIn.finalize();
+        if (finalErr) { setError(clerkErrMsg(finalErr)); return; }
         router.replace("/" as Href);
       } else {
         setError("Sign in could not be completed. Please try again.");
       }
+    } catch (e) {
+      setError(clerkErrMsg(e));
     } finally {
       setBusy(false);
     }
@@ -87,16 +90,19 @@ export default function SignInPage() {
     }
     setBusy(true);
     try {
-      const { error: verifyErr } = await signIn.resetPasswordEmailCode.verifyCode({ code: resetCode });
+      const { error: verifyErr } = await signIn.resetPasswordEmailCode.verifyCode({ code: resetCode.trim() });
       if (verifyErr) { setError(clerkErrMsg(verifyErr)); return; }
       const { error: submitErr } = await signIn.resetPasswordEmailCode.submitPassword({ password: newPassword });
       if (submitErr) { setError(clerkErrMsg(submitErr)); return; }
       if (signIn.status === "complete") {
-        await signIn.finalize();
+        const { error: finalErr } = await signIn.finalize();
+        if (finalErr) { setError(clerkErrMsg(finalErr)); return; }
         router.replace("/" as Href);
       } else {
         setError("Could not reset password. Please try again.");
       }
+    } catch (e) {
+      setError(clerkErrMsg(e));
     } finally {
       setBusy(false);
     }
