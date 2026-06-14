@@ -1,6 +1,6 @@
 {
   "installCommand": "NODE_ENV=development pnpm install --shamefully-hoist",
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "pnpm exec expo export --platform web",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
