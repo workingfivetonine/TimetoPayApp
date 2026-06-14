@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import type { Store } from "@workspace/api-client-react";
@@ -21,7 +21,15 @@ export function StoreCard({ store, onPress, onEdit }: Props) {
     >
       <View style={styles.left}>
         <View style={[styles.iconContainer, { backgroundColor: colors.accent }]}>
-          <Feather name="shopping-bag" size={18} color={colors.primary} />
+          {store.logoUrl ? (
+            <Image
+              source={{ uri: store.logoUrl }}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          ) : (
+            <Feather name="shopping-bag" size={18} color={colors.primary} />
+          )}
         </View>
         <View style={styles.info}>
           <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
@@ -85,6 +93,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  logo: {
+    width: 28,
+    height: 28,
   },
   info: {
     flex: 1,

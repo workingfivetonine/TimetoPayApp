@@ -19,6 +19,7 @@ export const storesTable = pgTable("stores", {
   deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }),
   minimumOrderAmount: numeric("minimum_order_amount", { precision: 10, scale: 2 }),
   notes: text("notes"),
+  logoUrl: text("logo_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

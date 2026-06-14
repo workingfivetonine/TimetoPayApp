@@ -31,6 +31,7 @@ export const ListStoresResponseItem = zod.object({
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
   "notes": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListStoresResponse = zod.array(ListStoresResponseItem)
@@ -72,6 +73,7 @@ export const GetStoreResponse = zod.object({
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
   "notes": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -108,6 +110,7 @@ export const UpdateStoreResponse = zod.object({
   "deliveryFee": zod.number().nullish(),
   "minimumOrderAmount": zod.number().nullish(),
   "notes": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 

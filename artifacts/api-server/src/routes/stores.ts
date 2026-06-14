@@ -7,6 +7,7 @@ import {
   UpdateStoreBody,
 } from "@workspace/api-zod";
 import { isValidCountry, isValidUsState, isStateScoped, normalizeRegionCode } from "@workspace/geo";
+import { resolveStoreLogo } from "../lib/storeLogo";
 
 const router = Router();
 
@@ -81,10 +82,12 @@ router.post("/", async (req, res): Promise<void> => {
     return;
   }
   const { countryCode: _c, stateCode: _s, ...rest } = parsed.data;
+  const logoUrl = await resolveStoreLogo(parsed.data.name);
   const [store] = await db.insert(storesTable).values({
     ...rest,
     ...region.fields,
     userId,
+    logoUrl,
     deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : null,
     minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : null,
   }).returning();
@@ -129,11 +132,13 @@ router.patch("/:id", async (req, res): Promise<void> => {
     return;
   }
   const { countryCode: _c, stateCode: _s, ...rest } = parsed.data;
+  const logoUrl = parsed.data.name ? await resolveStoreLogo(parsed.data.name) : undefined;
   const [store] = await db
     .update(storesTable)
     .set({
       ...rest,
       ...region.fields,
+      ...(logoUrl !== undefined ? { logoUrl } : {}),
       deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : parsed.data.deliveryFee,
       minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : parsed.data.minimumOrderAmount,
     })

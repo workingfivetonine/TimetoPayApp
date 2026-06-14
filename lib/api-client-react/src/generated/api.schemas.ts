@@ -389,6 +389,8 @@ export interface Store {
   minimumOrderAmount?: number | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
   createdAt: string;
 }
 
