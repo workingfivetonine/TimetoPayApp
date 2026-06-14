@@ -17,18 +17,14 @@ import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { PasswordRequirements } from "@/components/PasswordRequirements";
 import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 
-function clerkError(e: unknown): string {
-  const err = e as { errors?: { longMessage?: string; message?: string }[]; message?: string } | null;
-  return (
-    err?.errors?.[0]?.longMessage ??
-    err?.errors?.[0]?.message ??
-    err?.message ??
-    "Something went wrong. Please try again."
-  );
+function clerkErrMsg(e: unknown): string {
+  if (!e) return "Something went wrong. Please try again.";
+  const err = e as { longMessage?: string; message?: string };
+  return err.longMessage ?? err.message ?? "Something went wrong. Please try again.";
 }
 
 export default function SignUpPage() {
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { signUp } = useSignUp();
   const router = useRouter();
   const colors = useColors();
 
@@ -40,47 +36,45 @@ export default function SignUpPage() {
   const [busy, setBusy] = React.useState(false);
 
   const handleSubmit = async () => {
-    if (!isLoaded || busy) return;
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
-      await signUp.create({ emailAddress, password });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      const { error: createErr } = await signUp.password({ emailAddress, password });
+      if (createErr) { setError(clerkErrMsg(createErr)); return; }
+      const { error: sendErr } = await signUp.verifications.sendEmailCode();
+      if (sendErr) { setError(clerkErrMsg(sendErr)); return; }
       setPendingVerification(true);
-    } catch (e) {
-      setError(clerkError(e));
     } finally {
       setBusy(false);
     }
   };
 
   const handleVerify = async () => {
-    if (!isLoaded || busy) return;
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      const { error: err } = await signUp.verifications.verifyEmailCode({ code });
+      if (err) { setError(clerkErrMsg(err)); return; }
+      if (signUp.status === "complete") {
+        await signUp.finalize();
         router.replace("/" as Href);
       } else {
         setError("Verification could not be completed. Please try again.");
       }
-    } catch (e) {
-      setError(clerkError(e));
     } finally {
       setBusy(false);
     }
   };
 
   const handleResendCode = async () => {
-    if (!isLoaded || busy) return;
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-    } catch (e) {
-      setError(clerkError(e));
+      const { error: err } = await signUp.verifications.sendEmailCode();
+      if (err) { setError(clerkErrMsg(err)); }
     } finally {
       setBusy(false);
     }

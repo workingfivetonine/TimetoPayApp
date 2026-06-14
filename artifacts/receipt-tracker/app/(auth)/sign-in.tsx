@@ -21,18 +21,14 @@ import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 type AuthView = "signin" | "forgot";
 type ForgotStep = "email" | "reset";
 
-function clerkError(e: unknown): string {
-  const err = e as { errors?: { longMessage?: string; message?: string }[]; message?: string } | null;
-  return (
-    err?.errors?.[0]?.longMessage ??
-    err?.errors?.[0]?.message ??
-    err?.message ??
-    "Something went wrong. Please try again."
-  );
+function clerkErrMsg(e: unknown): string {
+  if (!e) return "Something went wrong. Please try again.";
+  const err = e as { longMessage?: string; message?: string };
+  return err.longMessage ?? err.message ?? "Something went wrong. Please try again.";
 }
 
 export default function SignInPage() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const { signIn } = useSignIn();
   const router = useRouter();
   const colors = useColors();
 
@@ -50,43 +46,40 @@ export default function SignInPage() {
   const [busy, setBusy] = React.useState(false);
 
   const handleSubmit = async () => {
-    if (!isLoaded || busy) return;
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
-      const result = await signIn.create({ identifier: emailAddress, password });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      const { error: err } = await signIn.password({ emailAddress, password });
+      if (err) { setError(clerkErrMsg(err)); return; }
+      if (signIn.status === "complete") {
+        await signIn.finalize();
         router.replace("/" as Href);
       } else {
         setError("Sign in could not be completed. Please try again.");
       }
-    } catch (e) {
-      setError(clerkError(e));
     } finally {
       setBusy(false);
     }
   };
 
   const handleSendResetCode = async () => {
-    if (!isLoaded || busy) return;
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
-      await signIn.create({
-        strategy: "reset_password_email_code",
-        identifier: resetEmail,
-      });
+      const { error: createErr } = await signIn.create({ identifier: resetEmail });
+      if (createErr) { setError(clerkErrMsg(createErr)); return; }
+      const { error: sendErr } = await signIn.resetPasswordEmailCode.sendCode();
+      if (sendErr) { setError(clerkErrMsg(sendErr)); return; }
       setForgotStep("reset");
-    } catch (e) {
-      setError(clerkError(e));
     } finally {
       setBusy(false);
     }
   };
 
   const handleSubmitNewPassword = async () => {
-    if (!isLoaded || busy) return;
+    if (busy) return;
     setError(null);
     if (!passwordMeetsPolicy(newPassword)) {
       setError("Your new password doesn't meet the requirements below.");
@@ -94,19 +87,16 @@ export default function SignInPage() {
     }
     setBusy(true);
     try {
-      const result = await signIn.attemptFirstFactor({
-        strategy: "reset_password_email_code",
-        code: resetCode,
-        password: newPassword,
-      });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      const { error: verifyErr } = await signIn.resetPasswordEmailCode.verifyCode({ code: resetCode });
+      if (verifyErr) { setError(clerkErrMsg(verifyErr)); return; }
+      const { error: submitErr } = await signIn.resetPasswordEmailCode.submitPassword({ password: newPassword });
+      if (submitErr) { setError(clerkErrMsg(submitErr)); return; }
+      if (signIn.status === "complete") {
+        await signIn.finalize();
         router.replace("/" as Href);
       } else {
         setError("Could not reset password. Please try again.");
       }
-    } catch (e) {
-      setError(clerkError(e));
     } finally {
       setBusy(false);
     }
