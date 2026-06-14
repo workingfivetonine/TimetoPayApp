@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Help & User Guide — TimetoPay</title>
+  <meta name="description" content="Learn how to use TimetoPay to scan receipts, track grocery prices, and build a smarter shopping list." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://5to9shopping.com/help" />
+  <style>
+    :root {
+      --purple: #7c3aed;
+      --purple-dark: #5b21b6;
+      --purple-light: #ede9fe;
+      --text: #1e1b2e;
+      --text-secondary: #45405c;
+      --text-muted: #6b6385;
+      --bg: #faf8ff;
+      --white: #fff;
+      --border: #e7e1f5;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    /* ── Header ── */
+    .hero {
+      background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+      color: #fff;
+      padding: 56px 24px 48px;
+    }
+    .hero .wrap { max-width: 760px; margin: 0 auto; }
+    .hero a.back { color: #fff; opacity: .9; text-decoration: none; font-size: 14px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+    .hero h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+    .hero p { opacity: .85; font-size: 16px; max-width: 560px; }
+
+    /* ── Layout ── */
+    .layout { max-width: 1060px; margin: 0 auto; padding: 48px 24px 80px; display: grid; grid-template-columns: 220px 1fr; gap: 48px; }
+    @media (max-width: 700px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+    /* ── Sidebar nav ── */
+    .sidebar { position: sticky; top: 24px; align-self: start; }
+    .sidebar nav { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .sidebar h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 12px; }
+    .sidebar a { display: block; font-size: 14px; color: var(--text-secondary); text-decoration: none; padding: 6px 8px; border-radius: 6px; margin-bottom: 2px; }
+    .sidebar a:hover { background: var(--purple-light); color: var(--purple); }
+
+    /* ── Content ── */
+    .content section { margin-bottom: 56px; }
+    .content h2 { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+    .content h3 { font-size: 17px; font-weight: 700; color: var(--text); margin: 28px 0 10px; }
+    .content p { font-size: 15.5px; color: var(--text-secondary); margin-bottom: 14px; }
+    .content ul, .content ol { padding-left: 22px; margin-bottom: 14px; }
+    .content li { font-size: 15.5px; color: var(--text-secondary); margin-bottom: 6px; }
+    .content a { color: var(--purple); }
+    .content strong { color: var(--text); }
+
+    /* ── Tip boxes ── */
+    .tip {
+      background: var(--purple-light);
+      border-left: 3px solid var(--purple);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 14.5px;
+      color: var(--purple-dark);
+    }
+    .tip strong { color: var(--purple-dark); }
+
+    /* ── Step cards ── */
+    .steps { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+    .step { display: flex; gap: 14px; align-items: flex-start; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .step-num { background: var(--purple); color: #fff; font-size: 13px; font-weight: 800; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .step-text { font-size: 15px; color: var(--text-secondary); line-height: 1.55; }
+    .step-text strong { color: var(--text); display: block; margin-bottom: 2px; }
+
+    /* ── Feature grid ── */
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+    @media (max-width: 500px) { .feature-grid { grid-template-columns: 1fr; } }
+    .feature-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .feature-card .icon { font-size: 24px; margin-bottom: 8px; }
+    .feature-card h4 { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .feature-card p { font-size: 13.5px; color: var(--text-secondary); margin: 0; }
+
+    /* ── Footer ── */
+    footer { max-width: 760px; margin: 0 auto; padding: 0 24px 56px; color: var(--text-muted); font-size: 13px; border-top: 1px solid var(--border); padding-top: 24px; }
+    footer a { color: var(--text-muted); font-weight: 600; margin-right: 16px; }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="back" href="/">← TimetoPay</a>
+    <h1>Help & User Guide</h1>
+    <p>Everything you need to know about scanning receipts, tracking prices, and building a smarter shopping list.</p>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <nav>
+      <h3>Contents</h3>
+      <a href="#getting-started">Getting Started</a>
+      <a href="#scanning">Scanning Receipts</a>
+      <a href="#stores">Managing Stores</a>
+      <a href="#shopping-list">Shopping List</a>
+      <a href="#analytics">Price Tracking</a>
+      <a href="#account">Account & Subscription</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+      <a href="#contact">Contact & Support</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="content">
+
+    <!-- Overview -->
+    <section>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="icon">📸</div>
+          <h4>Scan Receipts</h4>
+          <p>Upload a photo or PDF and AI reads every item, price, and store automatically.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">📈</div>
+          <h4>Track Prices</h4>
+          <p>See price history for every item across every store you shop at.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">🛒</div>
+          <h4>Smart Shopping List</h4>
+          <p>Your list builds itself from your purchase history and shows the best price per item.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">💰</div>
+          <h4>Spend Analytics</h4>
+          <p>Weekly and monthly spending summaries so you know exactly where your money goes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Getting Started -->
+    <section id="getting-started">
+      <h2>Getting Started</h2>
+
+      <h3>Creating an Account</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-text"><strong>Go to 5to9shopping.com</strong>Click Sign Up and enter your email and a password, or sign in with Google.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Verify your email</strong>Check your inbox for a verification link and click it to activate your account.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Set your region</strong>Pick your country and state so the app can show you relevant store comparisons.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Choose a plan</strong>Start a free 30-day trial, subscribe, or continue with basic free access.</div></div>
+      </div>
+
+      <h3>Choosing a Plan</h3>
+      <p>TimetoPay offers a one-time 30-day free trial of all premium features. After the trial you can subscribe monthly or annually, or continue with limited free access.</p>
+      <p>Premium features include AI receipt scanning, cross-store price comparison, and deep price history analytics. You can upgrade or cancel at any time from your account screen.</p>
+    </section>
+
+    <!-- Scanning -->
+    <section id="scanning">
+      <h2>Scanning Receipts</h2>
+      <p>Scanning a receipt is the fastest way to track your grocery spending. The AI reads every item and price so you don't have to type anything.</p>
+
+      <h3>Scanning an Image</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-text"><strong>Tap Scan</strong>Click the Scan button in the bottom navigation bar.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Upload a photo</strong>Select a receipt photo from your device. JPG and PNG work best.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Wait for the AI</strong>The receipt is read automatically — this usually takes 5–15 seconds.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Review and save</strong>Check the extracted items and prices, make any corrections, then tap Save.</div></div>
+      </div>
+
+      <div class="tip"><strong>Tips for better scans:</strong> Use good lighting, lay the receipt flat, make sure the whole receipt is visible, and avoid shadows. Crumpled or faded receipts may produce less accurate results.</div>
+
+      <h3>Scanning a PDF</h3>
+      <p>If your store emails you digital receipts as PDFs, you can upload them directly:</p>
+      <ol>
+        <li>Tap <strong>Scan</strong> → <strong>Upload a PDF</strong></li>
+        <li>Select your PDF receipt (up to 4 pages)</li>
+        <li>The AI processes each page — longer receipts may take 15–30 seconds</li>
+        <li>Review the results and save</li>
+      </ol>
+
+      <h3>Reviewing Extracted Items</h3>
+      <p>After scanning you'll see a review screen showing the store name, purchase date, each item with its price, and the receipt total. You can edit any field before saving. If an item has a generic name like "ITEM 1234", tap it to rename it something useful like "Whole milk."</p>
+    </section>
+
+    <!-- Stores -->
+    <section id="stores">
+      <h2>Managing Stores</h2>
+      <p>Every receipt is linked to a store, and prices are tracked and compared across stores over time. The more stores you add, the more useful your price history becomes.</p>
+
+      <h3>Adding a Store</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-text"><strong>Go to Stores</strong>Tap Stores in the navigation menu.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Tap Add Store</strong>Enter the store name — e.g. "Costco", "Trader Joe's", "Stop & Shop".</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Add optional details</strong>Address, phone, hours, and delivery information are optional but helpful.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Save</strong>The store is now available when you scan receipts.</div></div>
+      </div>
+
+      <h3>Editing or Deleting a Store</h3>
+      <p>Tap any store in your list to open it, then tap <strong>Edit</strong> to update its details or scroll to the bottom to delete it. Deleting a store also removes all receipts associated with it.</p>
+    </section>
+
+    <!-- Shopping List -->
+    <section id="shopping-list">
+      <h2>Shopping List</h2>
+      <p>Your shopping list builds itself automatically from your receipt history. Items you buy regularly appear on the list so you don't have to add them manually.</p>
+
+      <h3>How Items Appear</h3>
+      <p>An item shows on your list when you've purchased it before or manually added it, and haven't dismissed it. Items are automatically sorted by store so you can shop efficiently.</p>
+
+      <h3>Adding Items Manually</h3>
+      <ol>
+        <li>Go to <strong>Shopping List</strong></li>
+        <li>Tap <strong>Add item</strong> or browse the <strong>Catalog</strong></li>
+        <li>Select items to add them to your list</li>
+      </ol>
+
+      <h3>Using Your List While Shopping</h3>
+      <ul>
+        <li>Check off items as you put them in your cart</li>
+        <li>See the <strong>best price</strong> from your history for each item</li>
+        <li>Dismiss items you don't need this trip</li>
+      </ul>
+
+      <h3>Exporting Your List</h3>
+      <p>Tap <strong>Export</strong> from the Shopping List screen to get a store-grouped, printable version of your list — useful for planning a multi-store shopping trip.</p>
+    </section>
+
+    <!-- Analytics -->
+    <section id="analytics">
+      <h2>Price Tracking & Analytics</h2>
+
+      <h3>Viewing Price History for an Item</h3>
+      <p>Tap any item in your receipt history or shopping list to see its full price history across all stores. You'll see the lowest price ever recorded and where, the average price, the highest price, and a side-by-side store comparison.</p>
+
+      <h3>Analytics Dashboard</h3>
+      <p>Go to <strong>Analytics</strong> to see your overall grocery spending:</p>
+      <ul>
+        <li><strong>Weekly spend</strong> — this week vs last week</li>
+        <li><strong>Monthly spend</strong> — this month vs last month</li>
+        <li><strong>Top stores</strong> — where you spend the most</li>
+        <li><strong>Top items</strong> — what you buy most often</li>
+        <li><strong>Spending trend</strong> — whether you're spending more or less over time</li>
+      </ul>
+
+      <div class="tip"><strong>Pro tip:</strong> Scan receipts consistently for at least 4–6 weeks to build up enough price history for meaningful comparisons.</div>
+    </section>
+
+    <!-- Account -->
+    <section id="account">
+      <h2>Account & Subscription</h2>
+
+      <h3>Managing Your Subscription</h3>
+      <p>Go to <strong>Account → Subscription</strong> to view your current plan, upgrade, cancel, or switch between monthly and annual billing. Cancelling takes effect at the end of your current billing period — you keep full access until then.</p>
+
+      <h3>Email Notifications</h3>
+      <p>Go to <strong>Account → Notifications</strong> to control which emails you receive. All notifications are off by default — turn on only the ones you want:</p>
+      <ul>
+        <li><strong>Payment reminders</strong> — trial ending soon, payment past due</li>
+        <li><strong>Receipt reminders</strong> — nudges when you haven't scanned in a while</li>
+        <li><strong>Spend summaries</strong> — weekly and monthly spending recaps</li>
+      </ul>
+
+      <h3>Resetting Your Password</h3>
+      <p>On the sign-in screen, tap <strong>Forgot password?</strong> to receive a reset code by email.</p>
+
+      <h3>Deleting Your Account</h3>
+      <p>To delete your account and all data, email <a href="mailto:support@5to9shopping.com">support@5to9shopping.com</a>. We'll process your request within 48 hours.</p>
+    </section>
+
+    <!-- Troubleshooting -->
+    <section id="troubleshooting">
+      <h2>Troubleshooting</h2>
+
+      <h3>Receipt scan returns wrong items</h3>
+      <p>Try a clearer photo with better lighting. Make sure the full receipt is in frame with no shadows. For very long receipts, try cropping and scanning in sections. For PDF receipts, make sure the PDF is a digital receipt (not a scanned paper receipt saved as PDF).</p>
+
+      <h3>Items have generic names after scanning</h3>
+      <p>Some stores use internal product codes on receipts. After saving, tap the item and rename it to something you'll recognize. The app will remember your correction.</p>
+
+      <h3>App won't load or shows a blank screen</h3>
+      <p>Clear your browser cache and reload the page. If the problem persists, try opening the app in a private/incognito window. You can also try adding the app to your home screen for a faster, more reliable experience.</p>
+
+      <h3>Subscription not activating after payment</h3>
+      <p>Your subscription status updates automatically after payment — this usually takes under 30 seconds. If it hasn't updated after a few minutes, sign out and back in. If the problem persists, contact support with your payment confirmation.</p>
+
+      <h3>PDF upload fails</h3>
+      <p>PDFs must be under 15MB and no more than 4 pages. Make sure your file is a real PDF (not a renamed image file). If your receipt PDF has many pages, try splitting it into smaller files.</p>
+    </section>
+
+    <!-- Contact -->
+    <section id="contact">
+      <h2>Contact & Support</h2>
+      <p>Still need help? We're happy to assist.</p>
+      <ul>
+        <li><strong>Email:</strong> <a href="mailto:support@5to9shopping.com">support@5to9shopping.com</a></li>
+        <li><strong>Support page:</strong> <a href="/support">5to9shopping.com/support</a></li>
+        <li><strong>Privacy Policy:</strong> <a href="/privacy">5to9shopping.com/privacy</a></li>
+        <li><strong>Terms of Service:</strong> <a href="/terms">5to9shopping.com/terms</a></li>
+      </ul>
+      <p>TimetoPay is built by FivetoNine LLC, New York.</p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/terms">Terms of Service</a>
+    <a href="/support">Support</a>
+    <a href="/">Home</a>
+  </div>
+</footer>
+
+</body>
+</html>
