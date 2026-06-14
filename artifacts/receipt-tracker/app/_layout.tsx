@@ -15,7 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
-import { tokenCache as nativeTokenCache } from "@clerk/expo/token-cache";
+import { tokenCache } from "@/lib/tokenCache";
 import {
   setAuthTokenGetter,
   setBaseUrl,
@@ -47,8 +47,6 @@ setBaseUrl(getApiOrigin());
 setClientPlatform(Platform.OS);
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
-// expo-secure-store (used by nativeTokenCache) is not available on web
-const tokenCache = Platform.OS !== "web" ? nativeTokenCache : undefined;
 // Same-origin Clerk proxy on production web (works on any serving domain);
 // undefined in dev (Clerk hits the dev FAPI directly).
 
