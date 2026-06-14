@@ -21,6 +21,17 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+// Capture the event at module level so we don't miss it if it fires before the
+// component mounts (React hydration can lag behind the initial page load).
+let _earlyPrompt: BeforeInstallPromptEvent | null = null;
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "beforeinstallprompt",
+    (e) => { e.preventDefault(); _earlyPrompt = e as BeforeInstallPromptEvent; },
+    { once: true },
+  );
+}
+
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   const mql = window.matchMedia?.("(display-mode: standalone)");
@@ -58,7 +69,7 @@ function isMobile(): boolean {
 export function InstallAppButton({ style }: Props) {
   const colors = useColors();
   const [deferredPrompt, setDeferredPrompt] =
-    React.useState<BeforeInstallPromptEvent | null>(null);
+    React.useState<BeforeInstallPromptEvent | null>(_earlyPrompt);
   const [installed, setInstalled] = React.useState(false);
   const [standalone, setStandalone] = React.useState(false);
   const [showHelp, setShowHelp] = React.useState(false);
@@ -71,6 +82,7 @@ export function InstallAppButton({ style }: Props) {
 
     setStandalone(isStandalone());
 
+    // Pick up any late-firing prompt (e.g. after navigating within the SPA).
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);

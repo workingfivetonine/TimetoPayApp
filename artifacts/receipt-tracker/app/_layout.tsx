@@ -46,6 +46,11 @@ setBaseUrl(getApiOrigin());
 // clients are intentionally never paywalled to avoid app-store IAP policy).
 setClientPlatform(Platform.OS);
 
+// Register the PWA service worker on web so Chrome fires `beforeinstallprompt`.
+if (Platform.OS === "web" && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => { /* non-fatal */ });
+}
+
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 // Same-origin Clerk proxy on production web (works on any serving domain);
 // undefined in dev (Clerk hits the dev FAPI directly).
