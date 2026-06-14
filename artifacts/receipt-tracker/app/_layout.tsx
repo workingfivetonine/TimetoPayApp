@@ -26,6 +26,7 @@ import {
 import Toast from "react-native-toast-message";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { BoardNotificationProvider } from "@/contexts/BoardNotification";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { DataProvider } from "@/context/DataContext";
@@ -219,11 +220,13 @@ export default function RootLayout() {
             >
               <CacheInvalidator />
               <DataProvider>
-                <GestureHandlerRootView>
-                  <KeyboardProvider>
-                    <InitialLayout />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
+                <BoardNotificationProvider>
+                  <GestureHandlerRootView>
+                    <KeyboardProvider>
+                      <InitialLayout />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </BoardNotificationProvider>
               </DataProvider>
             </PersistQueryClientProvider>
           </ErrorBoundary>

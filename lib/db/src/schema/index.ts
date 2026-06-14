@@ -8,3 +8,5 @@ export * from "./conversations";
 export * from "./messages";
 export * from "./adminNotifications";
 export * from "./boardPosts";
+export * from "./boardReplies";
+export * from "./boardAgrees";

@@ -8,6 +8,7 @@ import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { useBoardNotification } from "@/contexts/BoardNotification";
 
 export default function TabLayout() {
   const colors = useColors();
@@ -18,6 +19,7 @@ export default function TabLayout() {
   const isDesktop = useDesktop();
   const locked = usePremiumLock();
   const { isLoaded, isSignedIn } = useAuth();
+  const { newCount } = useBoardNotification();
 
   // The app root "/" resolves to this protected group. Guard it declaratively
   // so signed-out users never mount the authed tab screens (which call
@@ -107,6 +109,7 @@ export default function TabLayout() {
             <View>
               <Feather name="message-square" size={22} color={color} />
               {locked && <View style={tabStyles.premiumStar}><Feather name="star" size={8} color="#F59E0B" /></View>}
+              {!locked && newCount > 0 && <View style={tabStyles.notifBadge} />}
             </View>
           ),
         }}
@@ -139,6 +142,17 @@ const tabStyles = StyleSheet.create({
     height: 13,
     alignItems: "center",
     justifyContent: "center",
+  },
+  notifBadge: {
+    position: "absolute",
+    top: -3,
+    right: -5,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5,
+    borderColor: "#fff",
   },
 });
 

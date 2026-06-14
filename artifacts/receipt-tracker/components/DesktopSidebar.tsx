@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
+import { useBoardNotification } from "@/contexts/BoardNotification";
 
 const NAV = [
   { label: "Receipts", icon: "file-text", href: "/", match: (p: string) => p === "/" || p === "", premium: false },
@@ -18,6 +19,7 @@ export function DesktopSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const locked = usePremiumLock();
+  const { newCount } = useBoardNotification();
 
   return (
     <View style={[styles.sidebar, { backgroundColor: colors.background, borderRightColor: colors.border }]}>
@@ -61,6 +63,9 @@ export function DesktopSidebar() {
                 <View style={styles.premiumStar}>
                   <Feather name="star" size={9} color="#F59E0B" />
                 </View>
+              )}
+              {!locked && item.href === "/board" && newCount > 0 && (
+                <View style={styles.notifBadge} />
               )}
             </TouchableOpacity>
           );
@@ -180,6 +185,13 @@ const styles = StyleSheet.create({
     height: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  notifBadge: {
+    marginLeft: "auto",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#EF4444",
   },
   scanWrap: {
     paddingHorizontal: 10,
