@@ -66,6 +66,11 @@ notifyPaymentReminders: boolean("notify_payment_reminders").notNull().default(fa
 notifyListExport: boolean("notify_list_export").notNull().default(false),
 notifyReceiptReminders: boolean("notify_receipt_reminders").notNull().default(false),
 notifySpendSummary: boolean("notify_spend_summary").notNull().default(false),
+    // ── Per-type notification frequency (weekly | monthly) ─────────────────
+    // Payment reminders are excluded — they fire on billing events, not schedules.
+notifyListExportFrequency: text("notify_list_export_frequency").default("weekly"),
+notifyReceiptRemindersFrequency: text("notify_receipt_reminders_frequency").default("weekly"),
+notifySpendSummaryFrequency: text("notify_spend_summary_frequency").default("weekly"),
     // ── Per-email-type "last sent" cursors (dedupe / once-per-period) ──────
     // The scheduler records when each email type was last sent to this user so a
     // reminder fires at most once per relevant period across repeated runs.

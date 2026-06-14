@@ -16,14 +16,20 @@ import {
   lineItemsTable,
 } from "@workspace/db";
 import { computeEntitlement, TRIAL_DAYS } from "../billing/entitlement";
-import { sendEmail } from "../email/resendClient";
+import { sendEmail, sendEmailWithTemplate } from "../email/resendClient";
 import {
   renderTrialEnding,
+  renderTrialEndingVars,
   renderPastDue,
+  renderPastDueVars,
   renderListExport,
+  renderListExportVars,
   renderReceiptInactivity,
+  renderReceiptInactivityVars,
   renderWeeklySummary,
+  renderWeeklySummaryVars,
   renderMonthlySummary,
+  renderMonthlySummaryVars,
 } from "../email/templates";
 import {
   comparePeriods,
@@ -40,9 +46,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // How close to trial end the "trial ending" reminder fires.
 const TRIAL_ENDING_WINDOW_DAYS = 3;
 // Re-nudge cadences (a reminder for an ongoing condition won't repeat faster).
-const LIST_EXPORT_COOLDOWN_DAYS = 7;
+const LIST_EXPORT_COOLDOWN_DAYS_WEEKLY = 7;
+const LIST_EXPORT_COOLDOWN_DAYS_MONTHLY = 30;
 const RECEIPT_INACTIVITY_THRESHOLD_DAYS = 7;
-const RECEIPT_INACTIVITY_COOLDOWN_DAYS = 7;
+const RECEIPT_INACTIVITY_COOLDOWN_DAYS_WEEKLY = 7;
+const RECEIPT_INACTIVITY_COOLDOWN_DAYS_MONTHLY = 30;
 // A staple counts as "neglected" for the personalized jab after this long.
 const NEGLECTED_STAPLE_DAYS = 21;
 
@@ -166,14 +174,11 @@ async function maybeTrialEnding(
   if (now < windowOpen || now >= trialEnd) return;
   const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY_MS));
 
-  const res = await sendEmail({
-    to: user.email!,
-    ...renderTrialEnding({
-      name: displayNameFromEmail(user.email),
-      daysLeft,
-      trialEndsAt: trialEnd.toISOString(),
-    }),
-  });
+  const trialData = { name: displayNameFromEmail(user.email), daysLeft, trialEndsAt: trialEnd.toISOString() };
+  const templateId = process.env.RESEND_TEMPLATE_TRIAL_ENDING;
+  const res = templateId
+    ? await sendEmailWithTemplate({ to: user.email!, templateId, variables: renderTrialEndingVars(trialData) })
+    : await sendEmail({ to: user.email!, ...renderTrialEnding(trialData) });
   if (res.sent) {
     updates.lastTrialEndingSentAt = now;
     bump("trialEnding");
@@ -194,15 +199,14 @@ async function maybePastDue(
   }
   if (user.lastPastDueSentAt) return; // already notified for this episode
 
-  const res = await sendEmail({
-    to: user.email!,
-    ...renderPastDue({
-      name: displayNameFromEmail(user.email),
-      currentPeriodEnd: user.subscriptionCurrentPeriodEnd
-        ? user.subscriptionCurrentPeriodEnd.toISOString()
-        : null,
-    }),
-  });
+  const pastDueData = {
+    name: displayNameFromEmail(user.email),
+    currentPeriodEnd: user.subscriptionCurrentPeriodEnd ? user.subscriptionCurrentPeriodEnd.toISOString() : null,
+  };
+  const pastDueTemplateId = process.env.RESEND_TEMPLATE_PAST_DUE;
+  const res = pastDueTemplateId
+    ? await sendEmailWithTemplate({ to: user.email!, templateId: pastDueTemplateId, variables: renderPastDueVars(pastDueData) })
+    : await sendEmail({ to: user.email!, ...renderPastDue(pastDueData) });
   if (res.sent) {
     updates.lastPastDueSentAt = now;
     bump("pastDue");
@@ -216,22 +220,24 @@ async function maybeListExport(
   updates: Partial<UserRow>,
   bump: (t: string) => void,
 ): Promise<void> {
+  const cooldownDays =
+    user.notifyListExportFrequency === "monthly"
+      ? LIST_EXPORT_COOLDOWN_DAYS_MONTHLY
+      : LIST_EXPORT_COOLDOWN_DAYS_WEEKLY;
   if (
     user.lastListExportSentAt &&
-    now.getTime() - user.lastListExportSentAt.getTime() < LIST_EXPORT_COOLDOWN_DAYS * DAY_MS
+    now.getTime() - user.lastListExportSentAt.getTime() < cooldownDays * DAY_MS
   )
     return;
 
   const listCount = await countShoppingListItems(user.id);
   if (listCount <= 0) return;
 
-  const res = await sendEmail({
-    to: user.email!,
-    ...renderListExport({
-      name: displayNameFromEmail(user.email),
-      itemCount: listCount,
-    }),
-  });
+  const listData = { name: displayNameFromEmail(user.email), itemCount: listCount };
+  const listTemplateId = process.env.RESEND_TEMPLATE_LIST_EXPORT;
+  const res = listTemplateId
+    ? await sendEmailWithTemplate({ to: user.email!, templateId: listTemplateId, variables: renderListExportVars(listData) })
+    : await sendEmail({ to: user.email!, ...renderListExport(listData) });
   if (res.sent) {
     updates.lastListExportSentAt = now;
     bump("listExport");
@@ -253,10 +259,14 @@ async function maybeReceiptInactivity(
 
   // Re-nudge rules: send if never sent, if they scanned since the last nudge
   // (new episode), or after the cooldown for an ongoing dry spell.
+  const inactivityCooldownDays =
+    user.notifyReceiptRemindersFrequency === "monthly"
+      ? RECEIPT_INACTIVITY_COOLDOWN_DAYS_MONTHLY
+      : RECEIPT_INACTIVITY_COOLDOWN_DAYS_WEEKLY;
   if (user.lastReceiptInactivitySentAt) {
     const sentAt = user.lastReceiptInactivitySentAt;
     const scannedSince = lastReceiptAt != null && lastReceiptAt > sentAt;
-    const cooldownElapsed = now.getTime() - sentAt.getTime() >= RECEIPT_INACTIVITY_COOLDOWN_DAYS * DAY_MS;
+    const cooldownElapsed = now.getTime() - sentAt.getTime() >= inactivityCooldownDays * DAY_MS;
     if (!scannedSince && !cooldownElapsed) return;
   }
 
@@ -268,16 +278,17 @@ async function maybeReceiptInactivity(
     displayName: displayNameFromEmail(user.email),
   });
 
-  const res = await sendEmail({
-    to: user.email!,
-    ...renderReceiptInactivity({
-      name: displayNameFromEmail(user.email),
-      daysSinceLastReceipt: daysSince,
-      headline: snark.headline,
-      body: snark.body,
-      neglectedStaple: neglectedStaple?.name ?? null,
-    }),
-  });
+  const inactivityData = {
+    name: displayNameFromEmail(user.email),
+    daysSinceLastReceipt: daysSince,
+    headline: snark.headline,
+    body: snark.body,
+    neglectedStaple: neglectedStaple?.name ?? null,
+  };
+  const inactivityTemplateId = process.env.RESEND_TEMPLATE_RECEIPT_INACTIVITY;
+  const res = inactivityTemplateId
+    ? await sendEmailWithTemplate({ to: user.email!, templateId: inactivityTemplateId, variables: renderReceiptInactivityVars(inactivityData) })
+    : await sendEmail({ to: user.email!, ...renderReceiptInactivity(inactivityData) });
   if (res.sent) {
     updates.lastReceiptInactivitySentAt = now;
     bump("receiptInactivity");
@@ -292,6 +303,8 @@ async function maybeSpendSummaries(
   updates: Partial<UserRow>,
   bump: (t: string) => void,
 ): Promise<void> {
+  const spendFrequency = user.notifySpendSummaryFrequency ?? "weekly";
+
   // Weekly: recap the just-completed Mon–Sun week vs the week before it. The
   // recap becomes available at the start of the current week.
   const currentWeekStart = mondayOf(now);
@@ -300,20 +313,22 @@ async function maybeSpendSummaries(
   const weeklyAlreadySent =
     user.lastWeeklySummarySentAt != null &&
     user.lastWeeklySummarySentAt >= currentWeekStart;
-  if (!weeklyAlreadySent) {
+  // "monthly" frequency: skip weekly emails, send only the monthly recap.
+  if (!weeklyAlreadySent && spendFrequency !== "monthly") {
     const total = sumReceiptsInRange(receipts, completedWeekStart, currentWeekStart);
     const previousTotal = sumReceiptsInRange(receipts, priorWeekStart, completedWeekStart);
     if (total > 0 || previousTotal > 0) {
       const cmp = comparePeriods(total, previousTotal);
-      const res = await sendEmail({
-        to: user.email!,
-        ...renderWeeklySummary({
-          name: displayNameFromEmail(user.email),
-          periodStart: completedWeekStart.toISOString().split("T")[0],
-          periodEnd: new Date(currentWeekStart.getTime() - DAY_MS).toISOString().split("T")[0],
-          ...cmp,
-        }),
-      });
+      const weeklyData = {
+        name: displayNameFromEmail(user.email),
+        periodStart: completedWeekStart.toISOString().split("T")[0],
+        periodEnd: new Date(currentWeekStart.getTime() - DAY_MS).toISOString().split("T")[0],
+        ...cmp,
+      };
+      const weeklyTemplateId = process.env.RESEND_TEMPLATE_WEEKLY_SUMMARY;
+      const res = weeklyTemplateId
+        ? await sendEmailWithTemplate({ to: user.email!, templateId: weeklyTemplateId, variables: renderWeeklySummaryVars(weeklyData) })
+        : await sendEmail({ to: user.email!, ...renderWeeklySummary(weeklyData) });
       if (res.sent) {
         updates.lastWeeklySummarySentAt = now;
         bump("weeklySummary");
@@ -341,15 +356,16 @@ async function maybeSpendSummaries(
     const previousTotal = sumReceiptsInRange(receipts, priorMonthStart, completedMonthStart);
     if (total > 0 || previousTotal > 0) {
       const cmp = comparePeriods(total, previousTotal);
-      const res = await sendEmail({
-        to: user.email!,
-        ...renderMonthlySummary({
-          name: displayNameFromEmail(user.email),
-          periodStart: completedMonthStart.toISOString().split("T")[0],
-          periodEnd: new Date(currentMonthStart.getTime() - DAY_MS).toISOString().split("T")[0],
-          ...cmp,
-        }),
-      });
+      const monthlyData = {
+        name: displayNameFromEmail(user.email),
+        periodStart: completedMonthStart.toISOString().split("T")[0],
+        periodEnd: new Date(currentMonthStart.getTime() - DAY_MS).toISOString().split("T")[0],
+        ...cmp,
+      };
+      const monthlyTemplateId = process.env.RESEND_TEMPLATE_MONTHLY_SUMMARY;
+      const res = monthlyTemplateId
+        ? await sendEmailWithTemplate({ to: user.email!, templateId: monthlyTemplateId, variables: renderMonthlySummaryVars(monthlyData) })
+        : await sendEmail({ to: user.email!, ...renderMonthlySummary(monthlyData) });
       if (res.sent) {
         updates.lastMonthlySummarySentAt = now;
         bump("monthlySummary");

@@ -40,6 +40,47 @@ const colors = {
     priceBad: "#e11d48",
     priceNeutral: "#6b6385",
   },
+  dark: {
+    text: "#f0edff",
+    tint: "#9d6aff",
+
+    background: "#0f0d1a",
+    foreground: "#f0edff",
+
+    card: "#1a1628",
+    cardForeground: "#f0edff",
+
+    primary: "#9d6aff",
+    primaryForeground: "#ffffff",
+
+    secondary: "#1e1832",
+    secondaryForeground: "#c4aaff",
+
+    muted: "#1e1832",
+    mutedForeground: "#9b92b8",
+
+    accent: "#2a2245",
+    accentForeground: "#c4aaff",
+
+    destructive: "#fb7185",
+    destructiveForeground: "#ffffff",
+
+    border: "#2e2648",
+    input: "#2e2648",
+
+    // Spend analytics colors
+    spendHigh: "#3b0d1a",
+    spendHighText: "#fb7185",
+    spendLow: "#0d2e1f",
+    spendLowText: "#34d399",
+    spendNormal: "#1a1628",
+    spendNormalText: "#9b92b8",
+
+    // Price comparison
+    priceGood: "#34d399",
+    priceBad: "#fb7185",
+    priceNeutral: "#9b92b8",
+  },
   radius: 12,
 };
 

@@ -15,6 +15,9 @@ function formatNotificationPreferences(user: UserRow) {
     notifyListExport: user.notifyListExport,
     notifyReceiptReminders: user.notifyReceiptReminders,
     notifySpendSummary: user.notifySpendSummary,
+    notifyListExportFrequency: (user.notifyListExportFrequency ?? "weekly") as "weekly" | "monthly",
+    notifyReceiptRemindersFrequency: (user.notifyReceiptRemindersFrequency ?? "weekly") as "weekly" | "monthly",
+    notifySpendSummaryFrequency: (user.notifySpendSummaryFrequency ?? "weekly") as "weekly" | "monthly",
   };
 }
 
@@ -85,6 +88,12 @@ router.patch("/notifications", async (req, res): Promise<void> => {
     updates.notifyReceiptReminders = parsed.data.notifyReceiptReminders;
   if (parsed.data.notifySpendSummary !== undefined)
     updates.notifySpendSummary = parsed.data.notifySpendSummary;
+  if (parsed.data.notifyListExportFrequency !== undefined)
+    updates.notifyListExportFrequency = parsed.data.notifyListExportFrequency;
+  if (parsed.data.notifyReceiptRemindersFrequency !== undefined)
+    updates.notifyReceiptRemindersFrequency = parsed.data.notifyReceiptRemindersFrequency;
+  if (parsed.data.notifySpendSummaryFrequency !== undefined)
+    updates.notifySpendSummaryFrequency = parsed.data.notifySpendSummaryFrequency;
 
   if (!Object.keys(updates).length) {
     // Nothing to change — just return current prefs.

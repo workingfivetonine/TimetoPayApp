@@ -212,7 +212,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStores>>> = ({ signal }) => listStores({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStores>>> = ({ signal }) => listStores(undefined, { signal, ...requestOptions });
 
 
 
@@ -236,7 +236,7 @@ export function useListStores<TData = Awaited<ReturnType<typeof listStores>>, TE
 
   const queryOptions = getListStoresQueryOptions(options)
 
- const queryFn: QueryFunction<Awaited<ReturnType<typeof listStores>>> = ({ signal }) => listStores(params, { signal, ...requestOptions });
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
   return { ...query, queryKey: queryOptions.queryKey };
 }

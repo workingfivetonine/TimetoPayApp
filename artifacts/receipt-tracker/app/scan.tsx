@@ -186,8 +186,8 @@ export default function ScanScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Single photo → the existing crop-and-review flow. Multiple photos →
-    // each becomes its own receipt, then the batch-review screen lets the user
-    // merge any that belong together.
+    // prompt the user: same receipt (combine into one AI call) or different
+    // receipts (process each separately).
     if (assets.length === 1) {
       const asset = assets[0];
       setPendingImage({
@@ -197,7 +197,42 @@ export default function ScanScreen() {
         height: asset.height,
       });
     } else {
-      await parseMultipleImages(assets.map((a) => a.base64!));
+      const imagesBase64 = assets.map((a) => a.base64!);
+      Alert.alert(
+        "Multiple photos selected",
+        "Are these photos of the same receipt, or different receipts?",
+        [
+          {
+            text: "Same receipt",
+            onPress: () => parseCombinedReceipt(imagesBase64),
+          },
+          {
+            text: "Different receipts",
+            onPress: () => parseMultipleImages(imagesBase64),
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+    }
+  };
+
+  // Send all photos as one combined AI call — used when multiple images are
+  // different angles/sections of the same physical receipt.
+  const parseCombinedReceipt = async (imagesBase64: string[]) => {
+    setScanning(true);
+    setScanningLabel("Combining photos and analyzing receipt…");
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const result = await callApi<SavedReceipt>("parse-and-save-batch", { imagesBase64 });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      invalidateAll();
+      showSuccessToast("Receipt scanned", "Combined photos processed");
+      router.replace(`/receipt/${result.id}`);
+    } catch (err) {
+      if (err instanceof PremiumRequiredError) promptUpgrade();
+      else showUploadFailure(err, "image", () => parseCombinedReceipt(imagesBase64));
+    } finally {
+      setScanning(false);
     }
   };
 

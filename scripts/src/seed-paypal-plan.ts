@@ -9,8 +9,8 @@ const API_BASE = (
   process.env.PAYPAL_API_BASE?.replace(/\/+$/, "") ||
   "https://api-m.sandbox.paypal.com"
 ).trim();
-const PRODUCT_NAME = "Receipt Tracker Pro";
-const PLAN_NAME = "Receipt Tracker Pro Monthly";
+const PRODUCT_NAME = "TimetoPay Pro";
+const PLAN_NAME = "TimetoPay Pro Monthly";
 const PRICE = "5.99";
 const CURRENCY = "USD";
 const TRIAL_DAYS = 30;

@@ -8,7 +8,7 @@
 // `lib/notifications/reminders.ts`.
 import type { PeriodComparison } from "../analytics/spend";
 
-const BRAND = "Receipt Tracker";
+const BRAND = "TimetoPay";
 const TEAL = "#0d9488";
 const TEAL_DARK = "#0f766e";
 const INK = "#1f2937";
@@ -286,6 +286,105 @@ function renderSpendSummary(
         } than the previous ${periodLabel} (${formatMoney(data.previousTotal)}).`
   }`;
   return { subject, html, text };
+}
+
+// ── Template variable renderers (used when RESEND_TEMPLATE_* env vars are set)
+// Each function mirrors its renderXxx counterpart but returns a flat
+// Record<string, string> of {{{VARIABLE}}} values for Resend's template API.
+
+export function renderTrialEndingVars(data: {
+  name: string | null;
+  daysLeft: number;
+  trialEndsAt: string;
+}): Record<string, string> {
+  const dayWord = data.daysLeft === 1 ? "day" : "days";
+  const subject =
+    data.daysLeft <= 0
+      ? "Your free trial ends today"
+      : `Your free trial ends in ${data.daysLeft} ${dayWord}`;
+  const ends = formatDate(data.trialEndsAt);
+  return {
+    SUBJECT: subject,
+    NAME: greetName(data.name),
+    DAYS_LEFT_PHRASE: data.daysLeft <= 0 ? "ends today" : `ends in ${data.daysLeft} ${dayWord}`,
+    ENDS_DATE: ends ? ` (on ${ends})` : "",
+  };
+}
+
+export function renderPastDueVars(data: {
+  name: string | null;
+  currentPeriodEnd: string | null;
+}): Record<string, string> {
+  const until = formatDate(data.currentPeriodEnd ?? undefined);
+  return {
+    SUBJECT: "We couldn't process your payment",
+    NAME: greetName(data.name),
+    ACCESS_UNTIL: until ? ` Your access continues until ${until}.` : "",
+  };
+}
+
+export function renderListExportVars(data: {
+  name: string | null;
+  itemCount: number;
+}): Record<string, string> {
+  const itemWord = data.itemCount === 1 ? "item" : "items";
+  return {
+    SUBJECT: `Your shopping list has ${data.itemCount} ${itemWord} ready`,
+    NAME: greetName(data.name),
+    ITEM_COUNT: `${data.itemCount} ${itemWord}`,
+  };
+}
+
+export function renderReceiptInactivityVars(data: {
+  name: string | null;
+  headline: string;
+  body: string;
+  neglectedStaple: string | null;
+}): Record<string, string> {
+  return {
+    SUBJECT: data.headline,
+    HEADLINE: data.headline,
+    BODY: data.body,
+    STAPLE_DISPLAY: data.neglectedStaple ? "block" : "none",
+    STAPLE_ITEM: data.neglectedStaple ?? "",
+  };
+}
+
+function spendSummaryVars(
+  periodLabel: "week" | "month",
+  data: { name: string | null; periodStart: string; periodEnd: string } & PeriodComparison,
+): Record<string, string> {
+  const total = formatMoney(data.total);
+  const isFlat = data.changeDirection === "flat";
+  const word = data.changeDirection === "up" ? "more" : "less";
+  const changeLinePlain = isFlat
+    ? `That's right in line with the previous ${periodLabel}.`
+    : `That's ${formatMoney(data.changeAmount)} ${word} than the previous ${periodLabel} (${formatMoney(data.previousTotal)}).`;
+  return {
+    SUBJECT: `Your ${periodLabel}ly spending recap: ${total}`,
+    NAME: greetName(data.name),
+    PERIOD_START: data.periodStart,
+    PERIOD_END: data.periodEnd,
+    TOTAL: total,
+    IS_FLAT: isFlat ? "block" : "none",
+    IS_CHANGE: isFlat ? "none" : "block",
+    CHANGE_AMOUNT: formatMoney(data.changeAmount),
+    CHANGE_DIRECTION: word,
+    PREVIOUS_TOTAL: formatMoney(data.previousTotal),
+    CHANGE_LINE_TEXT: changeLinePlain,
+  };
+}
+
+export function renderWeeklySummaryVars(
+  data: { name: string | null; periodStart: string; periodEnd: string } & PeriodComparison,
+): Record<string, string> {
+  return spendSummaryVars("week", data);
+}
+
+export function renderMonthlySummaryVars(
+  data: { name: string | null; periodStart: string; periodEnd: string } & PeriodComparison,
+): Record<string, string> {
+  return spendSummaryVars("month", data);
 }
 
 export function renderWeeklySummary(

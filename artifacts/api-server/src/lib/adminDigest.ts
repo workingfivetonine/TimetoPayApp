@@ -168,8 +168,8 @@ function escapeHtml(s: string): string {
 function composeEmail(digest: AdminDigest): { subject: string; text: string; html: string } {
   const subject =
     digest.total > 0
-      ? `Receipt Tracker — ${digest.total} new item(s) to review`
-      : `Receipt Tracker — nothing new to review`;
+      ? `TimetoPay — ${digest.total} new item(s) to review`
+      : `TimetoPay — nothing new to review`;
   const sinceLine = digest.since
     ? `Since ${digest.since.toISOString()}`
     : `All time (first digest)`;
@@ -181,7 +181,7 @@ function composeEmail(digest: AdminDigest): { subject: string; text: string; htm
   ];
 
   const text = [
-    "Receipt Tracker — admin review digest",
+    "TimetoPay — admin review digest",
     sinceLine,
     "",
     ...sections.map((s) => s.text),
@@ -191,7 +191,7 @@ function composeEmail(digest: AdminDigest): { subject: string; text: string; htm
 
   const html = [
     `<div style="font-family:system-ui,Arial,sans-serif;color:#1f2937">`,
-    `<h2 style="margin:0 0 4px">Receipt Tracker — admin review digest</h2>`,
+    `<h2 style="margin:0 0 4px">TimetoPay — admin review digest</h2>`,
     `<p style="color:#6b7280;margin:0 0 12px">${escapeHtml(sinceLine)}</p>`,
     `<ul style="line-height:1.6">`,
     ...sections.map((s) => s.html),

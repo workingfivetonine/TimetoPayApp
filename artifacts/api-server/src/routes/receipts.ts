@@ -287,6 +287,36 @@ Rules:
 - Return raw JSON only — no markdown, no prose.`;
 }
 
+type ParsedReceipt = {
+  storeName: string;
+  storeCountryCode?: string | null;
+  storeStateCode?: string | null;
+  purchasedAt: string;
+  total: number;
+  lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
+};
+
+// Tolerant JSON parser for AI receipt responses. The model occasionally wraps
+// its JSON in code fences or prose despite the prompt; this handles all three
+// common shapes so one bad model response doesn't 500 the whole request.
+function parseJson(content: string): ParsedReceipt | null {
+  const candidates: string[] = [];
+  const trimmed = content.trim();
+  candidates.push(trimmed);
+  candidates.push(trimmed.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/m, "").trim());
+  const jsonBlock = trimmed.match(/\{[\s\S]*\}/);
+  if (jsonBlock) candidates.push(jsonBlock[0]);
+  for (const candidate of candidates) {
+    try {
+      const obj = JSON.parse(candidate) as ParsedReceipt;
+      if (obj && typeof obj === "object") return obj;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
 const router = Router();
 
 function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) {
@@ -650,7 +680,11 @@ router.post("/parse", requirePremium, imageGuard, async (req, res): Promise<void
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(content);
+    const parsed = parseJson(content);
+    if (!parsed) {
+      res.status(500).json({ error: "Failed to parse AI response as JSON" });
+      return;
+    }
     res.json(parsed);
   } catch (err) {
     req.log.error({ err }, "Failed to parse receipt");
@@ -812,11 +846,8 @@ router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Pro
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
-    let parsed: { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[] };
-
-    try {
-      parsed = JSON.parse(content);
-    } catch {
+    const parsed = parseJson(content);
+    if (!parsed) {
       res.status(500).json({ error: "Failed to parse AI response as JSON" });
       return;
     }
@@ -825,6 +856,60 @@ router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Pro
     res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
   } catch (err) {
     req.log.error({ err }, "Failed to parse-and-save receipt");
+    res.status(500).json({ error: "Failed to process receipt" });
+  }
+});
+
+// Parse multiple images as ONE combined receipt (all photos of the same receipt).
+// Sends all images in a single OpenAI call so the model can reconcile partial
+// visibility across photos and produce one unified receipt.
+router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res): Promise<void> => {
+  const { imagesBase64 } = req.body as { imagesBase64: unknown };
+  if (!Array.isArray(imagesBase64) || imagesBase64.length < 2) {
+    res.status(400).json({ error: "imagesBase64 must be an array of at least 2 images" });
+    return;
+  }
+  if (imagesBase64.length > 8) {
+    res.status(400).json({ error: "imagesBase64 must contain at most 8 images" });
+    return;
+  }
+  for (const img of imagesBase64) {
+    if (typeof img !== "string" || img.length > MAX_IMAGE_B64_CHARS) {
+      res.status(400).json({ error: "Each image must be a base64 string under the size limit" });
+      return;
+    }
+  }
+
+  try {
+    if (!chargeGlobalAiBudget(res)) return;
+    const response = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: receiptPrompt() },
+            ...imagesBase64.map((img) => ({
+              type: "image_url" as const,
+              image_url: { url: `data:image/jpeg;base64,${img}`, detail: "high" as const },
+            })),
+          ],
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content ?? "{}";
+    const parsed = parseJson(content);
+    if (!parsed) {
+      res.status(500).json({ error: "Failed to parse AI response as JSON" });
+      return;
+    }
+
+    const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
+    res.status(201).json({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems });
+  } catch (err) {
+    req.log.error({ err }, "Failed to parse-and-save batch receipt");
     res.status(500).json({ error: "Failed to process receipt" });
   }
 });
@@ -922,39 +1007,6 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
   const id = randomUUID();
   const pdfPath = join(tmpdir(), `receipt-${id}.pdf`);
   const tempFiles: string[] = [pdfPath];
-
-  type ParsedReceipt = {
-    storeName: string;
-    storeCountryCode?: string | null;
-    storeStateCode?: string | null;
-    purchasedAt: string;
-    total: number;
-    lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
-  };
-
-  // Tolerant JSON parse: handles code fences and prose wrapping the model sometimes adds.
-  // Returns null on failure so one bad page is skipped instead of failing the request.
-  const parseJson = (content: string): ParsedReceipt | null => {
-    const candidates: string[] = [];
-    const trimmed = content.trim();
-    // 1. Direct parse (no fences, common case)
-    candidates.push(trimmed);
-    // 2. Strip ```json … ``` or ``` … ``` fences
-    candidates.push(trimmed.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/m, "").trim());
-    // 3. Extract first {...} block from anywhere in the content
-    const jsonBlock = trimmed.match(/\{[\s\S]*\}/);
-    if (jsonBlock) candidates.push(jsonBlock[0]);
-
-    for (const candidate of candidates) {
-      try {
-        const obj = JSON.parse(candidate) as ParsedReceipt;
-        if (obj && typeof obj === "object") return obj;
-      } catch {
-        // try next candidate
-      }
-    }
-    return null;
-  };
 
   try {
     const buffer = Buffer.from(pdfBase64, "base64");

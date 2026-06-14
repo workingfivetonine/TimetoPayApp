@@ -5,6 +5,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -94,6 +95,34 @@ export function ShoppingListPdfModal({
     allItems.filter((it) => !excluded.has(it.itemId)).length +
     customItems.length;
 
+  const buildTextList = () => {
+    const lines: string[] = [];
+    lines.push(`🛒 Shopping List${preparedFor ? ` · ${preparedFor}` : ""}`);
+    lines.push("");
+    const visibleRecurring = recurring.filter((it) => !excluded.has(it.itemId));
+    const visibleOneOff = oneOff.filter((it) => !excluded.has(it.itemId));
+    if (visibleRecurring.length > 0) {
+      lines.push("Regulars");
+      for (const item of visibleRecurring) {
+        lines.push(`☐ ${item.icon || "•"} ${item.itemName}`);
+      }
+      lines.push("");
+    }
+    if (visibleOneOff.length > 0) {
+      lines.push("One-offs");
+      for (const item of visibleOneOff) {
+        lines.push(`☐ ${item.icon || "•"} ${item.itemName}`);
+      }
+      lines.push("");
+    }
+    if (customItems.length > 0) {
+      for (const name of customItems) {
+        lines.push(`☐ ${name}`);
+      }
+    }
+    return lines.join("\n");
+  };
+
   const handleGenerate = async () => {
     if (generating) return;
     const items = allItems.filter((it) => !excluded.has(it.itemId));
@@ -113,6 +142,20 @@ export function ShoppingListPdfModal({
       Alert.alert("Download failed", message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleShareText = async () => {
+    const items = allItems.filter((it) => !excluded.has(it.itemId));
+    if (items.length === 0 && customItems.length === 0) {
+      Alert.alert("Nothing selected", "Select at least one item to share.");
+      return;
+    }
+    const text = buildTextList();
+    try {
+      await Share.share({ message: text, title: "Shopping List" });
+    } catch {
+      // User cancelled share sheet — no-op
     }
   };
 
@@ -310,6 +353,15 @@ export function ShoppingListPdfModal({
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.shareBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+              onPress={handleShareText}
+              disabled={generating}
+              activeOpacity={0.8}
+            >
+              <Feather name="share-2" size={16} color={colors.foreground} />
+              <Text style={[styles.shareBtnText, { color: colors.foreground }]}>Share text</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.generateBtn, { backgroundColor: colors.primary }]}
               onPress={handleGenerate}
               disabled={generating}
@@ -326,7 +378,7 @@ export function ShoppingListPdfModal({
                   <Text
                     style={[styles.generateText, { color: colors.primaryForeground }]}
                   >
-                    Generate PDF
+                    PDF
                   </Text>
                 </>
               )}
@@ -439,6 +491,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  shareBtn: {
+    flex: 2,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  shareBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   generateBtn: {
     flex: 2,
     height: 48,

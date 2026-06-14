@@ -3,18 +3,21 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import { useColors } from "@/hooks/useColors";
+import { usePremiumLock } from "@/hooks/usePremiumLock";
 
 const NAV = [
-  { label: "Receipts", icon: "file-text", href: "/", match: (p: string) => p === "/" || p === "" },
-  { label: "Stores", icon: "shopping-bag", href: "/stores", match: (p: string) => p.startsWith("/stores") },
-  { label: "Shopping List", icon: "check-square", href: "/shopping", match: (p: string) => p.startsWith("/shopping") },
-  { label: "Analytics", icon: "bar-chart-2", href: "/analytics", match: (p: string) => p.startsWith("/analytics") },
+  { label: "Receipts", icon: "file-text", href: "/", match: (p: string) => p === "/" || p === "", premium: false },
+  { label: "Stores", icon: "shopping-bag", href: "/stores", match: (p: string) => p.startsWith("/stores"), premium: false },
+  { label: "Shopping List", icon: "check-square", href: "/shopping", match: (p: string) => p.startsWith("/shopping"), premium: false },
+  { label: "Analytics", icon: "bar-chart-2", href: "/analytics", match: (p: string) => p.startsWith("/analytics"), premium: true },
+  { label: "Community", icon: "message-square", href: "/board", match: (p: string) => p.startsWith("/board"), premium: true },
 ] as const;
 
 export function DesktopSidebar() {
   const colors = useColors();
   const router = useRouter();
   const pathname = usePathname();
+  const locked = usePremiumLock();
 
   return (
     <View style={[styles.sidebar, { backgroundColor: colors.background, borderRightColor: colors.border }]}>
@@ -54,6 +57,11 @@ export function DesktopSidebar() {
               >
                 {item.label}
               </Text>
+              {locked && item.premium && (
+                <View style={styles.premiumStar}>
+                  <Feather name="star" size={9} color="#F59E0B" />
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -163,6 +171,15 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     fontFamily: "Inter_600SemiBold",
+  },
+  premiumStar: {
+    marginLeft: "auto",
+    backgroundColor: "#FEF3C7",
+    borderRadius: 999,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scanWrap: {
     paddingHorizontal: 10,

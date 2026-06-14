@@ -21,7 +21,7 @@ type Step = {
 const STEPS: Step[] = [
   {
     icon: "smile",
-    title: "Welcome to Receipt Tracker",
+    title: "Welcome to TimetoPay",
     body: "Keep every receipt in one place and turn your spending into useful insights. Here's a quick look at what you can do.",
   },
   {

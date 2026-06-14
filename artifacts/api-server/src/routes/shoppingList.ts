@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { lineItemsTable, receiptsTable, storesTable, itemsTable } from "@workspace/db";
 
@@ -19,18 +19,34 @@ router.get("/", async (req, res): Promise<void> => {
 
   const result = [];
 
+  // Load all purchase history for this user's items in one query instead of
+  // one per item, then group in memory to avoid an N+1 pattern.
+  const allPurchases = items.length
+    ? await db
+        .select({
+          itemId: lineItemsTable.itemId,
+          price: lineItemsTable.price,
+          storeId: storesTable.id,
+          storeName: storesTable.name,
+          purchasedAt: receiptsTable.purchasedAt,
+        })
+        .from(lineItemsTable)
+        .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+        .innerJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+        .where(eq(receiptsTable.userId, userId))
+    : [];
+
+  type PurchaseRow = (typeof allPurchases)[number];
+  const purchasesByItem = new Map<number, PurchaseRow[]>();
+  for (const row of allPurchases) {
+    if (row.itemId == null) continue;
+    const arr = purchasesByItem.get(row.itemId) ?? [];
+    arr.push(row);
+    purchasesByItem.set(row.itemId, arr);
+  }
+
   for (const item of items) {
-    const rows = await db
-      .select({
-        price: lineItemsTable.price,
-        storeId: storesTable.id,
-        storeName: storesTable.name,
-        purchasedAt: receiptsTable.purchasedAt,
-      })
-      .from(lineItemsTable)
-      .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
-      .innerJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
-      .where(and(eq(lineItemsTable.itemId, item.id), eq(receiptsTable.userId, userId)));
+    const rows = purchasesByItem.get(item.id) ?? [];
 
     const addedToListAt = item.addedToListAt ?? null;
 

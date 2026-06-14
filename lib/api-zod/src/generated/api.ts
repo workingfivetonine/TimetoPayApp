@@ -730,14 +730,20 @@ export const UpdateMyNotificationPreferencesBody = zod.object({
   "notifyPaymentReminders": zod.boolean().optional(),
   "notifyListExport": zod.boolean().optional(),
   "notifyReceiptReminders": zod.boolean().optional(),
-  "notifySpendSummary": zod.boolean().optional()
+  "notifySpendSummary": zod.boolean().optional(),
+  "notifyListExportFrequency": zod.enum(['weekly', 'monthly']).optional(),
+  "notifyReceiptRemindersFrequency": zod.enum(['weekly', 'monthly']).optional(),
+  "notifySpendSummaryFrequency": zod.enum(['weekly', 'monthly']).optional()
 }).describe('Partial update — only the provided toggles are changed.')
 
 export const UpdateMyNotificationPreferencesResponse = zod.object({
   "notifyPaymentReminders": zod.boolean().describe('Trial-ending and payment-past-due reminder emails'),
   "notifyListExport": zod.boolean().describe('Weekly grocery-list export nudge'),
   "notifyReceiptReminders": zod.boolean().describe('Receipt-upload inactivity nudge (7+ days inactive)'),
-  "notifySpendSummary": zod.boolean().describe('End-of-week and end-of-month spend summary emails')
+  "notifySpendSummary": zod.boolean().describe('End-of-week and end-of-month spend summary emails'),
+  "notifyListExportFrequency": zod.enum(['weekly', 'monthly']).describe('How often to send the grocery-list export nudge'),
+  "notifyReceiptRemindersFrequency": zod.enum(['weekly', 'monthly']).describe('How often to send the receipt inactivity nudge'),
+  "notifySpendSummaryFrequency": zod.enum(['weekly', 'monthly']).describe('Whether to receive weekly or monthly-only spend summaries')
 })
 
 

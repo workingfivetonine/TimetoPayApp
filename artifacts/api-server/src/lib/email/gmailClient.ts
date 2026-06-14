@@ -28,7 +28,7 @@ export function getUncachableGmailClient(): null {
 export async function sendGmail(params: SendEmailParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL?.trim();
-  const fromName = process.env.RESEND_FROM_NAME?.trim() || "Receipt Tracker";
+  const fromName = process.env.RESEND_FROM_NAME?.trim() || "TimetoPay";
 
   if (!apiKey || !fromEmail) {
     logger.warn(
