@@ -10,44 +10,30 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import {
+  capturedPrompt,
+  clearCapturedPrompt,
+  type BeforeInstallPromptEvent,
+} from "@/lib/pwaInstall";
 
 type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-// The Chrome/Edge/Android `beforeinstallprompt` event (not in lib.dom types).
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
-// Capture the event at module level so we don't miss it if it fires before the
-// component mounts (React hydration can lag behind the initial page load).
-let _earlyPrompt: BeforeInstallPromptEvent | null = null;
-if (typeof window !== "undefined") {
-  window.addEventListener(
-    "beforeinstallprompt",
-    (e) => { e.preventDefault(); _earlyPrompt = e as BeforeInstallPromptEvent; },
-    { once: true },
-  );
-}
-
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   const mql = window.matchMedia?.("(display-mode: standalone)");
-  const iosStandalone = (window.navigator as { standalone?: boolean })
-    .standalone;
+  const iosStandalone = (window.navigator as { standalone?: boolean }).standalone;
   return Boolean(mql?.matches || iosStandalone);
 }
 
 function isIos(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
-  const iOSDevice = /iPad|iPhone|iPod/.test(ua);
-  // iPadOS 13+ masquerades as desktop Safari but has touch points.
-  const iPadOS =
-    navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1;
-  return iOSDevice || iPadOS;
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1)
+  );
 }
 
 function isMobile(): boolean {
@@ -56,20 +42,22 @@ function isMobile(): boolean {
 }
 
 /**
- * Web-only "install this app" control (Add to Home Screen / Add to Desktop).
+ * Web-only "install this app" control (Add to Home Screen / Install App).
  *
- * - Chrome/Edge/Android: captures `beforeinstallprompt` and triggers the
- *   browser's native install prompt on tap.
- * - Any browser without a programmatic prompt (iOS Safari, Firefox, desktop
- *   before the heuristic fires, etc.): tapping reveals concise manual
- *   instructions tailored to the device so the button is ALWAYS actionable.
- * - Renders nothing only on the native app build or when already installed
- *   (standalone display mode).
+ * - Chrome / Edge / Android: triggers the browser's native install prompt via
+ *   the `beforeinstallprompt` event captured in lib/pwaInstall (root bundle,
+ *   registered before any lazy route chunks load).
+ * - iOS Safari / Firefox / unsupported browsers: shows concise manual
+ *   instructions so the button is always actionable.
+ * - Hidden on the native app build or when already installed (standalone mode).
  */
 export function InstallAppButton({ style }: Props) {
   const colors = useColors();
+
+  // Seed state from the root-bundle capture; a late-firing event is handled by
+  // the useEffect listener below.
   const [deferredPrompt, setDeferredPrompt] =
-    React.useState<BeforeInstallPromptEvent | null>(_earlyPrompt);
+    React.useState<BeforeInstallPromptEvent | null>(capturedPrompt);
   const [installed, setInstalled] = React.useState(false);
   const [standalone, setStandalone] = React.useState(false);
   const [showHelp, setShowHelp] = React.useState(false);
@@ -82,7 +70,8 @@ export function InstallAppButton({ style }: Props) {
 
     setStandalone(isStandalone());
 
-    // Pick up any late-firing prompt (e.g. after navigating within the SPA).
+    // Pick up any prompt that fires after this component mounts (e.g. the first
+    // time installability criteria are finally met during this session).
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -90,6 +79,7 @@ export function InstallAppButton({ style }: Props) {
     const onInstalled = () => {
       setInstalled(true);
       setDeferredPrompt(null);
+      clearCapturedPrompt();
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
@@ -101,7 +91,6 @@ export function InstallAppButton({ style }: Props) {
     };
   }, []);
 
-  // Hidden on native, when already installed/standalone.
   if (Platform.OS !== "web" || installed || standalone) return null;
 
   const label = mobile ? "Add to Home Screen" : "Install App";
@@ -111,14 +100,18 @@ export function InstallAppButton({ style }: Props) {
       await deferredPrompt.prompt();
       try {
         const choice = await deferredPrompt.userChoice;
-        if (choice.outcome === "accepted") setInstalled(true);
+        if (choice.outcome === "accepted") {
+          setInstalled(true);
+          clearCapturedPrompt();
+        }
       } catch {
-        // ignore — user dismissed
+        // user dismissed — no-op
       }
       setDeferredPrompt(null);
       return;
     }
-    // No programmatic prompt available — surface manual instructions.
+    // No native prompt available (iOS Safari, Firefox, already dismissed by
+    // Chrome, etc.) — show platform-specific manual instructions.
     setShowHelp((v) => !v);
   };
 
@@ -130,43 +123,29 @@ export function InstallAppButton({ style }: Props) {
         activeOpacity={0.8}
       >
         <Feather name="download" size={16} color={colors.primary} />
-        <Text style={[styles.buttonText, { color: colors.primary }]}>
-          {label}
-        </Text>
+        <Text style={[styles.buttonText, { color: colors.primary }]}>{label}</Text>
       </TouchableOpacity>
 
       {showHelp && !deferredPrompt ? (
-        <View
-          style={[
-            styles.help,
-            { backgroundColor: colors.muted, borderColor: colors.border },
-          ]}
-        >
+        <View style={[styles.help, { backgroundColor: colors.muted, borderColor: colors.border }]}>
           <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
             {ios ? (
               <>
-                Tap the{" "}
-                <Text style={styles.helpStrong}>Share</Text> button in your
-                browser, then choose{" "}
-                <Text style={styles.helpStrong}>“Add to Home Screen.”</Text>
+                Tap the <Text style={styles.helpStrong}>Share</Text> button in your browser,
+                then choose <Text style={styles.helpStrong}>"Add to Home Screen."</Text>
               </>
             ) : mobile ? (
               <>
-                Open your browser menu{" "}
-                <Text style={styles.helpStrong}>(⋮)</Text>, then choose{" "}
-                <Text style={styles.helpStrong}>
-                  “Install app”
-                </Text>{" "}
-                or{" "}
-                <Text style={styles.helpStrong}>“Add to Home Screen.”</Text>
+                Open your browser menu <Text style={styles.helpStrong}>(⋮)</Text>, then
+                choose <Text style={styles.helpStrong}>"Install app"</Text> or{" "}
+                <Text style={styles.helpStrong}>"Add to Home Screen."</Text>
               </>
             ) : (
               <>
-                Click the{" "}
-                <Text style={styles.helpStrong}>install icon</Text> in your
-                browser's address bar, or open the browser menu{" "}
+                Click the <Text style={styles.helpStrong}>install icon</Text> in your
+                browser's address bar, or open the menu{" "}
                 <Text style={styles.helpStrong}>(⋮)</Text> and choose{" "}
-                <Text style={styles.helpStrong}>“Install TimetoPay.”</Text>
+                <Text style={styles.helpStrong}>"Install TimetoPay."</Text>
               </>
             )}
           </Text>
@@ -187,12 +166,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   buttonText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  help: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 10,
-  },
+  help: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 10 },
   helpText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
   helpStrong: { fontFamily: "Inter_600SemiBold" },
 });

@@ -16,6 +16,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
 import { tokenCache } from "@/lib/tokenCache";
+import "@/lib/pwaInstall"; // side-effect: registers beforeinstallprompt listener in root bundle
 import {
   setAuthTokenGetter,
   setBaseUrl,

@@ -3,6 +3,10 @@
   "buildCommand": "pnpm exec expo export --platform web",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/donate",  "destination": "/donate.html" },
+    { "source": "/support", "destination": "/support.html" },
+    { "source": "/terms",   "destination": "/terms.html" },
+    { "source": "/(.*)",    "destination": "/index.html" }
   ]
 }
