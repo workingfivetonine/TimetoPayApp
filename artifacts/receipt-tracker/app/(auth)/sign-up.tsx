@@ -27,6 +27,7 @@ export default function SignUpPage() {
   const [password, setPassword] = React.useState("");
   const [code, setCode] = React.useState("");
   const [pendingVerification, setPendingVerification] = React.useState(false);
+  const [verifyError, setVerifyError] = React.useState<string | null>(null);
 
   const busy = fetchStatus === "fetching";
 
@@ -39,19 +40,30 @@ export default function SignUpPage() {
   };
 
   const handleVerify = async () => {
-    await signUp.verifications.verifyEmailCode({ code });
-    if (signUp.status === "complete") {
-      await signUp.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          const url = decorateUrl("/");
-          if (url.startsWith("http")) {
-            window.location.href = url;
-          } else {
-            router.replace(url as Href);
-          }
-        },
-      });
+    setVerifyError(null);
+    try {
+      await signUp.verifications.verifyEmailCode({ code });
+      if (signUp.status === "complete") {
+        await signUp.finalize({
+          navigate: ({ session, decorateUrl }) => {
+            if (session?.currentTask) return;
+            const url = decorateUrl("/");
+            if (url.startsWith("http")) {
+              window.location.href = url;
+            } else {
+              router.replace(url as Href);
+            }
+          },
+        });
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { errors?: Array<{ message?: string; longMessage?: string }> })
+          ?.errors?.[0]?.longMessage ||
+        (err as { errors?: Array<{ message?: string }> })?.errors?.[0]?.message ||
+        (err as { message?: string })?.message ||
+        "Verification failed. Please try again.";
+      setVerifyError(msg);
     }
   };
 
@@ -91,8 +103,8 @@ export default function SignUpPage() {
                 keyboardType="numeric"
               />
 
-              {formError ? (
-                <Text style={[styles.error, { color: colors.destructive }]}>{formError}</Text>
+              {(formError || verifyError) ? (
+                <Text style={[styles.error, { color: colors.destructive }]}>{formError || verifyError}</Text>
               ) : null}
 
               <TouchableOpacity
