@@ -1,7 +1,5 @@
 {
-  "framework": null,
   "buildCommand": "npx expo export --platform web",
-  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
