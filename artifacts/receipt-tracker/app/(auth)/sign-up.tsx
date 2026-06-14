@@ -1,4 +1,4 @@
-import { useAuth, useSignUp } from "@clerk/expo";
+import { useSignUp } from "@clerk/expo";
 import { type Href, Link, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
@@ -17,9 +17,18 @@ import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { PasswordRequirements } from "@/components/PasswordRequirements";
 import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 
+function clerkError(e: unknown): string {
+  const err = e as { errors?: { longMessage?: string; message?: string }[]; message?: string } | null;
+  return (
+    err?.errors?.[0]?.longMessage ??
+    err?.errors?.[0]?.message ??
+    err?.message ??
+    "Something went wrong. Please try again."
+  );
+}
+
 export default function SignUpPage() {
-  const { signUp, errors, fetchStatus } = useSignUp();
-  const { isSignedIn } = useAuth();
+  const { signUp, setActive, isLoaded } = useSignUp();
   const router = useRouter();
   const colors = useColors();
 
@@ -27,56 +36,55 @@ export default function SignUpPage() {
   const [password, setPassword] = React.useState("");
   const [code, setCode] = React.useState("");
   const [pendingVerification, setPendingVerification] = React.useState(false);
-  const [verifyError, setVerifyError] = React.useState<string | null>(null);
-
-  const busy = fetchStatus === "fetching";
+  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
 
   const handleSubmit = async () => {
-    if (!passwordMeetsPolicy(password)) return;
-    const { error } = await signUp.password({ emailAddress, password });
-    if (error) return;
-    await signUp.verifications.sendEmailCode();
-    setPendingVerification(true);
-  };
-
-  const handleVerify = async () => {
-    setVerifyError(null);
+    if (!isLoaded || busy) return;
+    setError(null);
+    setBusy(true);
     try {
-      await signUp.verifications.verifyEmailCode({ code });
-      if (signUp.status === "complete") {
-        await signUp.finalize({
-          navigate: ({ session, decorateUrl }) => {
-            if (session?.currentTask) return;
-            const url = decorateUrl("/");
-            if (url.startsWith("http")) {
-              window.location.href = url;
-            } else {
-              router.replace(url as Href);
-            }
-          },
-        });
-      }
-    } catch (err: unknown) {
-      const msg =
-        (err as { errors?: Array<{ message?: string; longMessage?: string }> })
-          ?.errors?.[0]?.longMessage ||
-        (err as { errors?: Array<{ message?: string }> })?.errors?.[0]?.message ||
-        (err as { message?: string })?.message ||
-        "Verification failed. Please try again.";
-      setVerifyError(msg);
+      await signUp.create({ emailAddress, password });
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      setPendingVerification(true);
+    } catch (e) {
+      setError(clerkError(e));
+    } finally {
+      setBusy(false);
     }
   };
 
-  if (signUp.status === "complete" || isSignedIn) {
-    return null;
-  }
+  const handleVerify = async () => {
+    if (!isLoaded || busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await signUp.attemptEmailAddressVerification({ code });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/" as Href);
+      } else {
+        setError("Verification could not be completed. Please try again.");
+      }
+    } catch (e) {
+      setError(clerkError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const isVerifying = pendingVerification;
-
-  const formError =
-    errors.fields.emailAddress?.message ||
-    errors.fields.password?.message ||
-    errors.fields.code?.message;
+  const handleResendCode = async () => {
+    if (!isLoaded || busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+    } catch (e) {
+      setError(clerkError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -86,7 +94,7 @@ export default function SignUpPage() {
             <Feather name="file-text" size={26} color={colors.primary} />
           </View>
 
-          {isVerifying ? (
+          {pendingVerification ? (
             <>
               <Text style={[styles.title, { color: colors.foreground }]}>Verify your email</Text>
               <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
@@ -101,25 +109,21 @@ export default function SignUpPage() {
                 placeholderTextColor={colors.mutedForeground}
                 onChangeText={setCode}
                 keyboardType="numeric"
+                onSubmitEditing={handleVerify}
               />
 
-              {(formError || verifyError) ? (
-                <Text style={[styles.error, { color: colors.destructive }]}>{formError || verifyError}</Text>
-              ) : null}
+              {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
 
               <TouchableOpacity
-                style={[styles.button, { backgroundColor: colors.primary }, busy && styles.buttonDisabled]}
+                style={[styles.button, { backgroundColor: colors.primary }, (!code || busy) && styles.buttonDisabled]}
                 onPress={handleVerify}
-                disabled={busy}
+                disabled={!code || busy}
                 activeOpacity={0.85}
               >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify</Text>}
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => signUp.verifications.sendEmailCode()}
-              >
+              <TouchableOpacity style={styles.secondaryButton} onPress={handleResendCode} disabled={busy}>
                 <Text style={[styles.link, { color: colors.primary }]}>I need a new code</Text>
               </TouchableOpacity>
             </>
@@ -154,9 +158,7 @@ export default function SignUpPage() {
 
               <PasswordRequirements password={password} />
 
-              {formError ? (
-                <Text style={[styles.error, { color: colors.destructive }]}>{formError}</Text>
-              ) : null}
+              {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
 
               <TouchableOpacity
                 style={[
@@ -180,7 +182,7 @@ export default function SignUpPage() {
                 </Link>
               </View>
 
-              {/* Required for sign-up flows. Clerk's bot sign-up protection is enabled by default */}
+              {/* Required for Clerk's bot sign-up protection */}
               <View nativeID="clerk-captcha" />
             </>
           )}

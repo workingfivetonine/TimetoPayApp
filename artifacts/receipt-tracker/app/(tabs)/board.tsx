@@ -24,6 +24,7 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { getApiOrigin } from "@/lib/apiBase";
 import { EmptyState } from "@/components/EmptyState";
 import { useBoardNotification } from "@/contexts/BoardNotification";
+import { showSuccessToast } from "@/lib/toast";
 
 const MAX_CHARS = 500;
 
@@ -31,10 +32,13 @@ const TAGS = [
   { key: "recipe", label: "Recipe", emoji: "🍽️" },
   { key: "advice", label: "Advice", emoji: "💡" },
   { key: "cool_idea", label: "Cool Idea", emoji: "✨" },
+  { key: "hot_deal", label: "Hot Deal", emoji: "🔥" },
   { key: "other", label: "General", emoji: "💬" },
 ] as const;
 
 type TagKey = typeof TAGS[number]["key"];
+type AuthorFilter = "all" | "mine" | "others";
+type SortDir = "newest" | "oldest";
 
 interface BoardReply {
   id: number;
@@ -49,8 +53,12 @@ interface BoardPost {
   tag: string | null;
   region: string | null;
   agreeCount: number;
+  thanksCount: number;
   replyCount: number;
   userAgreed: boolean;
+  userThanked: boolean;
+  isOwn: boolean;
+  isHot: boolean;
   createdAt: string;
 }
 
@@ -97,9 +105,15 @@ export default function BoardScreen() {
   const [composeText, setComposeText] = useState("");
   const [composeTag, setComposeTag] = useState<TagKey | null>(null);
   const [searchText, setSearchText] = useState("");
+  const [filterTag, setFilterTag] = useState<TagKey | null>(null);
+  const [filterAuthor, setFilterAuthor] = useState<AuthorFilter>("all");
+  const [sortDir, setSortDir] = useState<SortDir>("newest");
   const [expandedReplies, setExpandedReplies] = useState<Set<number>>(new Set());
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  // Tracks IDs of posts submitted this session that are pending approval
+  const pendingPostIds = React.useRef<Set<number>>(new Set());
 
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
   const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
@@ -115,6 +129,7 @@ export default function BoardScreen() {
       return res.json() as Promise<BoardData>;
     },
     enabled: !locked,
+    refetchInterval: 60_000, // Auto-refresh every minute
   });
 
   // Update notification context when board data loads, then clear badge
@@ -128,6 +143,17 @@ export default function BoardScreen() {
   useEffect(() => {
     clearNew();
   }, [clearNew]);
+
+  // Toast when one of our submitted posts has been approved and appears in the feed
+  useEffect(() => {
+    if (!data?.posts) return;
+    for (const post of data.posts) {
+      if (post.isOwn && pendingPostIds.current.has(post.id)) {
+        pendingPostIds.current.delete(post.id);
+        showSuccessToast("Board Message Approved!", "Your post is now live on the community board.");
+      }
+    }
+  }, [data?.posts]);
 
   const submitMutation = useMutation({
     mutationFn: async ({ content, tag }: { content: string; tag: TagKey | null }) => {
@@ -144,9 +170,10 @@ export default function BoardScreen() {
         const body = await res.json() as { error?: string };
         throw new Error(body.error ?? "Failed to submit");
       }
-      return res.json();
+      return res.json() as Promise<{ id: number; status: string }>;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result?.id) pendingPostIds.current.add(result.id);
       queryClient.invalidateQueries({ queryKey: ["board"] });
       setComposeText("");
       setComposeTag(null);
@@ -172,6 +199,31 @@ export default function BoardScreen() {
           posts: old.posts.map((p) =>
             p.id === postId
               ? { ...p, agreeCount: result.agreeCount, userAgreed: result.agreed }
+              : p,
+          ),
+        };
+      });
+    },
+  });
+
+  const thanksMutation = useMutation({
+    mutationFn: async (postId: number) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/${postId}/thanks`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ thanked: boolean; thanksCount: number }>;
+    },
+    onSuccess: (result, postId) => {
+      queryClient.setQueryData<BoardData>(["board"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          posts: old.posts.map((p) =>
+            p.id === postId
+              ? { ...p, thanksCount: result.thanksCount, userThanked: result.thanked }
               : p,
           ),
         };
@@ -220,16 +272,23 @@ export default function BoardScreen() {
     });
   };
 
-  // Client-side search filter
+  // Client-side filter + sort
   const filteredPosts = useMemo(() => {
+    let posts = data?.posts ?? [];
+    if (filterTag) posts = posts.filter((p) => p.tag === filterTag);
+    if (filterAuthor === "mine") posts = posts.filter((p) => p.isOwn);
+    if (filterAuthor === "others") posts = posts.filter((p) => !p.isOwn);
     const q = searchText.trim().toLowerCase();
-    if (!q) return data?.posts ?? [];
-    return (data?.posts ?? []).filter(
+    if (q) posts = posts.filter(
       (p) =>
         p.content.toLowerCase().includes(q) ||
         tagInfo(p.tag)?.label.toLowerCase().includes(q),
     );
-  }, [data?.posts, searchText]);
+    if (sortDir === "oldest") return [...posts].reverse();
+    return posts;
+  }, [data?.posts, filterTag, filterAuthor, searchText, sortDir]);
+
+  const isFiltered = filterTag !== null || filterAuthor !== "all";
 
   if (locked) {
     return (
@@ -288,24 +347,48 @@ export default function BoardScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Community</Text>
-        <TouchableOpacity
-          style={[styles.composeBtn, { backgroundColor: colors.primary }]}
-          onPress={() => setShowCompose(true)}
-          activeOpacity={0.8}
-        >
-          <Feather name="edit-2" size={15} color="#fff" />
-          <Text style={styles.composeBtnText}>Post</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => setSortDir((d) => (d === "newest" ? "oldest" : "newest"))}
+            hitSlop={8}
+          >
+            <Feather
+              name={sortDir === "newest" ? "arrow-down" : "arrow-up"}
+              size={18}
+              color={colors.foreground}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => void refetch()}
+            hitSlop={8}
+            disabled={isRefetching}
+          >
+            <Feather
+              name="refresh-cw"
+              size={18}
+              color={isRefetching ? colors.mutedForeground : colors.foreground}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.composeBtn, { backgroundColor: colors.primary }]}
+            onPress={() => setShowCompose(true)}
+            activeOpacity={0.8}
+          >
+            <Feather name="edit-2" size={15} color="#fff" />
+            <Text style={styles.composeBtnText}>Post</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Community guidelines banner */}
       <View style={[styles.banner, { backgroundColor: colors.accent, borderColor: colors.border }]}>
         <Text style={[styles.bannerQuote, { color: colors.primary }]}>
-          "If you have nothing nice to say, say nothing at all…{"\n"}unless it's about groceries."
+          "If you have nothing nice to say, say nothing at all…unless it's about groceries."
         </Text>
         <Text style={[styles.bannerRules, { color: colors.mutedForeground }]}>
           Kind reminder: No slander, doxxing, names of specific individuals, discrimination, or politics.
-          Doesn't the cost of living have enough to complain about without bringing all those factors in?
         </Text>
       </View>
 
@@ -327,8 +410,78 @@ export default function BoardScreen() {
         )}
       </View>
 
+      {/* Filter pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterRow}
+      >
+        {/* All Posts */}
+        {(() => {
+          const active = !filterTag && filterAuthor === "all";
+          return (
+            <TouchableOpacity
+              style={[styles.filterPill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.accent : "transparent" }]}
+              onPress={() => { setFilterTag(null); setFilterAuthor("all"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterPillText, { color: active ? colors.primary : colors.mutedForeground }]}>All</Text>
+            </TouchableOpacity>
+          );
+        })()}
+
+        {/* Mine */}
+        {(() => {
+          const active = filterAuthor === "mine";
+          return (
+            <TouchableOpacity
+              style={[styles.filterPill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.accent : "transparent" }]}
+              onPress={() => setFilterAuthor(active ? "all" : "mine")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterPillText, { color: active ? colors.primary : colors.mutedForeground }]}>My Posts</Text>
+            </TouchableOpacity>
+          );
+        })()}
+
+        {/* Others' */}
+        {(() => {
+          const active = filterAuthor === "others";
+          return (
+            <TouchableOpacity
+              style={[styles.filterPill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.accent : "transparent" }]}
+              onPress={() => setFilterAuthor(active ? "all" : "others")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterPillText, { color: active ? colors.primary : colors.mutedForeground }]}>Others'</Text>
+            </TouchableOpacity>
+          );
+        })()}
+
+        {/* Divider line */}
+        <View style={[styles.filterDivider, { backgroundColor: colors.border }]} />
+
+        {/* Tag pills */}
+        {TAGS.map((t) => {
+          const active = filterTag === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.filterPill, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.accent : "transparent" }]}
+              onPress={() => setFilterTag(active ? null : t.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.filterPillEmoji}>{t.emoji}</Text>
+              <Text style={[styles.filterPillText, { color: active ? colors.primary : colors.mutedForeground }]}>{t.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       <Text style={[styles.boardNote, { color: colors.mutedForeground }]}>
         Anonymous · All posts are reviewed before appearing
+        {sortDir === "oldest" ? " · Oldest first" : ""}
       </Text>
 
       <FlatList
@@ -339,8 +492,8 @@ export default function BoardScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
         }
         ListEmptyComponent={
-          searchText ? (
-            <EmptyState icon="search" title="No results" subtitle={`No posts matching "${searchText}"`} />
+          searchText || isFiltered ? (
+            <EmptyState icon="search" title="No results" subtitle="Try adjusting your filters or search." />
           ) : (
             <EmptyState icon="message-square" title="No posts yet" subtitle="Be the first to share a thought or tip with the community." />
           )
@@ -360,6 +513,7 @@ export default function BoardScreen() {
               replyMutationPending={replyMutation.isPending && replyingTo === item.id}
               getToken={getToken}
               onAgree={() => agreeMutation.mutate(item.id)}
+              onThank={() => thanksMutation.mutate(item.id)}
               onToggleReplies={() => toggleReplies(item.id)}
               onStartReply={() => { setReplyingTo(item.id); setReplyText(""); }}
               onCancelReply={() => { setReplyingTo(null); setReplyText(""); }}
@@ -465,6 +619,7 @@ interface PostCardProps {
   replyMutationPending: boolean;
   getToken: () => Promise<string | null>;
   onAgree: () => void;
+  onThank: () => void;
   onToggleReplies: () => void;
   onStartReply: () => void;
   onCancelReply: () => void;
@@ -474,7 +629,7 @@ interface PostCardProps {
 
 function PostCard({
   item, tag, colors, repliesExpanded, isReplying, replyText,
-  replyMutationPending, getToken, onAgree, onToggleReplies,
+  replyMutationPending, getToken, onAgree, onThank, onToggleReplies,
   onStartReply, onCancelReply, onReplyTextChange, onReplySubmit,
 }: PostCardProps) {
   const { data: replies, isLoading: repliesLoading } = useQuery({
@@ -490,13 +645,34 @@ function PostCard({
     enabled: repliesExpanded,
   });
 
+  const isHotDeal = item.tag === "hot_deal";
+
   return (
-    <View style={[postStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Tag chip */}
-      {tag && (
-        <View style={[postStyles.tagBadge, { backgroundColor: colors.accent }]}>
-          <Text style={postStyles.tagBadgeEmoji}>{tag.emoji}</Text>
-          <Text style={[postStyles.tagBadgeLabel, { color: colors.primary }]}>{tag.label}</Text>
+    <View style={[
+      postStyles.card,
+      { backgroundColor: colors.card, borderColor: colors.border },
+      isHotDeal && postStyles.hotDealCard,
+    ]}>
+      {/* Badges row: tag chip + trending badge */}
+      {(tag || item.isHot) && (
+        <View style={postStyles.badgeRow}>
+          {tag && (
+            <View style={[
+              postStyles.tagBadge,
+              { backgroundColor: isHotDeal ? "#FEF3C7" : colors.accent },
+            ]}>
+              <Text style={postStyles.tagBadgeEmoji}>{tag.emoji}</Text>
+              <Text style={[postStyles.tagBadgeLabel, { color: isHotDeal ? "#D97706" : colors.primary }]}>
+                {tag.label}
+              </Text>
+            </View>
+          )}
+          {item.isHot && (
+            <View style={postStyles.trendingBadge}>
+              <Text style={postStyles.trendingEmoji}>⚡</Text>
+              <Text style={postStyles.trendingLabel}>Trending</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -505,13 +681,13 @@ function PostCard({
 
       {/* Meta: region + time */}
       <Text style={[postStyles.meta, { color: colors.mutedForeground }]}>
-        Anonymous{item.region ? ` · ${item.region}` : ""}{"  ·  "}{timeAgo(item.createdAt)}
+        {item.isOwn ? "You" : "Anonymous"}{item.region ? ` · ${item.region}` : ""}{"  ·  "}{timeAgo(item.createdAt)}
       </Text>
 
       {/* Action bar */}
       <View style={postStyles.actions}>
         <TouchableOpacity
-          style={[postStyles.actionBtn, item.userAgreed && { opacity: 1 }]}
+          style={postStyles.actionBtn}
           onPress={onAgree}
           activeOpacity={0.7}
         >
@@ -522,6 +698,17 @@ function PostCard({
           />
           <Text style={[postStyles.actionLabel, { color: item.userAgreed ? colors.primary : colors.mutedForeground }]}>
             {item.agreeCount > 0 ? `${item.agreeCount} ` : ""}Agree
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={postStyles.actionBtn}
+          onPress={onThank}
+          activeOpacity={0.7}
+        >
+          <Text style={[postStyles.thanksEmoji, { opacity: item.userThanked ? 1 : 0.45 }]}>🙏</Text>
+          <Text style={[postStyles.actionLabel, { color: item.userThanked ? "#8B5CF6" : colors.mutedForeground }]}>
+            {item.thanksCount > 0 ? `${item.thanksCount} ` : ""}Thanks
           </Text>
         </TouchableOpacity>
 
@@ -608,10 +795,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 10,
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
   composeBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -619,6 +814,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 20,
+    marginLeft: 4,
   },
   composeBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   banner: {
@@ -627,12 +823,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     padding: 14,
-    gap: 8,
+    gap: 6,
   },
   bannerQuote: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    lineHeight: 20,
     fontStyle: "italic",
   },
   bannerRules: {
@@ -657,6 +852,25 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     padding: 0,
   },
+  filterScroll: { marginBottom: 6 },
+  filterRow: {
+    paddingHorizontal: 16,
+    gap: 6,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterPillEmoji: { fontSize: 12 },
+  filterPillText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  filterDivider: { width: 1, height: 18, marginHorizontal: 2 },
   boardNote: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
@@ -730,6 +944,15 @@ const postStyles = StyleSheet.create({
     marginBottom: 10,
     gap: 8,
   },
+  hotDealCard: {
+    borderColor: "#F59E0B",
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
   tagBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -741,6 +964,18 @@ const postStyles = StyleSheet.create({
   },
   tagBadgeEmoji: { fontSize: 11 },
   tagBadgeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  trendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 20,
+    backgroundColor: "#FEF3C7",
+  },
+  trendingEmoji: { fontSize: 11 },
+  trendingLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D97706" },
+  thanksEmoji: { fontSize: 13 },
   content: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
   actions: { flexDirection: "row", gap: 16, marginTop: 2 },

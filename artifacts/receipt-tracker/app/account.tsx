@@ -1,4 +1,4 @@
-import { useClerk, useUser } from "@clerk/expo";
+import { useAuth, useClerk, useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,13 +7,16 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -28,6 +31,7 @@ import {
 } from "@workspace/api-client-react";
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 import { ShareInvite } from "@/components/ShareInvite";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -73,11 +77,13 @@ export default function AccountScreen() {
   const queryClient = useQueryClient();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { getToken } = useAuth();
   const { data: me, isLoading, dataUpdatedAt } = useGetCurrentUser();
   const isOnline = useOnlineStatus();
   const manage = useManageBillingSubscription();
   const startTrial = useStartFreeTrial();
   const [trialError, setTrialError] = React.useState<string | null>(null);
+  const [showSupport, setShowSupport] = React.useState(false);
 
   const entitlement = me?.entitlement ?? null;
   // Email reminders only go to subscription-related users (entitled, or past_due),
@@ -349,8 +355,34 @@ export default function AccountScreen() {
               <Text style={[styles.rowText, { color: colors.foreground }]}>Manage catalog</Text>
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/admin/board")}
+              activeOpacity={0.7}
+            >
+              <Feather name="message-square" size={18} color={colors.primary} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Board moderation</Text>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
           </>
         ) : null}
+
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setShowSupport(true)}
+          activeOpacity={0.7}
+        >
+          <Feather name="mail" size={18} color={colors.primary} />
+          <Text style={[styles.rowText, { color: colors.foreground }]}>Contact Support</Text>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+
+        <SupportModal
+          visible={showSupport}
+          onClose={() => setShowSupport(false)}
+          getToken={getToken}
+          colors={colors}
+        />
 
         <InstallAppButton />
 
@@ -549,6 +581,211 @@ function NotificationsSection() {
     </View>
   );
 }
+
+// ── Support Modal ─────────────────────────────────────────────────────────────
+
+const SUPPORT_TYPES = [
+  { key: "suggestion", label: "Suggestion", emoji: "💡" },
+  { key: "complaint", label: "Complaint", emoji: "😤" },
+  { key: "comment", label: "Comment", emoji: "💬" },
+] as const;
+type SupportType = typeof SUPPORT_TYPES[number]["key"];
+
+interface SupportModalProps {
+  visible: boolean;
+  onClose: () => void;
+  getToken: () => Promise<string | null>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  colors: any;
+}
+
+function SupportModal({ visible, onClose, getToken, colors }: SupportModalProps) {
+  const [type, setType] = React.useState<SupportType>("suggestion");
+  const [message, setMessage] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleClose = () => {
+    setMessage("");
+    setType("suggestion");
+    setSent(false);
+    setError(null);
+    onClose();
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() || busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/support`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type, message: message.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to send");
+      setSent(true);
+    } catch {
+      setError("Couldn't send your message. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        style={supportStyles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={[supportStyles.sheet, { backgroundColor: colors.background }]}>
+          <View style={[supportStyles.header, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={handleClose}>
+              <Text style={[supportStyles.cancel, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={[supportStyles.title, { color: colors.foreground }]}>Contact Support</Text>
+            <View style={{ width: 56 }} />
+          </View>
+
+          {sent ? (
+            <View style={supportStyles.sentWrap}>
+              <Feather name="check-circle" size={40} color={colors.primary} />
+              <Text style={[supportStyles.sentTitle, { color: colors.foreground }]}>Message sent!</Text>
+              <Text style={[supportStyles.sentSub, { color: colors.mutedForeground }]}>
+                We'll get back to you at your account email.
+              </Text>
+              <TouchableOpacity
+                style={[supportStyles.doneBtn, { backgroundColor: colors.primary }]}
+                onPress={handleClose}
+                activeOpacity={0.85}
+              >
+                <Text style={supportStyles.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={[supportStyles.label, { color: colors.mutedForeground }]}>Type</Text>
+              <View style={supportStyles.typeRow}>
+                {SUPPORT_TYPES.map((t) => {
+                  const active = type === t.key;
+                  return (
+                    <TouchableOpacity
+                      key={t.key}
+                      style={[
+                        supportStyles.typePill,
+                        { borderColor: active ? colors.primary : colors.border },
+                        active && { backgroundColor: colors.accent },
+                      ]}
+                      onPress={() => setType(t.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={supportStyles.typePillEmoji}>{t.emoji}</Text>
+                      <Text style={[supportStyles.typePillLabel, { color: active ? colors.primary : colors.mutedForeground }]}>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[supportStyles.label, { color: colors.mutedForeground }]}>Message</Text>
+              <TextInput
+                style={[supportStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
+                placeholder="Tell us what's on your mind…"
+                placeholderTextColor={colors.mutedForeground}
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                maxLength={2010}
+                textAlignVertical="top"
+              />
+              <Text style={[supportStyles.charCount, { color: message.length > 2000 ? "#EF4444" : colors.mutedForeground }]}>
+                {message.length}/2000
+              </Text>
+
+              {error ? <Text style={[supportStyles.error, { color: "#EF4444" }]}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[
+                  supportStyles.sendBtn,
+                  { backgroundColor: colors.primary },
+                  (!message.trim() || message.length > 2000 || busy) && supportStyles.sendBtnDisabled,
+                ]}
+                onPress={handleSend}
+                disabled={!message.trim() || message.length > 2000 || busy}
+                activeOpacity={0.85}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={supportStyles.sendBtnText}>Send to Support</Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={[supportStyles.note, { color: colors.mutedForeground }]}>
+                Your message goes to support@fivetoninesolutions.com
+              </Text>
+            </>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const supportStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 14,
+    marginBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  title: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  cancel: { fontSize: 15, fontFamily: "Inter_400Regular", width: 56 },
+  label: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  typeRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  typePill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  typePillEmoji: { fontSize: 14 },
+  typePillLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    minHeight: 100,
+    marginBottom: 6,
+  },
+  charCount: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "right", marginBottom: 12 },
+  error: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 10 },
+  sendBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
+  sendBtnDisabled: { opacity: 0.5 },
+  sendBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  note: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 10 },
+  sentWrap: { alignItems: "center", gap: 12, paddingVertical: 24 },
+  sentTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  sentSub: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center" },
+  doneBtn: { borderRadius: 12, paddingVertical: 13, paddingHorizontal: 40, marginTop: 8 },
+  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

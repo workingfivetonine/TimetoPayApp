@@ -12,6 +12,7 @@ import adminCatalogRouter from "./adminCatalog";
 import meRouter from "./me";
 import billingRouter from "./billing";
 import boardRouter from "./board";
+import supportRouter from "./support";
 import { paypalWebhookHandler } from "./paypalWebhook";
 import { requireAuth } from "../middlewares/auth";
 
@@ -45,6 +46,7 @@ router.use("/analytics", analyticsRouter);
 router.use("/shopping-list", shoppingListRouter);
 router.use("/catalog", catalogRouter);
 router.use("/board", boardRouter);
+router.use("/support", supportRouter);
 router.use("/admin/catalog", adminCatalogRouter);
 router.use("/admin", adminRouter);
 

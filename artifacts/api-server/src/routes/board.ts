@@ -5,6 +5,7 @@ import {
   boardPostsTable,
   boardRepliesTable,
   boardAgreesTable,
+  boardThanksTable,
   receiptsTable,
   usersTable,
 } from "@workspace/db";
@@ -17,7 +18,8 @@ const MIN_ACCOUNT_DAYS = 14;
 const MIN_UPLOADS = 2;
 const MAX_CONTENT_LENGTH = 500;
 
-const VALID_TAGS = new Set(["recipe", "advice", "cool_idea", "other"]);
+const VALID_TAGS = new Set(["recipe", "advice", "cool_idea", "hot_deal", "other"]);
+const HOT_THRESHOLD = 5; // agrees in 24 h to be considered trending
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: "United States", GB: "United Kingdom", CA: "Canada", AU: "Australia",
@@ -92,10 +94,12 @@ router.get("/", async (req, res): Promise<void> => {
   const posts = await db
     .select({
       id: boardPostsTable.id,
+      userId: boardPostsTable.userId,
       content: boardPostsTable.content,
       tag: boardPostsTable.tag,
       region: boardPostsTable.region,
       agreeCount: boardPostsTable.agreeCount,
+      thanksCount: boardPostsTable.thanksCount,
       replyCount: boardPostsTable.replyCount,
       createdAt: boardPostsTable.createdAt,
       approvedAt: boardPostsTable.approvedAt,
@@ -104,15 +108,36 @@ router.get("/", async (req, res): Promise<void> => {
     .where(eq(boardPostsTable.status, "approved"))
     .orderBy(desc(boardPostsTable.approvedAt));
 
-  // Which posts has this user agreed with?
   const postIds = posts.map((p) => p.id);
   const agreedSet = new Set<number>();
+  const thankedSet = new Set<number>();
+  const hotSet = new Set<number>();
+
   if (postIds.length > 0) {
-    const agreed = await db
-      .select({ postId: boardAgreesTable.postId })
-      .from(boardAgreesTable)
-      .where(and(eq(boardAgreesTable.userId, userId), inArray(boardAgreesTable.postId, postIds)));
+    // Which posts has this user agreed / thanked?
+    const [agreed, thanked] = await Promise.all([
+      db
+        .select({ postId: boardAgreesTable.postId })
+        .from(boardAgreesTable)
+        .where(and(eq(boardAgreesTable.userId, userId), inArray(boardAgreesTable.postId, postIds))),
+      db
+        .select({ postId: boardThanksTable.postId })
+        .from(boardThanksTable)
+        .where(and(eq(boardThanksTable.userId, userId), inArray(boardThanksTable.postId, postIds))),
+    ]);
     for (const r of agreed) agreedSet.add(r.postId);
+    for (const r of thanked) thankedSet.add(r.postId);
+
+    // Trending: posts that received HOT_THRESHOLD+ agrees in the last 24 h
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentAgrees = await db
+      .select({ postId: boardAgreesTable.postId, count: sql<number>`cast(count(*) as int)` })
+      .from(boardAgreesTable)
+      .where(and(inArray(boardAgreesTable.postId, postIds), gt(boardAgreesTable.createdAt, cutoff)))
+      .groupBy(boardAgreesTable.postId);
+    for (const r of recentAgrees) {
+      if (r.count >= HOT_THRESHOLD) hotSet.add(r.postId);
+    }
   }
 
   // Count new items since user's previous visit
@@ -133,8 +158,12 @@ router.get("/", async (req, res): Promise<void> => {
       tag: p.tag,
       region: p.region,
       agreeCount: p.agreeCount,
+      thanksCount: p.thanksCount,
       replyCount: p.replyCount,
       userAgreed: agreedSet.has(p.id),
+      userThanked: thankedSet.has(p.id),
+      isOwn: p.userId === userId,
+      isHot: hotSet.has(p.id),
       createdAt: p.createdAt.toISOString(),
     })),
   });
@@ -214,6 +243,50 @@ router.post("/:id/agree", async (req, res): Promise<void> => {
     .where(eq(boardPostsTable.id, postId));
 
   res.json({ agreed, agreeCount: updated?.agreeCount ?? 0 });
+});
+
+// POST /board/:id/thanks — toggle thanks on a post
+router.post("/:id/thanks", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const postId = parseInt(req.params.id as string);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [post] = await db
+    .select({ id: boardPostsTable.id })
+    .from(boardPostsTable)
+    .where(and(eq(boardPostsTable.id, postId), eq(boardPostsTable.status, "approved")));
+  if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+
+  const [existing] = await db
+    .select({ id: boardThanksTable.id })
+    .from(boardThanksTable)
+    .where(and(eq(boardThanksTable.postId, postId), eq(boardThanksTable.userId, userId)));
+
+  let thanked: boolean;
+  if (existing) {
+    await db
+      .delete(boardThanksTable)
+      .where(and(eq(boardThanksTable.postId, postId), eq(boardThanksTable.userId, userId)));
+    await db
+      .update(boardPostsTable)
+      .set({ thanksCount: sql`greatest(0, thanks_count - 1)` })
+      .where(eq(boardPostsTable.id, postId));
+    thanked = false;
+  } else {
+    await db.insert(boardThanksTable).values({ postId, userId });
+    await db
+      .update(boardPostsTable)
+      .set({ thanksCount: sql`thanks_count + 1` })
+      .where(eq(boardPostsTable.id, postId));
+    thanked = true;
+  }
+
+  const [updated] = await db
+    .select({ thanksCount: boardPostsTable.thanksCount })
+    .from(boardPostsTable)
+    .where(eq(boardPostsTable.id, postId));
+
+  res.json({ thanked, thanksCount: updated?.thanksCount ?? 0 });
 });
 
 // GET /board/:id/replies — approved replies for a post
