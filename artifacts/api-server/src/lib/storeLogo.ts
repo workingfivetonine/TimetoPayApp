@@ -51,16 +51,12 @@ function inferDomain(name: string): string {
   return `${slug}.com`;
 }
 
-export async function resolveStoreLogo(storeName: string): Promise<string | null> {
+export function resolveStoreLogo(storeName: string): string | null {
   const domain = inferDomain(storeName);
-  const url = `https://logo.clearbit.com/${domain}`;
-  try {
-    const res = await fetch(url, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(4000),
-    });
-    return res.ok ? url : null;
-  } catch {
-    return null;
-  }
+  if (!domain) return null;
+  // Clearbit's free logo API (logo.clearbit.com) was shut down in late 2025, so
+  // we use Google's favicon service. It returns the retailer's icon for known
+  // domains and a generic globe otherwise; StoreCard falls back to a shopping-bag
+  // icon when the image fails to load. Deterministic (no network call here).
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
 }

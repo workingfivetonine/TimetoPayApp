@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { logger } from "./logger";
 import { getBootstrapAdminEmails, normalizeEmail } from "./adminBootstrap";
+import { resolveStoreLogo } from "./storeLogo";
 
 // One-time, idempotent data reconciliations run at server startup. Safe to run
 // on every boot: each step self-disables once it has nothing left to do, so it
@@ -196,12 +197,43 @@ async function ensureAdminExists(): Promise<void> {
   );
 }
 
+// This project applies schema changes via a manual `drizzle-kit push`, which can
+// lag a code deploy. To keep additive columns from breaking the app when push
+// hasn't been run, we ensure them here at boot. `ADD COLUMN IF NOT EXISTS` on
+// nullable columns is idempotent and never destroys data. (Fixes e.g. the Stores
+// tab, which 500s when `db.select()` references a column the DB doesn't yet have.)
+async function ensureSchemaColumns(): Promise<void> {
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "logo_url" text`);
+  await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "brand" text`);
+  await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
+}
+
+// Backfill logos for stores created before the logo feature worked (or while the
+// logo_url column was missing). resolveStoreLogo is deterministic from the store
+// name, so this is idempotent: once a logo is set the row no longer matches.
+async function backfillStoreLogos(): Promise<void> {
+  const stores = await db
+    .select({ id: storesTable.id, name: storesTable.name })
+    .from(storesTable)
+    .where(sql`${storesTable.logoUrl} is null`);
+  let updated = 0;
+  for (const s of stores) {
+    const logoUrl = resolveStoreLogo(s.name);
+    if (!logoUrl) continue;
+    await db.update(storesTable).set({ logoUrl }).where(eq(storesTable.id, s.id));
+    updated += 1;
+  }
+  if (updated > 0) logger.info({ count: updated }, "Backfilled store logos");
+}
+
 export async function runStartupReconciliations(): Promise<void> {
   try {
+    await ensureSchemaColumns();
     await reconcileAdminRole();
     await ensureAdminExists();
     await releaseLegacyAdminData();
     await backfillStoreRegions();
+    await backfillStoreLogos();
     await backfillPlanSelected();
   } catch (err) {
     logger.error({ err }, "Startup reconciliation failed");

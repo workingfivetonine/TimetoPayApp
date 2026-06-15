@@ -14,7 +14,6 @@ import { computeEntitlement } from "../lib/billing/entitlement";
 
 const router = Router();
 
-const MIN_ACCOUNT_DAYS = 14;
 const MIN_UPLOADS = 2;
 const MAX_CONTENT_LENGTH = 500;
 
@@ -54,10 +53,6 @@ async function checkBoardEligibility(userId: string, isAdmin: boolean): Promise<
 
   const entitlement = computeEntitlement(user);
   if (!entitlement.entitled) missing.push("subscription");
-
-  const daysSinceCreation =
-    (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-  if (daysSinceCreation < MIN_ACCOUNT_DAYS) missing.push("account_age");
 
   const [countRow] = await db
     .select({ count: sql<number>`cast(count(*) as int)` })

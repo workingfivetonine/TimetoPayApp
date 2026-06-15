@@ -287,11 +287,17 @@ export default function AnalyticsScreen() {
           style={styles.exportBtn}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Download all data"
         >
           {exporting ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Feather name="download" size={20} color={hasData ? colors.primary : colors.mutedForeground} />
+            <>
+              <Feather name="download" size={20} color={hasData ? colors.primary : colors.mutedForeground} />
+              <Text style={[styles.exportLabel, { color: hasData ? colors.primary : colors.mutedForeground }]}>
+                Download all data
+              </Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
@@ -719,7 +725,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold", flex: 1 },
-  exportBtn: { padding: 4 },
+  exportBtn: { flexDirection: "row", alignItems: "center", gap: 6, padding: 4 },
+  exportLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   tabBar: {
     flexDirection: "row",
     borderRadius: 10,

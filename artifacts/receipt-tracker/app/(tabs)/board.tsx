@@ -25,6 +25,7 @@ import { getApiOrigin } from "@/lib/apiBase";
 import { EmptyState } from "@/components/EmptyState";
 import { useBoardNotification } from "@/contexts/BoardNotification";
 import { showSuccessToast } from "@/lib/toast";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const MAX_CHARS = 500;
 
@@ -97,7 +98,7 @@ export default function BoardScreen() {
   const insets = useSafeAreaInsets();
   const isDesktop = useDesktop();
   const locked = usePremiumLock();
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const queryClient = useQueryClient();
   const { setNewCount, clearNew } = useBoardNotification();
 
@@ -290,6 +291,20 @@ export default function BoardScreen() {
 
   const isFiltered = filterTag !== null || filterAuthor !== "all";
 
+  // One-time welcome shown the first time a user qualifies for the board, on this
+  // device (per-user AsyncStorage flag, same pattern as the home-screen tour).
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
+  useEffect(() => {
+    if (!userId || !data?.eligible) return;
+    AsyncStorage.getItem(`boardWelcomeSeen:v1:${userId}`)
+      .then((seen) => { if (!seen) setWelcomeVisible(true); })
+      .catch(() => {});
+  }, [userId, data?.eligible]);
+  const dismissWelcome = () => {
+    setWelcomeVisible(false);
+    if (userId) AsyncStorage.setItem(`boardWelcomeSeen:v1:${userId}`, "1").catch(() => {});
+  };
+
   if (locked) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -391,6 +406,30 @@ export default function BoardScreen() {
           Kind reminder: No slander, doxxing, names of specific individuals, discrimination, or politics.
         </Text>
       </View>
+
+      {/* One-time welcome for newly-eligible members */}
+      {welcomeVisible ? (
+        <View style={[styles.welcomeCard, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity onPress={dismissWelcome} hitSlop={8} style={styles.welcomeClose}>
+            <Feather name="x" size={18} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.welcomeTitle}>Welcome to the Community! 🎉</Text>
+          <Text style={styles.welcomeText}>
+            You're in! Share your first thoughts — a money-saving tip, a great deal, or a
+            recipe — and say hello to fellow shoppers.
+          </Text>
+          <TouchableOpacity
+            style={styles.welcomeCta}
+            onPress={() => { dismissWelcome(); setShowCompose(true); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="edit-2" size={14} color={colors.primary} />
+            <Text style={[styles.welcomeCtaText, { color: colors.primary }]}>
+              Share your first thought
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Search bar */}
       <View style={[styles.searchRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -835,6 +874,38 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     lineHeight: 17,
   },
+  welcomeCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 14,
+    padding: 16,
+  },
+  welcomeClose: { position: "absolute", top: 10, right: 10, padding: 4 },
+  welcomeTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 6,
+    paddingRight: 24,
+  },
+  welcomeText: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  welcomeCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  welcomeCtaText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
