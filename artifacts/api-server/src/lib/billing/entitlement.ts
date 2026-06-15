@@ -153,6 +153,10 @@ export function formatCurrentUser(user: UserRow) {
     role: user.role,
     countryCode: user.countryCode,
     stateCode: user.stateCode,
+    username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    avatar: user.avatar,
     // One-time post-signup "Choose your plan" onboarding step completed?
     planSelected: user.planSelectedAt != null,
     entitlement: computeEntitlement(user),

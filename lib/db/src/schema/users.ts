@@ -18,6 +18,15 @@ export const usersTable = pgTable(
     // when countryCode is "US". Null until the user picks a region at first run.
     countryCode: text("country_code"),
     stateCode: text("state_code"),
+    // ── Public profile (set during post-signup onboarding) ─────────────────
+    // username is the public handle shown as the author on community posts;
+    // uniqueness is enforced case-insensitively (functional unique index created
+    // in bootstrap.ensureSchemaColumns). firstName/lastName are optional + private.
+    // avatar is a generated avatar URL (DiceBear).
+    username: text("username"),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    avatar: text("avatar"),
     // Provider-agnostic subscription state, driven ONLY by verified provider
     // webhooks / provider API reads — never by client-reported success.
     //   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled" | "none" (null = never subscribed)

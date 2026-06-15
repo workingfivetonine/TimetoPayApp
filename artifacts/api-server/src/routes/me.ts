@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { UpdateMyRegionBody, UpdateMyNotificationPreferencesBody } from "@workspace/api-zod";
 import { validateRegion } from "@workspace/geo";
 import { formatCurrentUser } from "../lib/billing/entitlement";
+import {
+  isValidUsernameFormat,
+  isUsernameAvailable,
+  generateUniqueUsername,
+} from "../lib/username";
 
 const router = Router();
 
@@ -116,6 +121,73 @@ router.patch("/notifications", async (req, res): Promise<void> => {
     return;
   }
   res.json(formatNotificationPreferences(user));
+});
+
+// ── Public profile (username / name / avatar) ────────────────────────────────
+
+// GET /me/username-available?username=foo — live availability + format check.
+router.get("/username-available", async (req, res): Promise<void> => {
+  const username = String(req.query.username ?? "").trim();
+  if (!isValidUsernameFormat(username)) {
+    res.json({ valid: false, available: false });
+    return;
+  }
+  res.json({ valid: true, available: await isUsernameAvailable(username) });
+});
+
+// GET /me/username-suggestion — a fresh, currently-unique ridiculous handle.
+router.get("/username-suggestion", async (_req, res): Promise<void> => {
+  res.json({ username: await generateUniqueUsername() });
+});
+
+// PATCH /me/profile — set the username (required) + optional first/last name and
+// avatar. Completes the profile-setup onboarding step.
+router.patch("/profile", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const body = (req.body ?? {}) as {
+    username?: unknown;
+    firstName?: unknown;
+    lastName?: unknown;
+    avatar?: unknown;
+  };
+  const username = typeof body.username === "string" ? body.username.trim() : "";
+  const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
+  const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+  const avatar = typeof body.avatar === "string" ? body.avatar.trim() : "";
+
+  if (!isValidUsernameFormat(username)) {
+    res.status(400).json({ error: "Username must be 3–20 letters, numbers, or underscores." });
+    return;
+  }
+  const taken = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(sql`lower(${usersTable.username}) = lower(${username})`, ne(usersTable.id, userId)))
+    .limit(1);
+  if (taken.length > 0) {
+    res.status(409).json({ error: "That username is taken." });
+    return;
+  }
+  try {
+    const [user] = await db
+      .update(usersTable)
+      .set({
+        username,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        avatar: avatar || null,
+      })
+      .where(eq(usersTable.id, userId))
+      .returning();
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json(formatCurrentUser(user));
+  } catch {
+    // Unique-index race — treat as taken.
+    res.status(409).json({ error: "That username is taken." });
+  }
 });
 
 export default router;

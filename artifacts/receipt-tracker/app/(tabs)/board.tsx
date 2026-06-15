@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
+  Image,
   FlatList,
   StyleSheet,
   TouchableOpacity,
@@ -61,6 +62,8 @@ interface BoardPost {
   isOwn: boolean;
   isHot: boolean;
   createdAt: string;
+  authorUsername: string | null;
+  authorAvatar: string | null;
 }
 
 interface BoardData {
@@ -718,10 +721,21 @@ function PostCard({
       {/* Content */}
       <Text style={[postStyles.content, { color: colors.foreground }]}>{item.content}</Text>
 
-      {/* Meta: region + time */}
-      <Text style={[postStyles.meta, { color: colors.mutedForeground }]}>
-        {item.isOwn ? "You" : "Anonymous"}{item.region ? ` · ${item.region}` : ""}{"  ·  "}{timeAgo(item.createdAt)}
-      </Text>
+      {/* Author + meta: avatar, username, region, time */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 }}>
+        {item.authorAvatar ? (
+          <Image
+            source={{ uri: item.authorAvatar }}
+            style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.secondary }}
+          />
+        ) : null}
+        <Text style={[postStyles.meta, { color: colors.mutedForeground, marginTop: 0 }]}>
+          <Text style={{ fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+            {item.isOwn ? "You" : item.authorUsername ?? "Member"}
+          </Text>
+          {item.region ? ` · ${item.region}` : ""}{"  ·  "}{timeAgo(item.createdAt)}
+        </Text>
+      </View>
 
       {/* Action bar */}
       <View style={postStyles.actions}>

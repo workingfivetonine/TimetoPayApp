@@ -98,8 +98,11 @@ router.get("/", async (req, res): Promise<void> => {
       replyCount: boardPostsTable.replyCount,
       createdAt: boardPostsTable.createdAt,
       approvedAt: boardPostsTable.approvedAt,
+      authorUsername: usersTable.username,
+      authorAvatar: usersTable.avatar,
     })
     .from(boardPostsTable)
+    .leftJoin(usersTable, eq(usersTable.id, boardPostsTable.userId))
     .where(eq(boardPostsTable.status, "approved"))
     .orderBy(desc(boardPostsTable.approvedAt));
 
@@ -160,6 +163,8 @@ router.get("/", async (req, res): Promise<void> => {
       isOwn: p.userId === userId,
       isHot: hotSet.has(p.id),
       createdAt: p.createdAt.toISOString(),
+      authorUsername: p.authorUsername ?? null,
+      authorAvatar: p.authorAvatar ?? null,
     })),
   });
 });

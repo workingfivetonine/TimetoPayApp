@@ -144,6 +144,7 @@ function RootLayoutNav() {
       <Stack.Screen name="receipt/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="store/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="catalog" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-setup" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="region-setup" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="choose-plan" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
@@ -192,6 +193,7 @@ function InitialLayout() {
   const onPricing = segments[0] === "pricing";
   const onRegionSetup = segments[0] === "region-setup";
   const onChoosePlan = segments[0] === "choose-plan";
+  const onProfileSetup = segments[0] === "profile-setup";
   const isPublicRoute = inAuthGroup || onLanding || onPricing;
 
   // Region gate: a signed-in user must pick a region before using the app, since
@@ -211,6 +213,11 @@ function InitialLayout() {
     !!me.countryCode &&
     !me.planSelected;
 
+  // Every signed-in user sets a username + avatar once, right after signup —
+  // before region/plan. (username lives on the server CurrentUser response.)
+  const needsProfile =
+    isSignedIn && me != null && !(me as { username?: string | null }).username;
+
   // Freemium model: we no longer redirect lapsed web users to the paywall.
   // Free users keep full access to their own data; premium surfaces (AI scan,
   // global catalog, deep price-history analytics) are gated in-place with an
@@ -222,9 +229,11 @@ function InitialLayout() {
       router.replace("/landing");
     } else if (isSignedIn && isPublicRoute) {
       router.replace("/");
-    } else if (needsRegion && !onRegionSetup) {
+    } else if (needsProfile && !onProfileSetup) {
+      router.replace("/profile-setup");
+    } else if (needsRegion && !onRegionSetup && !onProfileSetup) {
       router.replace("/region-setup");
-    } else if (needsPlan && !onChoosePlan && !onRegionSetup) {
+    } else if (needsPlan && !onChoosePlan && !onRegionSetup && !onProfileSetup) {
       router.replace("/choose-plan");
     }
     // Note: we do NOT bounce users who already have a region off /region-setup —
@@ -233,8 +242,10 @@ function InitialLayout() {
     isLoaded,
     isSignedIn,
     isPublicRoute,
+    needsProfile,
     needsRegion,
     needsPlan,
+    onProfileSetup,
     onRegionSetup,
     onChoosePlan,
     router,

@@ -207,6 +207,17 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "brand" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
 
+  // Public profile columns (username / names / avatar) for the onboarding step.
+  await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "username" text`);
+  await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "first_name" text`);
+  await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_name" text`);
+  await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar" text`);
+  // Case-insensitive unique handle. Postgres allows multiple NULLs, so users
+  // without a username yet don't conflict.
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "users_username_lower_unique" ON "users" (lower("username"))`,
+  );
+
   // Notification opt-ins must default OFF, but the live DB created these columns
   // with DEFAULT true (the schema default was flipped to false in code only AFTER
   // the columns were already pushed). Re-assert the correct default so new users
