@@ -19,6 +19,7 @@ import {
   useListReceipts,
   useDeleteReceipt,
   getListReceiptsQueryKey,
+  getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
@@ -63,7 +64,27 @@ export default function ReceiptsScreen() {
       "",
       window.location.pathname + (qs ? `?${qs}` : ""),
     );
-  }, []);
+
+    // The subscription is activated by the Stripe webhook, which can arrive a
+    // moment AFTER Stripe redirects the user back here. Poll the current-user
+    // query a few times so entitlement flips to active on its own — without this
+    // the app keeps showing the pre-payment (locked) state until a manual reload.
+    let cancelled = false;
+    let attempts = 0;
+    const key = getGetCurrentUserQueryKey();
+    const poll = async () => {
+      if (cancelled) return;
+      attempts += 1;
+      await queryClient.invalidateQueries({ queryKey: key });
+      const fresh = queryClient.getQueryData<{ entitlement?: { entitled?: boolean } }>(key);
+      if (fresh?.entitlement?.entitled || attempts >= 6) return;
+      setTimeout(poll, 2000);
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [queryClient]);
 
   const { data: receipts, isLoading, dataUpdatedAt } = useListReceipts();
   const deleteMutation = useDeleteReceipt();
