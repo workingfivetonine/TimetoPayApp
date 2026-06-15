@@ -9,6 +9,8 @@ import {
   isUsernameAvailable,
   generateUniqueUsername,
 } from "../lib/username";
+import { clerkClient } from "@clerk/express";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -35,6 +37,32 @@ router.get("/", async (req, res): Promise<void> => {
     return;
   }
   res.json(formatCurrentUser(user));
+});
+
+// DELETE /me — self-service account + data deletion (GDPR right to erasure).
+// Deleting the users row cascades to the user's receipts, items, stores, line
+// items, and board posts/replies/agrees/thanks (ON DELETE CASCADE), then the
+// Clerk identity is removed. Admins can't self-delete (single-admin invariant).
+router.delete("/", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (user.isAdmin) {
+    res.status(403).json({ error: "Admin accounts can't be deleted from here." });
+    return;
+  }
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+  try {
+    await clerkClient.users.deleteUser(userId);
+  } catch (err) {
+    // The app data is already gone; a failed Clerk delete is non-fatal (the
+    // orphaned Clerk identity simply re-provisions an empty account on next login).
+    logger.error({ err, userId }, "Clerk user deletion failed after account delete");
+  }
+  res.json({ deleted: true });
 });
 
 // Set the authenticated user's region. Country must be a known ISO-3166 alpha-2

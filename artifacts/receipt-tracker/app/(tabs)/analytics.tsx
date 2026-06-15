@@ -166,12 +166,24 @@ export default function AnalyticsScreen() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("Export failed");
-      const data = await res.json() as { stores: object[]; items: object[]; lineItems: object[] };
+      const data = await res.json() as {
+        profile?: Record<string, unknown> | null;
+        stores: object[];
+        items: object[];
+        lineItems: object[];
+        boardPosts?: object[];
+      };
 
       const wb = XLSX.utils.book_new();
+      if (data.profile) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([data.profile]), "Profile");
+      }
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.stores), "Stores");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.items), "Items");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.lineItems), "Purchase History");
+      if (data.boardPosts && data.boardPosts.length) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.boardPosts), "Community Posts");
+      }
 
       if (Platform.OS === "web") {
         XLSX.writeFile(wb, "TimetoPay_Export.xlsx");

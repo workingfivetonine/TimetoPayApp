@@ -44,6 +44,7 @@ export default function SignInPage() {
 
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const handleSubmit = async () => {
     if (busy) return;
@@ -142,15 +143,20 @@ export default function SignInPage() {
               />
 
               <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.input, color: colors.foreground, backgroundColor: colors.card }]}
-                value={password}
-                placeholder="Enter password"
-                placeholderTextColor={colors.mutedForeground}
-                secureTextEntry
-                onChangeText={setPassword}
-                onSubmitEditing={handleSubmit}
-              />
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput, { borderColor: colors.input, color: colors.foreground, backgroundColor: colors.card }]}
+                  value={password}
+                  placeholder="Enter password"
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry={!showPassword}
+                  onChangeText={setPassword}
+                  onSubmitEditing={handleSubmit}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                  <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity onPress={() => switchTo("forgot")} style={styles.forgotLink} hitSlop={8}>
                 <Text style={[styles.link, { color: colors.primary }]}>Forgot password?</Text>
@@ -289,4 +295,7 @@ const styles = StyleSheet.create({
   linkRow: { flexDirection: "row", justifyContent: "center", marginTop: 22 },
   link: { fontFamily: "Inter_600SemiBold" },
   install: { marginTop: 24 },
+  passwordRow: { position: "relative", justifyContent: "center" },
+  passwordInput: { paddingRight: 44 },
+  eyeBtn: { position: "absolute", right: 12, padding: 4 },
 });

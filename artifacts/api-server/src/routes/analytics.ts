@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, sql, and, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { receiptsTable, storesTable, lineItemsTable, itemsTable, catalogStoresTable, catalogStoreAliasesTable } from "@workspace/db";
+import { receiptsTable, storesTable, lineItemsTable, itemsTable, catalogStoresTable, catalogStoreAliasesTable, usersTable, boardPostsTable } from "@workspace/db";
 import { requirePremium } from "../middlewares/requireEntitlement";
 import { groupReceiptsByWeek } from "../lib/analytics/spend";
 import { normalizeName } from "../lib/catalog";
@@ -425,7 +425,8 @@ router.get("/category-spend", async (req, res): Promise<void> => {
 router.get("/export", async (req, res): Promise<void> => {
   const userId = req.userId!;
 
-  const [stores, items, lineItemRows] = await Promise.all([
+  const [userRows, stores, items, lineItemRows, boardPosts] = await Promise.all([
+    db.select().from(usersTable).where(eq(usersTable.id, userId)),
     db.select().from(storesTable).where(eq(storesTable.userId, userId)).orderBy(storesTable.name),
     db.select().from(itemsTable).where(eq(itemsTable.userId, userId)).orderBy(itemsTable.name),
     db
@@ -446,9 +447,41 @@ router.get("/export", async (req, res): Promise<void> => {
       .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
       .where(eq(receiptsTable.userId, userId))
       .orderBy(sql`${receiptsTable.purchasedAt} DESC`),
+    db
+      .select({
+        postId: boardPostsTable.id,
+        content: boardPostsTable.content,
+        tag: boardPostsTable.tag,
+        region: boardPostsTable.region,
+        status: boardPostsTable.status,
+        createdAt: boardPostsTable.createdAt,
+      })
+      .from(boardPostsTable)
+      .where(eq(boardPostsTable.userId, userId))
+      .orderBy(sql`${boardPostsTable.createdAt} DESC`),
   ]);
 
+  const profile = userRows[0];
+
   res.json({
+    profile: profile
+      ? {
+          email: profile.email ?? null,
+          username: profile.username ?? null,
+          firstName: profile.firstName ?? null,
+          lastName: profile.lastName ?? null,
+          countryCode: profile.countryCode ?? null,
+          stateCode: profile.stateCode ?? null,
+          role: profile.role,
+          subscriptionStatus: profile.subscriptionStatus ?? null,
+          subscriptionProvider: profile.subscriptionProvider ?? null,
+          notifyPaymentReminders: profile.notifyPaymentReminders,
+          notifyListExport: profile.notifyListExport,
+          notifyReceiptReminders: profile.notifyReceiptReminders,
+          notifySpendSummary: profile.notifySpendSummary,
+          createdAt: profile.createdAt ? profile.createdAt.toISOString() : null,
+        }
+      : null,
     stores: stores.map((s) => ({
       storeId: s.id,
       name: s.name,
@@ -472,6 +505,14 @@ router.get("/export", async (req, res): Promise<void> => {
       price: Number(r.price),
       quantity: Number(r.quantity),
       purchasedAt: r.purchasedAt.toISOString(),
+    })),
+    boardPosts: boardPosts.map((p) => ({
+      postId: p.postId,
+      content: p.content,
+      tag: p.tag ?? null,
+      region: p.region ?? null,
+      status: p.status,
+      createdAt: p.createdAt.toISOString(),
     })),
   });
 });

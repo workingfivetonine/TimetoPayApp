@@ -185,6 +185,47 @@ export default function AccountScreen() {
     }
   };
 
+  const openLegalPage = (page: "privacy" | "terms" | "support") => {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined") window.location.href = `/${page}`;
+    } else {
+      const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
+      void Linking.openURL(`https://${domain}/${page}`);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const msg =
+      "This permanently deletes your account and all your data — receipts, items, stores, and community posts. This cannot be undone.";
+    const proceed =
+      Platform.OS === "web"
+        ? typeof window !== "undefined" && window.confirm(msg)
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert("Delete account", msg, [
+              { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+              { text: "Delete", style: "destructive", onPress: () => resolve(true) },
+            ]);
+          });
+    if (!proceed) return;
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/me`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        notify("Couldn't delete account", data.error ?? "Please try again.");
+        return;
+      }
+      await signOut();
+      queryClient.clear();
+      router.replace("/(auth)/sign-in");
+    } catch {
+      notify("Couldn't delete account", "Check your connection and try again.");
+    }
+  };
+
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
 
   return (
@@ -396,6 +437,30 @@ export default function AccountScreen() {
           <Feather name="log-out" size={18} color={colors.destructive} />
           <Text style={[styles.signOutText, { color: colors.destructive }]}>Sign out</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.deleteAccount}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.deleteAccountText, { color: colors.mutedForeground }]}>
+            Delete my account
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => openLegalPage("privacy")} accessibilityRole="link">
+            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Privacy</Text>
+          </TouchableOpacity>
+          <Text style={[styles.legalDot, { color: colors.mutedForeground }]}>·</Text>
+          <TouchableOpacity onPress={() => openLegalPage("terms")} accessibilityRole="link">
+            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Terms</Text>
+          </TouchableOpacity>
+          <Text style={[styles.legalDot, { color: colors.mutedForeground }]}>·</Text>
+          <TouchableOpacity onPress={() => openLegalPage("support")} accessibilityRole="link">
+            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Support</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -911,4 +976,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   signOutText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  deleteAccount: { alignItems: "center", marginTop: 16, paddingVertical: 8 },
+  deleteAccountText: { fontSize: 14, fontFamily: "Inter_500Medium", textDecorationLine: "underline" },
+  legalLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 18 },
+  legalLink: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  legalDot: { fontSize: 13 },
 });

@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,15 @@ function clerkErrMsg(e: unknown): string {
   return err.longMessage ?? err.message ?? "Something went wrong. Please try again.";
 }
 
+function openLegal(page: "terms" | "privacy") {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") window.location.href = `/${page}`;
+  } else {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
+    void Linking.openURL(`https://${domain}/${page}`);
+  }
+}
+
 export default function SignUpPage() {
   const { signUp } = useSignUp();
   const router = useRouter();
@@ -34,6 +44,7 @@ export default function SignUpPage() {
   const [pendingVerification, setPendingVerification] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const handleSubmit = async () => {
     if (busy) return;
@@ -164,14 +175,19 @@ export default function SignUpPage() {
               />
 
               <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.input, color: colors.foreground, backgroundColor: colors.card }]}
-                value={password}
-                placeholder="Create a password"
-                placeholderTextColor={colors.mutedForeground}
-                secureTextEntry
-                onChangeText={setPassword}
-              />
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput, { borderColor: colors.input, color: colors.foreground, backgroundColor: colors.card }]}
+                  value={password}
+                  placeholder="Create a password"
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry={!showPassword}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                  <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
 
               <PasswordRequirements password={password} />
 
@@ -189,6 +205,17 @@ export default function SignUpPage() {
               >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
               </TouchableOpacity>
+
+              <Text style={[styles.legalNote, { color: colors.mutedForeground }]}>
+                By signing up you agree to our{" "}
+                <Text style={[styles.legalNoteLink, { color: colors.primary }]} onPress={() => openLegal("terms")}>
+                  Terms
+                </Text>
+                {" "}and{" "}
+                <Text style={[styles.legalNoteLink, { color: colors.primary }]} onPress={() => openLegal("privacy")}>
+                  Privacy Policy
+                </Text>.
+              </Text>
 
               <GoogleAuthButton label="Sign up with Google" />
 
@@ -249,4 +276,9 @@ const styles = StyleSheet.create({
   secondaryButton: { alignItems: "center", marginTop: 18 },
   linkRow: { flexDirection: "row", justifyContent: "center", marginTop: 22 },
   link: { fontFamily: "Inter_600SemiBold" },
+  passwordRow: { position: "relative", justifyContent: "center" },
+  passwordInput: { paddingRight: 44 },
+  eyeBtn: { position: "absolute", right: 12, padding: 4 },
+  legalNote: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18, marginTop: 16 },
+  legalNoteLink: { fontFamily: "Inter_600SemiBold" },
 });

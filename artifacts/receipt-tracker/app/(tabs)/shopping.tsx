@@ -179,9 +179,12 @@ export default function ShoppingScreen() {
             <TouchableOpacity
               style={[styles.downloadButton, { backgroundColor: colors.accent }]}
               onPress={handleOpenPdfModal}
-              accessibilityLabel="Download shopping list as PDF"
+              accessibilityLabel="generate printable shopping list"
             >
-              <Feather name="download" size={18} color={colors.accentForeground} />
+              <Feather name="download" size={16} color={colors.accentForeground} />
+              <Text style={[styles.downloadButtonText, { color: colors.accentForeground }]}>
+                Download Shopping List
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -272,12 +275,14 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
   downloadButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
   },
+  downloadButtonText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   browseButton: {
     flexDirection: "row",
     alignItems: "center",
