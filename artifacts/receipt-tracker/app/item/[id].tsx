@@ -39,6 +39,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useAuth } from "@clerk/expo";
+import { getApiOrigin } from "@/lib/apiBase";
 import { confirmDestructive, notify } from "@/lib/confirm";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import type { ItemHistoryEntry } from "@workspace/api-client-react";
@@ -189,6 +191,12 @@ const EMOJI_CHOICES = [
   "🪥", "🧂", "🍯", "🥜", "🌶️", "🫑", "🥒", "🍆", "🫒", "🥗",
 ];
 
+// Mirrors the server's fixed category list (api-server lib/categories.ts).
+const CATEGORY_CHOICES = [
+  "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen",
+  "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other",
+];
+
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ItemHistoryScreen() {
@@ -207,6 +215,76 @@ export default function ItemHistoryScreen() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
+
+  // Editable details (category / brand / size) loaded from GET /items/:id.
+  const { getToken } = useAuth();
+  const [brand, setBrand] = useState("");
+  const [size, setSize] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
+  const [detailsLoaded, setDetailsLoaded] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [catPickerOpen, setCatPickerOpen] = useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${getApiOrigin()}/api/items/${itemId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || !active) return;
+        const item = (await res.json()) as {
+          brand?: string | null;
+          size?: string | null;
+          category?: string | null;
+        };
+        if (!active) return;
+        setBrand(item.brand ?? "");
+        setSize(item.size ?? "");
+        setCategory(item.category ?? null);
+        setDetailsLoaded(true);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [itemId, getToken]);
+
+  const saveDetails = async (patch: { brand?: string; size?: string; category?: string }) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to edit details.");
+      return;
+    }
+    setSavingDetails(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        notify("Couldn't save", "Please try again.");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: getGetItemHistoryQueryKey(itemId) });
+      queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+    } catch {
+      notify("Couldn't save", "Check your connection and try again.");
+    } finally {
+      setSavingDetails(false);
+    }
+  };
+
+  const pickCategory = (c: string) => {
+    setCategory(c);
+    setCatPickerOpen(false);
+    void saveDetails({ category: c });
+  };
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
 
@@ -357,6 +435,48 @@ export default function ItemHistoryScreen() {
             <Text style={[styles.statValue, { color: colors.foreground }]}>{data.purchaseCount}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Purchases</Text>
           </View>
+        </View>
+
+        {/* Details: category, brand, size */}
+        <View style={[styles.detailsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.detailRow} onPress={() => setCatPickerOpen(true)} activeOpacity={0.7}>
+            <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Category</Text>
+            <View style={styles.detailValueRow}>
+              <Text style={[styles.detailValue, { color: category ? colors.foreground : colors.mutedForeground }]}>
+                {category ?? "Set category"}
+              </Text>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </View>
+          </TouchableOpacity>
+          <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Brand</Text>
+            <TextInput
+              style={[styles.detailInput, { color: colors.foreground }]}
+              value={brand}
+              onChangeText={setBrand}
+              onBlur={() => { if (detailsLoaded) void saveDetails({ brand }); }}
+              placeholder="Optional"
+              placeholderTextColor={colors.mutedForeground}
+              returnKeyType="done"
+            />
+          </View>
+          <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Size</Text>
+            <TextInput
+              style={[styles.detailInput, { color: colors.foreground }]}
+              value={size}
+              onChangeText={setSize}
+              onBlur={() => { if (detailsLoaded) void saveDetails({ size }); }}
+              placeholder="e.g. 1 gallon"
+              placeholderTextColor={colors.mutedForeground}
+              returnKeyType="done"
+            />
+          </View>
+          {savingDetails ? (
+            <Text style={[styles.detailSaving, { color: colors.mutedForeground }]}>Saving…</Text>
+          ) : null}
         </View>
 
         {/* Ran-out card */}
@@ -581,6 +701,33 @@ export default function ItemHistoryScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Category picker modal */}
+      <Modal visible={catPickerOpen} animationType="slide" transparent onRequestClose={() => setCatPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={[styles.pickerSheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.pickerHeader}>
+              <Text style={[styles.pickerTitle, { color: colors.foreground }]}>Choose a category</Text>
+              <TouchableOpacity onPress={() => setCatPickerOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {CATEGORY_CHOICES.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.catPickRow, { borderColor: colors.border }]}
+                  onPress={() => pickCategory(c)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.catPickText, { color: colors.foreground }]}>{c}</Text>
+                  {category === c ? <Feather name="check" size={18} color={colors.primary} /> : null}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -770,4 +917,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emojiCellText: { fontSize: 26 },
+  detailsCard: { borderRadius: 12, borderWidth: 1, marginBottom: 16, paddingHorizontal: 14 },
+  detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, gap: 12 },
+  detailLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  detailValueRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  detailValue: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  detailDivider: { height: StyleSheet.hairlineWidth },
+  detailInput: { flex: 1, textAlign: "right", fontSize: 14, fontFamily: "Inter_500Medium", paddingVertical: 0 },
+  detailSaving: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "right", paddingBottom: 8 },
+  catPickRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  catPickText: { fontSize: 15, fontFamily: "Inter_500Medium" },
 });

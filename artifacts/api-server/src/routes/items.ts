@@ -2,7 +2,8 @@ import { Router } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { itemsTable, lineItemsTable, receiptsTable } from "@workspace/db";
-import { CreateItemBody, UpdateItemBody, MergeItemBody } from "@workspace/api-zod";
+import { CreateItemBody, MergeItemBody } from "@workspace/api-zod";
+import { isValidCategory } from "../lib/categories";
 
 const router = Router();
 
@@ -44,14 +45,31 @@ router.get("/:id", async (req, res): Promise<void> => {
 router.patch("/:id", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const id = parseInt(req.params.id);
-  const parsed = UpdateItemBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  // Manual field handling (the generated UpdateItemBody zod predates the
+  // category/brand/size fields). Each field is optional; absent = unchanged.
+  const updates: Partial<typeof itemsTable.$inferInsert> = {};
+  if (typeof body.name === "string" && body.name.trim()) updates.name = body.name.trim();
+  if (typeof body.icon === "string") updates.icon = body.icon.trim() || null;
+  if (typeof body.notes === "string") updates.notes = body.notes.trim() || null;
+  if (typeof body.brand === "string") updates.brand = body.brand.trim() || null;
+  if (typeof body.size === "string") updates.size = body.size.trim() || null;
+  if (typeof body.category === "string") {
+    if (!isValidCategory(body.category)) {
+      res.status(400).json({ error: "Invalid category." });
+      return;
+    }
+    updates.category = body.category;
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No valid fields to update." });
     return;
   }
+
   const [item] = await db
     .update(itemsTable)
-    .set(parsed.data)
+    .set(updates)
     .where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId)))
     .returning();
   if (!item) {

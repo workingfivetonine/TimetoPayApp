@@ -116,6 +116,7 @@ export default function AnalyticsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("calendar");
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<DaySpend | null>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [editName, setEditName] = useState("");
@@ -427,30 +428,75 @@ export default function AnalyticsScreen() {
               {(categoryData?.categories.length ?? 0) > 0 && (
                 <>
                   <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>SPEND BY CATEGORY</Text>
-                  {categoryData!.categories.map((cat) => (
+                  {categoryData!.categories.map((cat) => {
+                    const expanded = expandedCategory === cat.category;
+                    const catItems = expanded
+                      ? (items ?? []).filter(
+                          (it) =>
+                            ((it as { category?: string | null }).category ?? "Uncategorized") === cat.category,
+                        )
+                      : [];
+                    return (
                     <View
                       key={cat.category}
                       style={[styles.catRow, { backgroundColor: colors.card, borderColor: colors.border }]}
                     >
-                      <View style={styles.catHeader}>
-                        <Text style={[styles.catName, { color: colors.foreground }]}>{cat.category}</Text>
-                        <Text style={[styles.catAmount, { color: colors.primary }]}>
-                          ${cat.totalSpend.toFixed(2)}
-                        </Text>
-                      </View>
-                      <View style={[styles.catBarBg, { backgroundColor: colors.secondary }]}>
-                        <View
-                          style={[
-                            styles.catBar,
-                            { backgroundColor: colors.primary, width: `${cat.percentOfTotal}%` },
-                          ]}
-                        />
-                      </View>
-                      <Text style={[styles.catMeta, { color: colors.mutedForeground }]}>
-                        {cat.percentOfTotal.toFixed(1)}% · {cat.purchaseCount} purchase{cat.purchaseCount !== 1 ? "s" : ""}
-                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setExpandedCategory(expanded ? null : cat.category)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.catHeader}>
+                          <Text style={[styles.catName, { color: colors.foreground }]}>{cat.category}</Text>
+                          <Text style={[styles.catAmount, { color: colors.primary }]}>
+                            ${cat.totalSpend.toFixed(2)}
+                          </Text>
+                        </View>
+                        <View style={[styles.catBarBg, { backgroundColor: colors.secondary }]}>
+                          <View
+                            style={[
+                              styles.catBar,
+                              { backgroundColor: colors.primary, width: `${cat.percentOfTotal}%` },
+                            ]}
+                          />
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                          <Text style={[styles.catMeta, { color: colors.mutedForeground }]}>
+                            {cat.percentOfTotal.toFixed(1)}% · {cat.purchaseCount} purchase{cat.purchaseCount !== 1 ? "s" : ""}
+                          </Text>
+                          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={15} color={colors.mutedForeground} />
+                        </View>
+                      </TouchableOpacity>
+                      {expanded && (
+                        <View style={{ marginTop: 8 }}>
+                          {catItems.length === 0 ? (
+                            <Text style={[styles.catMeta, { color: colors.mutedForeground }]}>No items in this category.</Text>
+                          ) : (
+                            catItems.map((it) => (
+                              <TouchableOpacity
+                                key={it.id}
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  paddingVertical: 10,
+                                  borderTopWidth: StyleSheet.hairlineWidth,
+                                  borderTopColor: colors.border,
+                                }}
+                                onPress={() => router.push(`/item/${it.id}`)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground, flex: 1 }} numberOfLines={1}>
+                                  {it.icon ? `${it.icon} ` : ""}{it.name}
+                                </Text>
+                                <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                              </TouchableOpacity>
+                            ))
+                          )}
+                        </View>
+                      )}
                     </View>
-                  ))}
+                    );
+                  })}
                 </>
               )}
 

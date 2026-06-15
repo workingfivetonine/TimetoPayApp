@@ -11,6 +11,9 @@ export const itemsTable = pgTable("items", {
   // Fixed-list category (see api-server lib/categories). AI-assigned at scan time.
   category: text("category"),
   notes: text("notes"),
+  // Optional user-entered brand + size/quantity (e.g. "Tropicana", "1 gallon").
+  brand: text("brand"),
+  size: text("size"),
   purchaseCount: integer("purchase_count").notNull().default(0),
   ranOutAt: timestamp("ran_out_at", { withTimezone: true }),
   // Shopping-list membership: set when the item is explicitly added (e.g. from
