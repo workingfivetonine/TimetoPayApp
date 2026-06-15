@@ -24,7 +24,11 @@ import {
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
-import Toast from "react-native-toast-message";
+import Toast, {
+  BaseToast,
+  ErrorToast,
+  type BaseToastProps,
+} from "react-native-toast-message";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BoardNotificationProvider } from "@/contexts/BoardNotification";
@@ -53,12 +57,79 @@ if (Platform.OS === "web" && typeof navigator !== "undefined" && "serviceWorker"
   navigator.serviceWorker.register("/sw.js").catch(() => { /* non-fatal */ });
 }
 
+// Link the web app manifest + icons into <head> at runtime. Expo's web export
+// (`output: "single"`) does NOT add a <link rel="manifest"> to the served HTML,
+// and without it Chrome never fires `beforeinstallprompt` — so the install
+// button has nothing to trigger. Injecting here (web only, idempotent) makes the
+// page installable. Runs at module load, before first paint.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const head = document.head;
+  const ensureTag = (selector: string, create: () => HTMLElement) => {
+    if (!head.querySelector(selector)) head.appendChild(create());
+  };
+  ensureTag('link[rel="manifest"]', () => {
+    const l = document.createElement("link");
+    l.rel = "manifest";
+    l.href = "/manifest.json";
+    return l;
+  });
+  ensureTag('link[rel="apple-touch-icon"]', () => {
+    const l = document.createElement("link");
+    l.rel = "apple-touch-icon";
+    l.href = "/apple-touch-icon.png";
+    return l;
+  });
+  ensureTag('meta[name="theme-color"]', () => {
+    const m = document.createElement("meta");
+    m.setAttribute("name", "theme-color");
+    m.content = "#6d28d9";
+    return m;
+  });
+}
+
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 // Same-origin Clerk proxy on production web (works on any serving domain);
 // undefined in dev (Clerk hits the dev FAPI directly).
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// react-native-toast-message clamps the message (text2) to ONE line inside a
+// fixed-height pill by default, which truncated longer messages (e.g. upload
+// failure reasons) mid-sentence. This config lets the message wrap to as many
+// lines as it needs and grows the toast height to fit.
+const toastBaseStyle = {
+  height: "auto" as const,
+  minHeight: 60,
+  width: "90%" as const,
+  maxWidth: 420,
+  paddingVertical: 10,
+};
+const toastContentStyle = { paddingHorizontal: 14, paddingVertical: 6 };
+const toastText2Style = { fontSize: 13 };
+
+const toastConfig = {
+  success: (props: BaseToastProps) => (
+    <BaseToast
+      {...props}
+      style={{ ...toastBaseStyle, borderLeftColor: "#22c55e" }}
+      contentContainerStyle={toastContentStyle}
+      text1NumberOfLines={2}
+      text2NumberOfLines={0}
+      text2Style={toastText2Style}
+    />
+  ),
+  error: (props: BaseToastProps) => (
+    <ErrorToast
+      {...props}
+      style={{ ...toastBaseStyle, borderLeftColor: "#ef4444" }}
+      contentContainerStyle={toastContentStyle}
+      text1NumberOfLines={2}
+      text2NumberOfLines={0}
+      text2Style={toastText2Style}
+    />
+  ),
+};
 
 function RootLayoutNav() {
   return (
@@ -233,7 +304,7 @@ export default function RootLayout() {
           </ErrorBoundary>
         </SafeAreaProvider>
       </ClerkLoaded>
-      <Toast />
+      <Toast config={toastConfig} />
     </ClerkProvider>
   );
 }
