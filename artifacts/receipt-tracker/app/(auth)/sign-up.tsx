@@ -64,7 +64,24 @@ export default function SignUpPage() {
         if (finalErr) { setError(clerkErrMsg(finalErr)); return; }
         router.replace("/" as Href);
       } else {
-        setError("Verification could not be completed. Please try again.");
+        // The email code was accepted but Clerk still won't mark the sign-up
+        // complete — it's waiting on another requirement (a required field,
+        // legal consent, or bot protection configured in the Clerk Dashboard).
+        // Surface exactly what's missing instead of a generic message so the
+        // real blocker is visible here and in the console.
+        const missing = signUp.missingFields ?? [];
+        const unverified = signUp.unverifiedFields ?? [];
+        console.warn("[sign-up] incomplete after email code", {
+          status: signUp.status,
+          missingFields: missing,
+          unverifiedFields: unverified,
+        });
+        const parts: string[] = [];
+        if (missing.length) parts.push(`missing: ${missing.join(", ")}`);
+        if (unverified.length) parts.push(`still unverified: ${unverified.join(", ")}`);
+        setError(
+          `Sign-up couldn't be completed (status: ${signUp.status}${parts.length ? ` — ${parts.join("; ")}` : ""}). Please try again.`,
+        );
       }
     } catch (e) {
       setError(clerkErrMsg(e));
