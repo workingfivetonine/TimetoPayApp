@@ -53,6 +53,8 @@ const RECEIPT_INACTIVITY_COOLDOWN_DAYS_WEEKLY = 7;
 const RECEIPT_INACTIVITY_COOLDOWN_DAYS_MONTHLY = 30;
 // A staple counts as "neglected" for the personalized jab after this long.
 const NEGLECTED_STAPLE_DAYS = 21;
+// Grace period after signup during which we send NO reminder emails of any type.
+const SIGNUP_GRACE_DAYS = 2;
 
 type UserRow = typeof usersTable.$inferSelect;
 
@@ -82,6 +84,8 @@ export async function runReminderSweep(
   // Restrict to subscription-related users up front.
   const eligible = allUsers.filter((u) => {
     if (!u.email) return false;
+    // Signup grace: never email anyone in their first couple of days.
+    if (daysBetween(now, new Date(u.createdAt)) < SIGNUP_GRACE_DAYS) return false;
     const ent = computeEntitlement(u, now);
     const isPastDue = u.subscriptionStatus === "past_due";
     return ent.entitled || isPastDue;
@@ -253,9 +257,16 @@ async function maybeReceiptInactivity(
   bump: (t: string) => void,
 ): Promise<void> {
   const daysSince = lastReceiptAt ? daysBetween(now, lastReceiptAt) : null;
-  // Only nudge once the user has actually been inactive for the threshold. A
-  // brand-new user with zero receipts is also nudged (gentle first-scan prompt).
-  if (daysSince != null && daysSince < RECEIPT_INACTIVITY_THRESHOLD_DAYS) return;
+  // Only nudge once the user has actually been inactive for the threshold. For a
+  // brand-new user with zero receipts, use ACCOUNT AGE as the window so the
+  // gentle first-scan prompt arrives after the same threshold — never right after
+  // signup (which, combined with the global signup grace, is what caused the
+  // "immediate email" bug).
+  if (daysSince != null) {
+    if (daysSince < RECEIPT_INACTIVITY_THRESHOLD_DAYS) return;
+  } else if (daysBetween(now, new Date(user.createdAt)) < RECEIPT_INACTIVITY_THRESHOLD_DAYS) {
+    return;
+  }
 
   // Re-nudge rules: send if never sent, if they scanned since the last nudge
   // (new episode), or after the cooldown for an ongoing dry spell.

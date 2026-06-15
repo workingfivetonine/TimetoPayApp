@@ -54,9 +54,9 @@ export const usersTable = pgTable(
     // (COMP_ACCESS_EMAILS) is a second, env-driven comp mechanism.
     compAccess: boolean("comp_access").notNull().default(false),
     // ── Email reminder notification preferences (opt-out toggles) ──────────
-    // Four independent on/off switches for the reminder emails. Default ON so a
-    // subscribed user is engaged by default; they can disable any type from the
-    // account screen. Only ever consulted for users with a subscription
+    // Four independent on/off switches for the reminder emails. Default OFF
+    // (opt-in): new users receive no reminder emails until they enable them from
+    // the account screen. Only ever consulted for users with a subscription
     // relationship (entitlement gating happens in the scheduler).
     //   notifyPaymentReminders: trial-ending + payment-past-due emails
     //   notifyListExport:       weekly grocery-list export nudge

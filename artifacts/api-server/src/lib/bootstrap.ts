@@ -206,6 +206,16 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "logo_url" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "brand" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
+
+  // Notification opt-ins must default OFF, but the live DB created these columns
+  // with DEFAULT true (the schema default was flipped to false in code only AFTER
+  // the columns were already pushed). Re-assert the correct default so new users
+  // are opted OUT. Only affects future inserts — existing rows are left untouched
+  // so we never override a user's deliberate choice.
+  await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_payment_reminders" SET DEFAULT false`);
+  await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_list_export" SET DEFAULT false`);
+  await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_receipt_reminders" SET DEFAULT false`);
+  await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_spend_summary" SET DEFAULT false`);
 }
 
 // Backfill logos for stores created before the logo feature worked (or while the

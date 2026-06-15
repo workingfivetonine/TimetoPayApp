@@ -36,7 +36,17 @@ async function ensureUser(userId: string): Promise<User> {
   // Create the user as a normal (non-admin) account first. Idempotent.
   await db
     .insert(usersTable)
-    .values({ id: userId, email, isAdmin: false })
+    .values({
+      id: userId,
+      email,
+      isAdmin: false,
+      // Notifications are opt-IN: new users start with every reminder type OFF,
+      // independent of any drifted DB column default.
+      notifyPaymentReminders: false,
+      notifyListExport: false,
+      notifyReceiptReminders: false,
+      notifySpendSummary: false,
+    })
     .onConflictDoNothing();
 
   // Trusted admin bootstrap. Admin is NEVER granted just for being the first
