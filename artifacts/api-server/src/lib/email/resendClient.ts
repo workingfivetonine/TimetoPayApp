@@ -31,6 +31,10 @@ export interface SendEmailParams {
   subject: string;
   html: string;
   text: string;
+  // When set, adds RFC 8058 one-click unsubscribe headers so Gmail/Yahoo show a
+  // native "Unsubscribe" control and bulk-sender requirements are met. Only the
+  // promotional reminder emails pass this; transactional mail omits it.
+  unsubscribeUrl?: string;
 }
 
 export interface SendTemplateParams {
@@ -97,13 +101,19 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult> {
     return { sent: false, reason: "not-configured" };
   }
 
-  const body = {
+  const body: Record<string, unknown> = {
     from: fromHeader(sender),
     to: [params.to],
     subject: params.subject,
     html: params.html,
     text: params.text,
   };
+  if (params.unsubscribeUrl) {
+    body.headers = {
+      "List-Unsubscribe": `<${params.unsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+  }
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

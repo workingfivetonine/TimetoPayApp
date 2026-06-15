@@ -15,6 +15,9 @@ const INK = "#1f2937";
 const MUTED = "#6b7280";
 const BG = "#f3f4f6";
 const CARD = "#ffffff";
+const WEB = (process.env.WEB_BASE_URL || "https://5to9shopping.com").replace(/\/+$/, "");
+const COMPANY = "FivetoNine LLC";
+const ADDRESS = "483 Chestnut Street, Cedarhurst, NY 11518";
 
 export interface RenderedEmail {
   subject: string;
@@ -61,6 +64,9 @@ function layout(opts: {
   heading: string;
   bodyHtml: string;
   preview?: string;
+  // Promotional (reminder) emails pass this to render an unsubscribe link; the
+  // physical address below is always shown (CAN-SPAM).
+  unsubscribeUrl?: string;
 }): string {
   const preview = opts.preview
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(
@@ -88,9 +94,14 @@ ${preview}
         ${opts.bodyHtml}
       </td></tr>
       <tr><td style="padding:18px 28px;border-top:1px solid #e5e7eb;">
-        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
-          You're receiving this because you have ${BRAND} reminders turned on. You can change which emails you get from the app's notification settings.
+        <p style="margin:0 0 8px;font-size:12px;color:${MUTED};line-height:1.6;">
+          ${
+            opts.unsubscribeUrl
+              ? `You're receiving this because email reminders are on for your ${BRAND} account. <a href="${WEB}/account" style="color:${MUTED};">Manage preferences</a> &middot; <a href="${opts.unsubscribeUrl}" style="color:${MUTED};">Unsubscribe</a>`
+              : `You're receiving this because you have a ${BRAND} account.`
+          }
         </p>
+        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${COMPANY} &middot; ${ADDRESS}</p>
       </td></tr>
     </table>
   </td></tr>
@@ -121,6 +132,7 @@ export function renderTrialEnding(data: {
   name: string | null;
   daysLeft: number;
   trialEndsAt: string;
+  unsubscribeUrl?: string;
 }): RenderedEmail {
   const name = greetNameHtml(data.name);
   const ends = formatDate(data.trialEndsAt);
@@ -132,6 +144,7 @@ export function renderTrialEnding(data: {
   const html = layout({
     heading: `Hi ${name}, your trial is almost up`,
     preview: subject,
+    unsubscribeUrl: data.unsubscribeUrl,
     bodyHtml: `
       ${paragraph(
         `Your ${BRAND} free trial ${
@@ -155,6 +168,7 @@ export function renderTrialEnding(data: {
 export function renderPastDue(data: {
   name: string | null;
   currentPeriodEnd: string | null;
+  unsubscribeUrl?: string;
 }): RenderedEmail {
   const name = greetNameHtml(data.name);
   const until = formatDate(data.currentPeriodEnd);
@@ -162,6 +176,7 @@ export function renderPastDue(data: {
   const html = layout({
     heading: `Hi ${name}, there's a problem with your payment`,
     preview: subject,
+    unsubscribeUrl: data.unsubscribeUrl,
     bodyHtml: `
       ${paragraph(
         `Your most recent ${BRAND} subscription payment didn't go through.${
@@ -187,6 +202,7 @@ export function renderPastDue(data: {
 export function renderListExport(data: {
   name: string | null;
   itemCount: number;
+  unsubscribeUrl?: string;
 }): RenderedEmail {
   const name = greetNameHtml(data.name);
   const itemWord = data.itemCount === 1 ? "item" : "items";
@@ -194,6 +210,7 @@ export function renderListExport(data: {
   const html = layout({
     heading: `Hi ${name}, heading to the store soon?`,
     preview: subject,
+    unsubscribeUrl: data.unsubscribeUrl,
     bodyHtml: `
       ${statCard("On your shopping list", `${data.itemCount} ${itemWord}`)}
       ${paragraph(
@@ -212,6 +229,7 @@ export function renderReceiptInactivity(data: {
   headline: string;
   body: string;
   neglectedStaple: string | null;
+  unsubscribeUrl?: string;
 }): RenderedEmail {
   const subject = data.headline;
   const stapleLine = data.neglectedStaple
@@ -224,6 +242,7 @@ export function renderReceiptInactivity(data: {
   const html = layout({
     heading: data.headline,
     preview: data.body,
+    unsubscribeUrl: data.unsubscribeUrl,
     bodyHtml: `
       ${paragraph(escapeHtml(data.body))}
       ${stapleLine}
@@ -245,6 +264,7 @@ function renderSpendSummary(
     name: string | null;
     periodStart: string;
     periodEnd: string;
+    unsubscribeUrl?: string;
   } & PeriodComparison,
 ): RenderedEmail {
   const name = greetNameHtml(data.name);
@@ -266,6 +286,7 @@ function renderSpendSummary(
   const html = layout({
     heading: `Hi ${name}, here's your ${periodLabel}ly recap`,
     preview: subject,
+    unsubscribeUrl: data.unsubscribeUrl,
     bodyHtml: `
       ${paragraph(
         `Spending from <strong>${escapeHtml(
@@ -285,6 +306,52 @@ function renderSpendSummary(
           data.changeDirection === "up" ? "more" : "less"
         } than the previous ${periodLabel} (${formatMoney(data.previousTotal)}).`
   }`;
+  return { subject, html, text };
+}
+
+// ── Welcome (sent once on signup) ─────────────────────────────────────────────
+export function renderWelcome(data: { name: string | null }): RenderedEmail {
+  const name = greetNameHtml(data.name);
+  const subject = `Welcome to ${BRAND}! 🎉`;
+  const html = layout({
+    heading: `Welcome aboard, ${name}!`,
+    preview: subject,
+    bodyHtml: `
+      ${paragraph(
+        `Thanks for joining ${BRAND} — the easiest way to track grocery prices and spend less.`,
+      )}
+      ${paragraph("Here's how to get started:")}
+      ${paragraph(
+        "📸 <strong>Scan a receipt</strong> — snap a photo or upload a PDF and we'll pull out every item and price.<br/>📊 <strong>Track prices</strong> over time across every store.<br/>🛒 <strong>Build a smart shopping list</strong> with the best price for each item.",
+      )}
+      ${paragraph("Add your first receipt whenever you're ready — your price history grows from there.")}
+    `,
+  });
+  const text = `Welcome to ${BRAND}, ${greetName(
+    data.name,
+  )}! Scan a receipt to start tracking grocery prices, build a smart shopping list, and spend less. Add your first receipt whenever you're ready.`;
+  return { subject, html, text };
+}
+
+// ── Subscription thank-you (sent once when a subscription activates) ──────────
+export function renderSubscriptionThankYou(data: { name: string | null }): RenderedEmail {
+  const name = greetNameHtml(data.name);
+  const subject = `Thanks for subscribing to ${BRAND}`;
+  const html = layout({
+    heading: `Thank you, ${name}!`,
+    preview: subject,
+    bodyHtml: `
+      ${paragraph(`Your ${BRAND} subscription is active — thank you for your support. 🙌`)}
+      ${paragraph("You now have full access to:")}
+      ${paragraph(
+        "✨ <strong>Unlimited AI receipt scanning</strong><br/>📈 <strong>Full price history &amp; analytics</strong><br/>🗂️ <strong>The cross-store price catalog</strong>",
+      )}
+      ${paragraph("You can manage your subscription anytime from your account screen. Happy shopping!")}
+    `,
+  });
+  const text = `Thank you, ${greetName(
+    data.name,
+  )}! Your ${BRAND} subscription is active. You now have unlimited AI receipt scanning, full price history & analytics, and the cross-store catalog. Manage it anytime from your account screen.`;
   return { subject, html, text };
 }
 
@@ -388,13 +455,13 @@ export function renderMonthlySummaryVars(
 }
 
 export function renderWeeklySummary(
-  data: { name: string | null; periodStart: string; periodEnd: string } & PeriodComparison,
+  data: { name: string | null; periodStart: string; periodEnd: string; unsubscribeUrl?: string } & PeriodComparison,
 ): RenderedEmail {
   return renderSpendSummary("week", data);
 }
 
 export function renderMonthlySummary(
-  data: { name: string | null; periodStart: string; periodEnd: string } & PeriodComparison,
+  data: { name: string | null; periodStart: string; periodEnd: string; unsubscribeUrl?: string } & PeriodComparison,
 ): RenderedEmail {
   return renderSpendSummary("month", data);
 }

@@ -14,6 +14,7 @@ import billingRouter from "./billing";
 import boardRouter from "./board";
 import supportRouter from "./support";
 import { paypalWebhookHandler } from "./paypalWebhook";
+import emailPrefsRouter from "./emailPrefs";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -23,6 +24,9 @@ router.use(healthRouter);
 // PayPal webhook is public (signature-verified inside the handler) and uses the
 // parsed JSON body, so it's mounted here before requireAuth.
 router.post("/webhooks/paypal", paypalWebhookHandler);
+// Email unsubscribe links are clicked straight from the inbox (no session); the
+// HMAC token in the URL is the authorization, so this is mounted public.
+router.use("/email", emailPrefsRouter);
 
 // Everything below requires an authenticated user
 router.use(requireAuth);

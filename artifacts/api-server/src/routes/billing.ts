@@ -19,6 +19,7 @@ import {
 } from "../lib/billing/paypalClient";
 import { computeEntitlement, formatCurrentUser } from "../lib/billing/entitlement";
 import { isValidPromoCode } from "../lib/billing/promo";
+import { sendSubscriptionThankYouEmail } from "../lib/email/transactional";
 
 const router = Router();
 
@@ -259,16 +260,24 @@ router.post("/paypal/finalize", async (req, res): Promise<void> => {
     ? new Date(sub.billing_info.next_billing_time)
     : null;
 
+  const newStatus = mapPaypalStatus(sub.status);
   const [user] = await db
     .update(usersTable)
     .set({
       subscriptionProvider: "paypal",
-      subscriptionStatus: mapPaypalStatus(sub.status),
+      subscriptionStatus: newStatus,
       subscriptionCurrentPeriodEnd: periodEnd,
       paypalSubscriptionId: sub.id,
     })
     .where(eq(usersTable.id, userId))
     .returning();
+
+  // One-time thank-you on the transition into an entitling status.
+  const wasEntitling =
+    owner.subscriptionStatus === "active" || owner.subscriptionStatus === "trialing";
+  if ((newStatus === "active" || newStatus === "trialing") && !wasEntitling && user.email) {
+    void sendSubscriptionThankYouEmail(user.email);
+  }
 
   res.json(formatCurrentUser(user));
 });

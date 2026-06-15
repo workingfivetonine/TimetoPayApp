@@ -5,6 +5,7 @@ import { db, usersTable } from "@workspace/db";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import type { EntitlementStatus } from "./entitlement";
 import { logger } from "../logger";
+import { sendSubscriptionThankYouEmail } from "../email/transactional";
 
 // Maps a Stripe subscription status onto our provider-agnostic status.
 export function mapStripeStatus(s: string): EntitlementStatus {
@@ -86,15 +87,25 @@ async function reconcileFromStripeEvent(event: Stripe.Event): Promise<void> {
   const periodEnd =
     typeof rawEnd === "number" ? new Date(rawEnd * 1000) : null;
 
+  const newStatus = mapStripeStatus(sub.status);
   await db
     .update(usersTable)
     .set({
       subscriptionProvider: "stripe",
-      subscriptionStatus: mapStripeStatus(sub.status),
+      subscriptionStatus: newStatus,
       subscriptionCurrentPeriodEnd: periodEnd,
       stripeSubscriptionId: sub.id,
     })
     .where(eq(usersTable.id, user.id));
+
+  // One-time thank-you the first time the subscription becomes active/trialing
+  // (transition only — avoids re-sending on every subscription.updated event).
+  const wasEntitling =
+    user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing";
+  const nowEntitling = newStatus === "active" || newStatus === "trialing";
+  if (nowEntitling && !wasEntitling && user.email) {
+    void sendSubscriptionThankYouEmail(user.email);
+  }
 
   logger.info(
     { userId: user.id, status: sub.status },

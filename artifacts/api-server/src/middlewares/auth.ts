@@ -3,6 +3,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { and, eq, sql } from "drizzle-orm";
 import { db, usersTable, type User } from "@workspace/db";
 import { isBootstrapAdminEmail } from "../lib/adminBootstrap";
+import { sendWelcomeEmail } from "../lib/email/transactional";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -34,7 +35,7 @@ async function ensureUser(userId: string): Promise<User> {
   }
 
   // Create the user as a normal (non-admin) account first. Idempotent.
-  await db
+  const insertedRows = await db
     .insert(usersTable)
     .values({
       id: userId,
@@ -47,7 +48,9 @@ async function ensureUser(userId: string): Promise<User> {
       notifyReceiptReminders: false,
       notifySpendSummary: false,
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: usersTable.id });
+  const isNewUser = insertedRows.length > 0;
 
   // Trusted admin bootstrap. Admin is NEVER granted just for being the first
   // (or any) public sign-up. We only promote a brand-new user when BOTH:
@@ -72,6 +75,9 @@ async function ensureUser(userId: string): Promise<User> {
       // Lost the admin race or hit the single-admin index — stay general.
     }
   }
+
+  // Fire-and-forget welcome email, only for a genuinely new account.
+  if (isNewUser && email) void sendWelcomeEmail(email);
 
   const [user] = await db
     .select()
