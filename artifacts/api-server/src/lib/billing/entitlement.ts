@@ -163,6 +163,8 @@ export function formatCurrentUser(user: UserRow) {
     firstName: user.firstName,
     lastName: user.lastName,
     avatar: user.avatar,
+    // Account creation time — used for "spend since [join date]" in analytics.
+    createdAt: user.createdAt ? user.createdAt.toISOString() : null,
     // One-time post-signup "Choose your plan" onboarding step completed?
     planSelected: user.planSelectedAt != null,
     entitlement: computeEntitlement(user),

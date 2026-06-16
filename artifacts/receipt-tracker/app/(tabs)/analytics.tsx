@@ -30,6 +30,7 @@ import {
   useUpdateItem,
   useMergeItem,
   useDismissItem,
+  useGetCurrentUser,
 } from "@workspace/api-client-react";
 import type { DaySpend, Item } from "@workspace/api-client-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -133,6 +134,25 @@ export default function AnalyticsScreen() {
 
   const { data: analytics, isLoading: analyticsLoading, dataUpdatedAt } = useGetSpendAnalytics();
   const { data: dailySpend, isLoading: calendarLoading } = useGetDailySpend();
+  const { data: me } = useGetCurrentUser();
+
+  // Spend in the current calendar month (summed from per-day data) and a label
+  // for when the user joined — drives the "This month" / "Since [join]" cards.
+  const now = new Date();
+  const monthTotal = React.useMemo(() => {
+    if (!dailySpend) return 0;
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    return dailySpend.reduce((sum, d) => {
+      const dt = new Date(d.date);
+      return dt.getFullYear() === y && dt.getMonth() === m ? sum + d.total : sum;
+    }, 0);
+  }, [dailySpend]);
+  const thisMonthLabel = now.toLocaleDateString(undefined, { month: "long" });
+  const joinIso = (me as { createdAt?: string | null } | undefined)?.createdAt ?? null;
+  const sinceLabel = joinIso
+    ? `Since ${new Date(joinIso).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
+    : "Total spend";
   const { data: items } = useListItems();
   const { data: receipts } = useListReceipts();
   const updateItem = useUpdateItem();
@@ -371,15 +391,15 @@ export default function AnalyticsScreen() {
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.summaryValue, { color: colors.primary }]}>
-                {format(analytics?.weeklyAverage)}
+                {format(monthTotal)}
               </Text>
-              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Weekly avg</Text>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{thisMonthLabel} so far</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.summaryValue, { color: colors.foreground }]}>
                 {format(analytics?.totalSpend)}
               </Text>
-              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Total spend</Text>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{sinceLabel}</Text>
             </View>
           </View>
 
