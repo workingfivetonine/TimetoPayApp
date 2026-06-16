@@ -11,6 +11,7 @@ interface Props {
   onPress?: () => void;
   onRanOut?: () => void;
   ranOutLoading?: boolean;
+  onBuyMore?: () => void;
   onDismiss?: () => void;
   dismissLoading?: boolean;
 }
@@ -21,6 +22,7 @@ export function ShoppingListItemRow({
   onPress,
   onRanOut,
   ranOutLoading,
+  onBuyMore,
   onDismiss,
   dismissLoading,
 }: Props) {
@@ -118,27 +120,27 @@ export function ShoppingListItemRow({
         </View>
       </TouchableOpacity>
 
-      {/* Ran-out button */}
+      {/* Ran-out / Buy-More button. Once an item is "out", this becomes an
+          actionable "Buy More" that restores it to the active list. */}
       <TouchableOpacity
         style={[
           styles.ranOutBtn,
           {
-            backgroundColor: hasRanOut ? colors.secondary : colors.accent,
-            borderColor: hasRanOut ? colors.border : colors.primary,
-            opacity: hasRanOut ? 0.45 : 1,
+            backgroundColor: hasRanOut ? colors.accent : colors.accent,
+            borderColor: hasRanOut ? colors.priceGood : colors.primary,
           },
         ]}
-        onPress={onRanOut}
+        onPress={hasRanOut ? onBuyMore : onRanOut}
         activeOpacity={0.7}
-        disabled={hasRanOut || ranOutLoading}
+        disabled={ranOutLoading}
       >
         {ranOutLoading ? (
           <Feather name="loader" size={13} color={colors.mutedForeground} />
         ) : hasRanOut ? (
           <>
-            <Feather name="check" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.ranOutBtnLabel, { color: colors.mutedForeground }]}>
-              Out
+            <Feather name="shopping-cart" size={12} color={colors.priceGood} />
+            <Text style={[styles.ranOutBtnLabel, { color: colors.priceGood }]}>
+              Buy{"\n"}More
             </Text>
           </>
         ) : (

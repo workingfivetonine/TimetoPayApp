@@ -27,10 +27,11 @@ import { ListControls, type SortOption } from "@/components/ListControls";
 import { ShoppingListPdfModal } from "@/components/ShoppingListPdfModal";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { notify } from "@/lib/confirm";
+import { getApiOrigin } from "@/lib/apiBase";
 import type { ShoppingListItem } from "@workspace/api-client-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useUser, useAuth } from "@clerk/expo";
 
 type ShoppingSort = "az" | "price" | "category";
 const SHOPPING_SORT: SortOption<ShoppingSort>[] = [
@@ -81,10 +82,36 @@ export default function ShoppingScreen() {
   const [sortKey, setSortKey] = useState<ShoppingSort>("az");
 
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { data: list, isLoading, dataUpdatedAt } = useGetShoppingList();
   const { mutateAsync: markRanOut } = useMarkRanOut();
   const { mutateAsync: dismissItem } = useDismissItem();
   const isOnline = useOnlineStatus();
+
+  // Undo affordance for the last ran-out/dismiss action.
+  const [undo, setUndo] = useState<{ itemId: number; name: string; action: "ranOut" | "dismiss" } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showUndo = (itemId: number, name: string, action: "ranOut" | "dismiss") => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({ itemId, name, action });
+    undoTimer.current = setTimeout(() => setUndo(null), 6000);
+  };
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
+
+  // Restore an item to the active list (clears ran-out + dismissed). Raw fetch:
+  // the endpoint is newer than the generated client.
+  const restoreItem = async (itemId: number) => {
+    const token = await getToken();
+    const res = await fetch(`${getApiOrigin()}/api/items/${itemId}/restore`, {
+      method: "POST",
+      headers: {
+        "x-client-platform": Platform.OS,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) throw new Error(`restore ${res.status}`);
+    await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+  };
 
   const isDesktop = useDesktop();
   const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
@@ -96,7 +123,7 @@ export default function ShoppingScreen() {
     setRefreshing(false);
   };
 
-  const handleRanOut = async (itemId: number) => {
+  const handleRanOut = async (itemId: number, name: string) => {
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to update your list.");
       return;
@@ -105,6 +132,7 @@ export default function ShoppingScreen() {
     try {
       await markRanOut({ id: itemId });
       await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+      showUndo(itemId, name, "ranOut");
     } catch {
       notify("Couldn't update", "Something went wrong. Please try again.");
     } finally {
@@ -112,7 +140,7 @@ export default function ShoppingScreen() {
     }
   };
 
-  const handleDismiss = async (itemId: number) => {
+  const handleDismiss = async (itemId: number, name: string) => {
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to update your list.");
       return;
@@ -121,10 +149,39 @@ export default function ShoppingScreen() {
     try {
       await dismissItem({ id: itemId });
       await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+      showUndo(itemId, name, "dismiss");
     } catch {
       notify("Couldn't update", "Something went wrong. Please try again.");
     } finally {
       setDismissingItemId(null);
+    }
+  };
+
+  // "Buy More" on a ran-out item — restore it to the active list.
+  const handleBuyMore = async (itemId: number) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to update your list.");
+      return;
+    }
+    setLoadingItemId(itemId);
+    try {
+      await restoreItem(itemId);
+    } catch {
+      notify("Couldn't update", "Something went wrong. Please try again.");
+    } finally {
+      setLoadingItemId(null);
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!undo) return;
+    const target = undo;
+    setUndo(null);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    try {
+      await restoreItem(target.itemId);
+    } catch {
+      notify("Couldn't undo", "Something went wrong. Please try again.");
     }
   };
 
@@ -240,9 +297,10 @@ export default function ShoppingScreen() {
               <ShoppingListItemRow
                 item={item}
                 onPress={() => router.push(`/item/${item.itemId}`)}
-                onRanOut={() => handleRanOut(item.itemId)}
+                onRanOut={() => handleRanOut(item.itemId, item.itemName)}
+                onBuyMore={() => handleBuyMore(item.itemId)}
                 ranOutLoading={loadingItemId === item.itemId}
-                onDismiss={() => handleDismiss(item.itemId)}
+                onDismiss={() => handleDismiss(item.itemId, item.itemName)}
                 dismissLoading={dismissingItemId === item.itemId}
               />
             </View>
@@ -259,12 +317,38 @@ export default function ShoppingScreen() {
         oneOff={list?.oneOff ?? []}
         preparedFor={preparedFor}
       />
+
+      {undo ? (
+        <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
+          <Text style={[styles.undoText, { color: colors.background }]} numberOfLines={1}>
+            {undo.action === "ranOut" ? `Marked "${undo.name}" as out` : `Removed "${undo.name}"`}
+          </Text>
+          <TouchableOpacity onPress={handleUndo} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.undoAction, { color: colors.background }]}>Undo</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  undoBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 96,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  undoText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  undoAction: { fontSize: 14, fontFamily: "Inter_700Bold" },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,
