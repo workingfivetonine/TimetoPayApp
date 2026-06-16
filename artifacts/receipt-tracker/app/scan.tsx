@@ -493,6 +493,23 @@ export default function ScanScreen() {
             <Text style={[styles.hint, { color: colors.mutedForeground }]}>
               PDFs work best for online order confirmations
             </Text>
+
+            <View style={[styles.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.tipsTitle, { color: colors.foreground }]}>
+                Tips for the best scan
+              </Text>
+              {[
+                "Lay the receipt flat and fill the frame, corner to corner.",
+                "Use bright, even light — avoid shadows and glare.",
+                "Long receipt? Take a few photos and choose “Same receipt”.",
+                "For online orders, upload the emailed PDF for the cleanest read.",
+              ].map((tip, i) => (
+                <View key={i} style={styles.tipRow}>
+                  <Feather name="check" size={13} color={colors.primary} style={{ marginTop: 2 }} />
+                  <Text style={[styles.tipText, { color: colors.mutedForeground }]}>{tip}</Text>
+                </View>
+              ))}
+            </View>
           </>
         )}
 
@@ -649,6 +666,30 @@ const styles = StyleSheet.create({
     width: "100%",
     marginTop: 12,
     marginBottom: 4,
+  },
+  tipsCard: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 18,
+    gap: 8,
+  },
+  tipsTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 2,
+  },
+  tipRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
   },
   manualRow: {
     flexDirection: "row",

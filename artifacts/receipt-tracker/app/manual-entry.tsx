@@ -345,6 +345,10 @@ export default function ManualEntryScreen() {
         {/* ── Items Section ─────────────────────────────── */}
         <SectionHeader label="Items" icon="tag" colors={colors} style={{ marginTop: 8 }} />
 
+        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 10 }}>
+          Tip: enter the price per item, then set Qty for multiples (e.g. 3 cans = Qty 3). Item name is required; price and qty default to 0 and 1.
+        </Text>
+
         {/* Column headers */}
         <View style={s.itemHeader}>
           <Text style={[s.itemHeaderText, { color: colors.mutedForeground, flex: 3 }]}>Name</Text>
