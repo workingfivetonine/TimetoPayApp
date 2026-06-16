@@ -34,6 +34,8 @@ export interface ShoppingListPdfOptions {
   preparedFor?: string | null;
   priceMode?: PriceMode;
   quantities?: Record<number, number>;
+  // Visual currency symbol (no conversion). Defaults to "$".
+  currencySymbol?: string;
 }
 
 function getPriceAndStore(
@@ -130,18 +132,18 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function formatCurrency(price: number): string {
-  return `$${price.toFixed(2)}`;
+function formatCurrency(price: number, symbol: string): string {
+  return `${symbol}${price.toFixed(2)}`;
 }
 
-function renderItem(item: PdfItem): string {
+function renderItem(item: PdfItem, symbol: string): string {
   const icon = escapeHtml(item.icon || "🛒");
   const name = escapeHtml(item.itemName);
   const ranOut = item.ranOutAt != null;
   const ranOutDate = ranOut ? formatDate(item.ranOutAt as string) : "";
 
   const priceStore = [
-    item.price != null ? `<span class="item-price">${escapeHtml(formatCurrency(item.price))}</span>` : "",
+    item.price != null ? `<span class="item-price">${escapeHtml(formatCurrency(item.price, symbol))}</span>` : "",
     item.storeName ? `<span class="item-store">${escapeHtml(item.storeName)}</span>` : "",
   ].filter(Boolean).join('<span class="item-sep">·</span>');
 
@@ -166,19 +168,19 @@ function renderItem(item: PdfItem): string {
     </li>`;
 }
 
-function renderCategory(group: CategoryGroup): string {
+function renderCategory(group: CategoryGroup, symbol: string): string {
   return `
     <div class="category">
       <div class="category-title">${escapeHtml(group.category)} <span class="count">${group.items.length}</span></div>
-      <ul class="item-list">${group.items.map(renderItem).join("")}</ul>
+      <ul class="item-list">${group.items.map((it) => renderItem(it, symbol)).join("")}</ul>
     </div>`;
 }
 
-function renderSection(section: SectionGroup): string {
+function renderSection(section: SectionGroup, symbol: string): string {
   return `
     <section class="section">
       <h2 class="section-title">${escapeHtml(section.title)}</h2>
-      ${section.categories.map(renderCategory).join("")}
+      ${section.categories.map((c) => renderCategory(c, symbol)).join("")}
     </section>`;
 }
 
@@ -186,6 +188,7 @@ export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
   const priceMode = opts.priceMode ?? "lowest";
   const customItems = opts.customItems ?? [];
   const quantities = opts.quantities ?? {};
+  const symbol = opts.currencySymbol || "$";
   const sections = toSectionGroups(opts.regularItems, opts.oneOffItems, customItems, priceMode, quantities);
   const totalItems = opts.regularItems.length + opts.oneOffItems.length + customItems.filter((n) => n.trim()).length;
   const preparedFor = (opts.preparedFor ?? "").trim();
@@ -193,7 +196,7 @@ export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
   const priceLabel = priceMode === "lowest" ? "Lowest price" : "Most recent";
 
   const body = sections.length
-    ? sections.map(renderSection).join("")
+    ? sections.map((s) => renderSection(s, symbol)).join("")
     : `<p class="empty">No items selected.</p>`;
 
   return `<!DOCTYPE html>

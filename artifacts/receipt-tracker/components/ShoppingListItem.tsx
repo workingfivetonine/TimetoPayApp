@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { ShoppingListItem as SLItem } from "@workspace/api-client-react";
 
 interface Props {
@@ -24,6 +25,7 @@ export function ShoppingListItemRow({
   dismissLoading,
 }: Props) {
   const colors = useColors();
+  const { format } = useCurrency();
 
   const recommendedPrice = item.recommendedPrice ?? null;
   const recommendedStoreName = item.recommendedStoreName ?? null;
@@ -74,7 +76,7 @@ export function ShoppingListItemRow({
                 </Text>
                 {savingsVsAvg > 0.01 && (
                   <Text style={[styles.savings, { color: colors.priceGood }]}>
-                    saves ${savingsVsAvg.toFixed(2)}
+                    saves {format(savingsVsAvg)}
                   </Text>
                 )}
               </View>
@@ -101,7 +103,7 @@ export function ShoppingListItemRow({
         <View style={styles.priceCol}>
           {recommendedPrice != null ? (
             <Text style={[styles.lowestPrice, { color: colors.primary }]}>
-              ${recommendedPrice.toFixed(2)}
+              {format(recommendedPrice)}
             </Text>
           ) : (
             <Text style={[styles.avgPrice, { color: colors.mutedForeground }]}>
@@ -110,7 +112,7 @@ export function ShoppingListItemRow({
           )}
           {item.averagePrice != null && (
             <Text style={[styles.avgPrice, { color: colors.mutedForeground }]}>
-              avg ${item.averagePrice.toFixed(2)}
+              avg {format(item.averagePrice)}
             </Text>
           )}
         </View>

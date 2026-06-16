@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { downloadShoppingListPdf, type PriceMode } from "@/lib/shoppingListPdf";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 
@@ -116,6 +117,7 @@ export function ShoppingListPdfModal({
   preparedFor,
 }: Props) {
   const colors = useColors();
+  const { symbol } = useCurrency();
 
   // Core selection state
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
@@ -387,6 +389,7 @@ export function ShoppingListPdfModal({
         preparedFor,
         priceMode,
         quantities: Object.fromEntries(quantities),
+        currencySymbol: symbol,
       });
       onClose();
     } catch (err) {

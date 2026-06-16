@@ -36,6 +36,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/expo";
 import { getApiOrigin } from "@/lib/apiBase";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useDesktop } from "@/hooks/useDesktop";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -69,6 +70,7 @@ type CategorySpendItem = {
 
 function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: string }) {
   const colors = useColors();
+  const { format } = useCurrency();
   const { data } = useGetItemPriceHistory(itemId);
 
   if (!data) return null;
@@ -79,7 +81,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
       <View style={styles.itemDetailStats}>
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.primary }]}>
-            ${data.lowestPrice.toFixed(2)}
+            {format(data.lowestPrice)}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Lowest</Text>
           <Text style={[styles.statStore, { color: colors.mutedForeground }]} numberOfLines={1}>
@@ -89,7 +91,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.foreground }]}>
-            ${data.averagePrice.toFixed(2)}
+            {format(data.averagePrice)}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Average</Text>
           <Text style={[styles.statStore, { color: colors.mutedForeground }]}>
@@ -99,7 +101,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: "#dc2626" }]}>
-            ${data.highestPrice.toFixed(2)}
+            {format(data.highestPrice)}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Highest</Text>
         </View>
@@ -110,6 +112,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
 
 export default function AnalyticsScreen() {
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -368,13 +371,13 @@ export default function AnalyticsScreen() {
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.summaryValue, { color: colors.primary }]}>
-                ${analytics?.weeklyAverage.toFixed(2)}
+                {format(analytics?.weeklyAverage)}
               </Text>
               <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Weekly avg</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-                ${analytics?.totalSpend.toFixed(2)}
+                {format(analytics?.totalSpend)}
               </Text>
               <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Total spend</Text>
             </View>
@@ -393,7 +396,7 @@ export default function AnalyticsScreen() {
                     </Text>
                   </View>
                   <Text style={[styles.budgetAmount, { color: colors.primary }]}>
-                    ${(analytics as typeof analytics & { recommendedWeeklyBudget: number }).recommendedWeeklyBudget.toFixed(2)}
+                    {format((analytics as typeof analytics & { recommendedWeeklyBudget: number }).recommendedWeeklyBudget)}
                   </Text>
                   <Text style={[styles.budgetCaption, { color: colors.mutedForeground }]}>
                     Based on your average across {analytics?.weeks.length} weeks of receipts
@@ -448,7 +451,7 @@ export default function AnalyticsScreen() {
                         <View style={styles.catHeader}>
                           <Text style={[styles.catName, { color: colors.foreground }]}>{cat.category}</Text>
                           <Text style={[styles.catAmount, { color: colors.primary }]}>
-                            ${cat.totalSpend.toFixed(2)}
+                            {format(cat.totalSpend)}
                           </Text>
                         </View>
                         <View style={[styles.catBarBg, { backgroundColor: colors.secondary }]}>
@@ -692,7 +695,7 @@ export default function AnalyticsScreen() {
                   </Text>
                   {r ? (
                     <Text style={[styles.sheetRowAmount, { color: colors.primary }]}>
-                      ${r.total.toFixed(2)}
+                      {format(r.total)}
                     </Text>
                   ) : null}
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />

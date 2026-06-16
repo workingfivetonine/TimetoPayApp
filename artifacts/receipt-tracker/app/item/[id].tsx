@@ -38,6 +38,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useAuth } from "@clerk/expo";
 import { getApiOrigin } from "@/lib/apiBase";
@@ -90,6 +91,7 @@ function PriceTrendChart({
   mutedColor,
   cardColor,
 }: ChartProps) {
+  const { symbol } = useCurrency();
   const screenW = Dimensions.get("window").width;
   const svgW = screenW - 32;
   const svgH = CHART_H;
@@ -157,7 +159,7 @@ function PriceTrendChart({
       ))}
       {yTicks.map((tick, i) => (
         <SvgText key={i} x={cLeft - 5} y={toY(tick) + 4} textAnchor="end" fontSize={9.5} fill={mutedColor}>
-          ${tick.toFixed(2)}
+          {symbol}{tick.toFixed(2)}
         </SvgText>
       ))}
       {fillPath ? <Path d={fillPath} fill="url(#fillGrad)" /> : null}
@@ -202,6 +204,7 @@ const CATEGORY_CHOICES = [
 export default function ItemHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -423,15 +426,15 @@ export default function ItemHistoryScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: "#16a34a" }]}>${data.lowestPrice.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: "#16a34a" }]}>{format(data.lowestPrice)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Lowest</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: colors.primary }]}>${data.averagePrice.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{format(data.averagePrice)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Average</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: "#dc2626" }]}>${data.highestPrice.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: "#dc2626" }]}>{format(data.highestPrice)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Highest</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -557,7 +560,7 @@ export default function ItemHistoryScreen() {
                   <Text style={[styles.trendText, { color: trendColor }]}>
                     {trendDelta === 0
                       ? "Stable"
-                      : `${trendDelta > 0 ? "+" : ""}$${Math.abs(trendDelta).toFixed(2)} since first`}
+                      : `${trendDelta > 0 ? "+" : ""}${format(Math.abs(trendDelta))} since first`}
                   </Text>
                 </View>
               )}
@@ -619,7 +622,7 @@ export default function ItemHistoryScreen() {
                     <Text style={[styles.historyPrice, {
                       color: isLowest ? "#16a34a" : isHighest ? "#dc2626" : colors.foreground,
                     }]}>
-                      ${entry.price.toFixed(2)}
+                      {format(entry.price)}
                     </Text>
                     {isLowest && data.history.length > 1 && (
                       <Text style={[styles.priceBadge, { color: "#16a34a" }]}>lowest</Text>

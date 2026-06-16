@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { WeeklySpend } from "@workspace/api-client-react";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 
 export function WeeklySpendBar({ week, maxTotal }: Props) {
   const colors = useColors();
+  const { format } = useCurrency();
 
   const barWidth = maxTotal > 0 ? (week.total / maxTotal) * 100 : 0;
 
@@ -51,7 +53,7 @@ export function WeeklySpendBar({ week, maxTotal }: Props) {
               </Text>
             </View>
           )}
-          <Text style={[styles.amount, { color: textColor }]}>${week.total.toFixed(2)}</Text>
+          <Text style={[styles.amount, { color: textColor }]}>{format(week.total)}</Text>
         </View>
       </View>
       <View style={[styles.barTrack, { backgroundColor: colors.border }]}>

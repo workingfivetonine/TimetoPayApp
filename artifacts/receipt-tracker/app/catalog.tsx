@@ -24,6 +24,7 @@ import type { CatalogBrowseItem } from "@workspace/api-client-react";
 import { countryName, usStateName } from "@workspace/geo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { EmptyState } from "@/components/EmptyState";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
@@ -320,6 +321,7 @@ function BrowseRow({
   onToggle: () => void;
 }) {
   const seen = formatSeen(item.bestDate);
+  const { format } = useCurrency();
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
       <View style={[styles.iconBadge, { backgroundColor: colors.accent }]}>
@@ -342,7 +344,7 @@ function BrowseRow({
       <View style={styles.priceCol}>
         {item.bestPrice != null ? (
           <Text style={[styles.price, { color: colors.primary }]}>
-            ${item.bestPrice.toFixed(2)}
+            {format(item.bestPrice)}
           </Text>
         ) : (
           <Text style={[styles.noPrice, { color: colors.mutedForeground }]}>—</Text>

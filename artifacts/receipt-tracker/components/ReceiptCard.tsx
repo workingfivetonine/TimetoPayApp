@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { Receipt } from "@workspace/api-client-react";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 export function ReceiptCard({ receipt, onPress, onDelete }: Props) {
   const colors = useColors();
+  const { format } = useCurrency();
 
   const date = new Date(receipt.purchasedAt);
   const dateStr = date.toLocaleDateString("en-US", {
@@ -44,7 +46,7 @@ export function ReceiptCard({ receipt, onPress, onDelete }: Props) {
       </View>
       <View style={styles.right}>
         <Text style={[styles.total, { color: colors.foreground }]}>
-          ${Number(receipt.total).toFixed(2)}
+          {format(Number(receipt.total))}
         </Text>
         <TouchableOpacity
           onPress={onDelete}

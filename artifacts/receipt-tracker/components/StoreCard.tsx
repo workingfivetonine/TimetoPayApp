@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { Store } from "@workspace/api-client-react";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 export function StoreCard({ store, onPress, onEdit }: Props) {
   const colors = useColors();
+  const { format } = useCurrency();
 
   return (
     <TouchableOpacity
@@ -46,7 +48,7 @@ export function StoreCard({ store, onPress, onEdit }: Props) {
             <View style={styles.metaRow}>
               <Feather name="truck" size={11} color={colors.primary} />
               <Text style={[styles.deliveryText, { color: colors.primary }]}>
-                Delivery{store.deliveryFee != null ? ` · $${Number(store.deliveryFee).toFixed(2)}` : ""}
+                Delivery{store.deliveryFee != null ? ` · ${format(Number(store.deliveryFee))}` : ""}
               </Text>
             </View>
           ) : (

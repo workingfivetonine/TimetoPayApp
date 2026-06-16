@@ -29,6 +29,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify, confirmDestructive } from "@/lib/confirm";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -37,6 +38,7 @@ import type { LineItem } from "@workspace/api-client-react";
 export default function ReceiptDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -196,7 +198,7 @@ export default function ReceiptDetailScreen() {
         </View>
         <View style={[styles.totalBadge, { backgroundColor: colors.accent }]}>
           <Text style={[styles.totalText, { color: colors.primary }]}>
-            ${Number(receipt.total).toFixed(2)}
+            {format(Number(receipt.total))}
           </Text>
         </View>
       </View>
@@ -233,7 +235,7 @@ export default function ReceiptDetailScreen() {
               </View>
               <View style={styles.lineItemRight}>
                 <Text style={[styles.lineItemPrice, { color: colors.foreground }]}>
-                  ${Number(li.price).toFixed(2)}
+                  {format(Number(li.price))}
                 </Text>
                 <TouchableOpacity
                   onPress={() => openEdit(li)}
@@ -263,7 +265,7 @@ export default function ReceiptDetailScreen() {
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
             <Text style={[styles.totalAmount, { color: colors.foreground }]}>
-              ${Number(receipt.total).toFixed(2)}
+              {format(Number(receipt.total))}
             </Text>
           </View>
         </View>

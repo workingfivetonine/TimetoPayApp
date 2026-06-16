@@ -14,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetStoreSummary, useGetStoreVisits } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { resolveStoreLink } from "@/lib/storeLink";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -26,6 +27,7 @@ function formatDate(iso: string): string {
 export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [visitsExpanded, setVisitsExpanded] = useState(true);
@@ -71,13 +73,13 @@ export default function StoreDetailScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: colors.primary }]}>
-              ${summary.totalSpend.toFixed(2)}
+              {format(summary.totalSpend)}
             </Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Total Spent</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: colors.foreground }]}>
-              ${summary.averageReceiptTotal.toFixed(2)}
+              {format(summary.averageReceiptTotal)}
             </Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Avg Receipt</Text>
           </View>
@@ -150,13 +152,13 @@ export default function StoreDetailScreen() {
               {summary.deliveryFee != null && (
                 <View style={[styles.detailRow, { borderTopColor: colors.border }]}>
                   <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Delivery Fee</Text>
-                  <Text style={[styles.detailValue, { color: colors.foreground }]}>${Number(summary.deliveryFee).toFixed(2)}</Text>
+                  <Text style={[styles.detailValue, { color: colors.foreground }]}>{format(Number(summary.deliveryFee))}</Text>
                 </View>
               )}
               {summary.minimumOrderAmount != null && (
                 <View style={[styles.detailRow, { borderTopColor: colors.border }]}>
                   <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Minimum Order</Text>
-                  <Text style={[styles.detailValue, { color: colors.foreground }]}>${Number(summary.minimumOrderAmount).toFixed(2)}</Text>
+                  <Text style={[styles.detailValue, { color: colors.foreground }]}>{format(Number(summary.minimumOrderAmount))}</Text>
                 </View>
               )}
               {summary.deliveryCostBenefitNote && (
@@ -240,7 +242,7 @@ export default function StoreDetailScreen() {
                             {li.quantity > 1 ? `${li.quantity}× ` : ""}{li.itemName}
                           </Text>
                           <Text style={[styles.visitItemPrice, { color: colors.mutedForeground }]}>
-                            ${li.price.toFixed(2)}
+                            {format(li.price)}
                           </Text>
                         </View>
                       ))}

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useMergeReceipts } from "@workspace/api-client-react";
 import {
   getGetShoppingListQueryKey,
@@ -43,6 +44,7 @@ function formatDate(iso: string): string {
 
 export default function BatchReviewScreen() {
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -171,7 +173,7 @@ export default function BatchReviewScreen() {
                 </View>
                 <View style={styles.cardRight}>
                   <Text style={[styles.total, { color: colors.foreground }]}>
-                    ${r.total.toFixed(2)}
+                    {format(r.total)}
                   </Text>
                   <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
                 </View>

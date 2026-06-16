@@ -28,6 +28,7 @@ import {
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { getApiOrigin } from "@/lib/apiBase";
 
 interface LineItemRow {
@@ -52,6 +53,7 @@ function makeRow(): LineItemRow {
 export default function QuickAddScreen() {
   const { getToken } = useAuth();
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -338,7 +340,7 @@ export default function QuickAddScreen() {
           <View style={[s.totalRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[s.totalLabel, { color: colors.mutedForeground }]}>Calculated Total</Text>
             <Text style={[s.totalValue, { color: colors.primary }]}>
-              ${calculatedTotal.toFixed(2)}
+              {format(calculatedTotal)}
             </Text>
           </View>
         )}

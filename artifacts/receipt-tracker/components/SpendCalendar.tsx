@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { DaySpend } from "@workspace/api-client-react";
 
 interface Props {
@@ -18,6 +19,7 @@ const MONTH_NAMES = [
 
 export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
   const colors = useColors();
+  const { symbol, format } = useCurrency();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()); // 0-indexed
@@ -114,7 +116,7 @@ export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
                 activeOpacity={0.6}
                 accessibilityLabel={
                   spend
-                    ? `${dateStr}, ${spend.receiptCount} receipt${spend.receiptCount !== 1 ? "s" : ""}, $${spend.total.toFixed(2)}`
+                    ? `${dateStr}, ${spend.receiptCount} receipt${spend.receiptCount !== 1 ? "s" : ""}, ${format(spend.total)}`
                     : `${dateStr}, add a receipt`
                 }
               >
@@ -144,7 +146,7 @@ export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
                       ]}
                       numberOfLines={1}
                     >
-                      ${spend.total >= 100 ? Math.round(spend.total) : spend.total.toFixed(0)}
+                      {symbol}{spend.total >= 100 ? Math.round(spend.total) : spend.total.toFixed(0)}
                     </Text>
                   ) : (
                     <Feather name="plus" size={10} color={colors.mutedForeground} style={styles.addIcon} />

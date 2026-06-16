@@ -175,6 +175,94 @@ export function usStateName(code: string | null | undefined): string | null {
   return norm ? US_STATE_NAME_BY_CODE.get(norm) ?? null : null;
 }
 
+// ── Currency (VISUAL ONLY) ───────────────────────────────────────────────────
+// We do NOT convert money. Receipt prices are stored and shown as-entered; this
+// just picks the right symbol to display based on a country so a UK user sees
+// "£3.50" instead of "$3.50". Unknown/missing country falls back to USD.
+export interface CurrencyInfo {
+  code: string; // ISO-4217
+  symbol: string; // display symbol
+  decimals: number; // typical minor-unit digits (0 for yen-like currencies)
+}
+
+export const DEFAULT_CURRENCY: CurrencyInfo = { code: "USD", symbol: "$", decimals: 2 };
+
+const EUR: CurrencyInfo = { code: "EUR", symbol: "€", decimals: 2 };
+const KR: CurrencyInfo["symbol"] = "kr";
+
+const CURRENCY_BY_COUNTRY: Record<string, CurrencyInfo> = {
+  US: DEFAULT_CURRENCY,
+  CA: { code: "CAD", symbol: "$", decimals: 2 },
+  GB: { code: "GBP", symbol: "£", decimals: 2 },
+  AU: { code: "AUD", symbol: "$", decimals: 2 },
+  NZ: { code: "NZD", symbol: "$", decimals: 2 },
+  // Eurozone
+  IE: EUR, AT: EUR, BE: EUR, HR: EUR, CY: EUR, EE: EUR, FI: EUR, FR: EUR,
+  DE: EUR, GR: EUR, IT: EUR, LV: EUR, LT: EUR, LU: EUR, MT: EUR, NL: EUR,
+  PT: EUR, SK: EUR, SI: EUR, ES: EUR,
+  // Other Europe
+  BG: { code: "BGN", symbol: "лв", decimals: 2 },
+  CZ: { code: "CZK", symbol: "Kč", decimals: 2 },
+  DK: { code: "DKK", symbol: KR, decimals: 2 },
+  HU: { code: "HUF", symbol: "Ft", decimals: 0 },
+  IS: { code: "ISK", symbol: KR, decimals: 0 },
+  NO: { code: "NOK", symbol: KR, decimals: 2 },
+  PL: { code: "PLN", symbol: "zł", decimals: 2 },
+  RO: { code: "RON", symbol: "lei", decimals: 2 },
+  SE: { code: "SEK", symbol: KR, decimals: 2 },
+  CH: { code: "CHF", symbol: "CHF", decimals: 2 },
+  TR: { code: "TRY", symbol: "₺", decimals: 2 },
+  // Americas
+  MX: { code: "MXN", symbol: "$", decimals: 2 },
+  BR: { code: "BRL", symbol: "R$", decimals: 2 },
+  AR: { code: "ARS", symbol: "$", decimals: 2 },
+  CL: { code: "CLP", symbol: "$", decimals: 0 },
+  CO: { code: "COP", symbol: "$", decimals: 0 },
+  PE: { code: "PEN", symbol: "S/", decimals: 2 },
+  // Asia-Pacific
+  JP: { code: "JPY", symbol: "¥", decimals: 0 },
+  KR: { code: "KRW", symbol: "₩", decimals: 0 },
+  CN: { code: "CNY", symbol: "¥", decimals: 2 },
+  HK: { code: "HKD", symbol: "$", decimals: 2 },
+  TW: { code: "TWD", symbol: "NT$", decimals: 2 },
+  SG: { code: "SGD", symbol: "$", decimals: 2 },
+  MY: { code: "MYR", symbol: "RM", decimals: 2 },
+  TH: { code: "THB", symbol: "฿", decimals: 2 },
+  PH: { code: "PHP", symbol: "₱", decimals: 2 },
+  ID: { code: "IDR", symbol: "Rp", decimals: 0 },
+  VN: { code: "VND", symbol: "₫", decimals: 0 },
+  IN: { code: "INR", symbol: "₹", decimals: 2 },
+  PK: { code: "PKR", symbol: "₨", decimals: 2 },
+  BD: { code: "BDT", symbol: "৳", decimals: 2 },
+  // Middle East & Africa
+  AE: { code: "AED", symbol: "د.إ", decimals: 2 },
+  SA: { code: "SAR", symbol: "﷼", decimals: 2 },
+  IL: { code: "ILS", symbol: "₪", decimals: 2 },
+  ZA: { code: "ZAR", symbol: "R", decimals: 2 },
+  NG: { code: "NGN", symbol: "₦", decimals: 2 },
+  KE: { code: "KES", symbol: "KSh", decimals: 2 },
+  EG: { code: "EGP", symbol: "E£", decimals: 2 },
+};
+
+// The visual currency for a country (defaults to USD when unknown/missing).
+export function currencyForCountry(code: string | null | undefined): CurrencyInfo {
+  const norm = normalizeRegionCode(code);
+  return (norm && CURRENCY_BY_COUNTRY[norm]) || DEFAULT_CURRENCY;
+}
+
+// Format a numeric amount with the given country's symbol. Visual only — the
+// number is shown as-is, never converted. Pass `cents`-style numbers as their
+// decimal value (e.g. 3.5 → "$3.50"). Null/NaN renders as an em dash.
+export function formatPrice(
+  amount: number | string | null | undefined,
+  countryCode: string | null | undefined,
+): string {
+  const cur = currencyForCountry(countryCode);
+  const n = typeof amount === "string" ? Number(amount) : amount;
+  if (n == null || Number.isNaN(n)) return "—";
+  return `${cur.symbol}${n.toFixed(cur.decimals)}`;
+}
+
 // Validate a (countryCode, stateCode) pair as a complete user/store region.
 // Country must be known. For the US a valid state is REQUIRED; for every other
 // country a state must NOT be provided (it's meaningless there). Returns the
