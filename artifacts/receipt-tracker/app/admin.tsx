@@ -12,7 +12,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdminListUsers } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 import { EmptyState } from "@/components/EmptyState";
 
 function roleLabel(role: string): string {
@@ -26,6 +28,33 @@ export default function AdminScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: users, isLoading, error } = useAdminListUsers();
+  const { getToken } = useAuth();
+  const [seeding, setSeeding] = React.useState(false);
+  const [seedResult, setSeedResult] = React.useState<Record<string, string> | null>(null);
+  const [seedError, setSeedError] = React.useState<string | null>(null);
+
+  // Creates/refreshes the editable email templates in Resend and returns the
+  // env-var IDs to paste into Railway. One-time setup; safe to re-run.
+  const handleSeedTemplates = async () => {
+    setSeeding(true);
+    setSeedError(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/admin/seed-resend-templates`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = (await res.json()) as { railwayEnvVars?: Record<string, string>; error?: string };
+      if (!res.ok) {
+        setSeedError(data.error ?? "Couldn't create templates. Check that RESEND_API_KEY is set in Railway.");
+        return;
+      }
+      setSeedResult(data.railwayEnvVars ?? {});
+    } catch {
+      setSeedError("Couldn't reach the server. Try again.");
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
 
@@ -44,6 +73,46 @@ export default function AdminScreen() {
           <Feather name="message-square" size={15} color={colors.primary} />
           <Text style={[styles.moderateBtnText, { color: colors.primary }]}>Board</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Email templates → Resend (one-time setup) */}
+      <View style={styles.seedWrap}>
+        <View style={[styles.seedBar, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.seedTitle, { color: colors.foreground }]}>Email templates</Text>
+            <Text style={[styles.seedSub, { color: colors.mutedForeground }]}>
+              Create/refresh the editable email templates in your Resend dashboard.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.seedBtn, { backgroundColor: colors.primary }]}
+            onPress={handleSeedTemplates}
+            disabled={seeding}
+            activeOpacity={0.85}
+          >
+            {seeding ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.seedBtnText}>Sync to Resend</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+        {seedError ? <Text style={[styles.seedError, { color: colors.destructive }]}>{seedError}</Text> : null}
+        {seedResult ? (
+          <View style={[styles.seedResult, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <Text style={[styles.seedTitle, { color: colors.foreground }]}>
+              ✅ Done — paste these into Railway → Variables, then redeploy:
+            </Text>
+            {Object.entries(seedResult).map(([k, v]) => (
+              <Text key={k} selectable style={[styles.seedVar, { color: colors.foreground }]}>
+                {k}={v}
+              </Text>
+            ))}
+            <Text style={[styles.seedSub, { color: colors.mutedForeground, marginTop: 6 }]}>
+              After that, edit any email's wording in the Resend dashboard — no code needed.
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {isLoading ? (
@@ -136,4 +205,13 @@ const styles = StyleSheet.create({
   stat: {},
   statValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  seedWrap: { paddingHorizontal: 16, paddingBottom: 4, maxWidth: 720, width: "100%", alignSelf: "center", gap: 8 },
+  seedBar: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 12, padding: 14 },
+  seedTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  seedSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 17 },
+  seedBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
+  seedBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  seedError: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  seedResult: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 4 },
+  seedVar: { fontSize: 12, fontFamily: Platform.OS === "web" ? "monospace" : undefined, marginTop: 2 },
 });
