@@ -105,23 +105,37 @@ export default function QuickAddScreen() {
   };
 
   const handleSave = async () => {
-    const trimStore = storeName.trim();
-    if (!trimStore) {
-      Alert.alert("Missing store", "Please enter a store name.");
-      return;
-    }
+    // Item is the only required field. Store and date are optional.
     const validItems = lineItems.filter((li) => li.name.trim());
     if (validItems.length === 0) {
       Alert.alert("No items", "Add at least one item with a name.");
       return;
     }
 
+    // Quantity must be a positive number no greater than 1000.
+    for (const li of validItems) {
+      const qty = li.quantity.trim() === "" ? 1 : Number(li.quantity);
+      if (!Number.isFinite(qty) || qty <= 0 || qty > 1000) {
+        Alert.alert("Invalid quantity", "Quantity must be a number between 1 and 1000.");
+        return;
+      }
+    }
+
+    // Store is optional — fall back to a neutral label when left blank.
+    const trimStore = storeName.trim() || "Unspecified store";
+
+    // Date is optional — default to today when blank; validate when provided.
     let purchasedAt: string;
-    try {
-      purchasedAt = new Date(`${date}T12:00:00`).toISOString();
-    } catch {
-      Alert.alert("Invalid date", "Use YYYY-MM-DD format.");
-      return;
+    const trimDate = date.trim();
+    if (!trimDate) {
+      purchasedAt = new Date().toISOString();
+    } else {
+      const parsed = new Date(`${trimDate}T12:00:00`);
+      if (Number.isNaN(parsed.getTime())) {
+        Alert.alert("Invalid date", "Use YYYY-MM-DD format, or leave it blank for today.");
+        return;
+      }
+      purchasedAt = parsed.toISOString();
     }
 
     setSaving(true);
@@ -201,7 +215,7 @@ export default function QuickAddScreen() {
       >
         {/* Store */}
         <View style={s.fieldWrap}>
-          <Text style={[s.label, { color: colors.mutedForeground }]}>Store</Text>
+          <Text style={[s.label, { color: colors.mutedForeground }]}>Store (optional)</Text>
           <View>
             <View style={[s.storeInputRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
               <Feather name="shopping-bag" size={15} color={colors.mutedForeground} style={{ marginLeft: 12 }} />
@@ -251,7 +265,7 @@ export default function QuickAddScreen() {
 
         {/* Date */}
         <View style={s.fieldWrap}>
-          <Text style={[s.label, { color: colors.mutedForeground }]}>Date</Text>
+          <Text style={[s.label, { color: colors.mutedForeground }]}>Date (optional)</Text>
           <View style={[s.dateRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
             <Feather name="calendar" size={15} color={colors.mutedForeground} style={{ marginLeft: 12 }} />
             <TextInput
