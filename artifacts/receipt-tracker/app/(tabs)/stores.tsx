@@ -358,9 +358,6 @@ export default function StoresScreen() {
             <View style={[styles.switchRow, { borderColor: colors.border }]}>
               <View>
                 <Text style={[styles.switchLabel, { color: colors.foreground }]}>Delivery Available</Text>
-                <Text style={[styles.switchSub, { color: colors.mutedForeground }]}>
-                  Enable to track delivery costs
-                </Text>
               </View>
               <Switch
                 value={form.deliveryAvailable}

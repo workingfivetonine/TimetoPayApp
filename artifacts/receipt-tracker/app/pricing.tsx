@@ -154,11 +154,6 @@ export default function PricingPage() {
           </View>
         </View>
 
-        <Text style={styles.platformNote}>
-          Premium is available on the web. On the iOS and Android apps, all features are included at
-          no extra charge.
-        </Text>
-
         {/* FAQ */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Questions, answered</Text>

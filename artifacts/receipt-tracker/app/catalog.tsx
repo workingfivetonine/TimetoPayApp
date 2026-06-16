@@ -244,32 +244,6 @@ export default function CatalogBrowseScreen() {
             </TouchableOpacity>
           );
         })}
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            {
-              borderColor: colors.border,
-              backgroundColor: filterKey === "history" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => setFilterKey(filterKey === "history" ? "all" : "history")}
-          activeOpacity={0.7}
-        >
-          <Feather
-            name="clock"
-            size={12}
-            color={filterKey === "history" ? colors.primaryForeground : colors.mutedForeground}
-          />
-          <Text
-            style={[
-              styles.pillText,
-              { color: filterKey === "history" ? colors.primaryForeground : colors.mutedForeground },
-            ]}
-          >
-            My history
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {isLoading ? (

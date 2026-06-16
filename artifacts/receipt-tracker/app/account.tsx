@@ -6,6 +6,7 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Modal,
   Platform,
@@ -231,7 +232,7 @@ export default function AccountScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }} style={styles.backBtn} hitSlop={8}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Account</Text>
@@ -243,10 +244,19 @@ export default function AccountScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Feather name="user" size={26} color={colors.primary} />
+            {(me as { avatar?: string | null })?.avatar ? (
+              <Image source={{ uri: (me as { avatar?: string | null }).avatar! }} style={styles.avatarImg} />
+            ) : (
+              <Feather name="user" size={26} color={colors.primary} />
+            )}
           </View>
           <Text style={[styles.label, { color: colors.mutedForeground }]}>Signed in as</Text>
-          <Text style={[styles.email, { color: colors.foreground }]}>{email}</Text>
+          <Text style={[styles.email, { color: colors.foreground }]}>
+            {(me as { username?: string | null })?.username || email}
+          </Text>
+          {(me as { username?: string | null })?.username ? (
+            <Text style={[styles.emailSub, { color: colors.mutedForeground }]}>{email}</Text>
+          ) : null}
           {me?.isAdmin ? (
             <View style={[styles.badge, { backgroundColor: colors.accent }]}>
               <Feather name="shield" size={13} color={colors.accentForeground} />
@@ -880,6 +890,8 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 13, fontFamily: "Inter_500Medium" },
   email: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  emailSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  avatarImg: { width: 64, height: 64, borderRadius: 32 },
   badge: {
     flexDirection: "row",
     alignItems: "center",
