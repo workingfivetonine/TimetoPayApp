@@ -94,6 +94,7 @@ async function reconcileFromStripeEvent(event: Stripe.Event): Promise<void> {
       subscriptionProvider: "stripe",
       subscriptionStatus: newStatus,
       subscriptionCurrentPeriodEnd: periodEnd,
+      subscriptionCancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
       stripeSubscriptionId: sub.id,
     })
     .where(eq(usersTable.id, user.id));

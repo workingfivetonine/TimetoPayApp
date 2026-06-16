@@ -41,6 +41,13 @@ export const usersTable = pgTable(
     subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end", {
       withTimezone: true,
     }),
+    // True when the subscription is set to cancel at the end of the current paid
+    // period (Stripe `cancel_at_period_end`). The user keeps access until
+    // subscriptionCurrentPeriodEnd, then it lapses. Drives the
+    // "Premium access ends [date]" copy instead of "renews on [date]".
+    subscriptionCancelAtPeriodEnd: boolean("subscription_cancel_at_period_end")
+      .notNull()
+      .default(false),
     // When the user opted into the one-time free trial. Null = trial never
     // started (the free-trial offer is still available). Set once and never
     // cleared, so a trial can't be re-claimed after it elapses.

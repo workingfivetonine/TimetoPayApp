@@ -28,6 +28,10 @@ export interface Entitlement {
   status: EntitlementStatus;
   provider: SubscriptionProvider | null;
   currentPeriodEnd: string | null;
+  // True when an entitling subscription is set to lapse at currentPeriodEnd
+  // (user cancelled but still has paid access). Drives "Premium access ends
+  // [date]" instead of "Renews [date]".
+  cancelAtPeriodEnd: boolean;
   // Whether the one-time free trial offer is still available to this user (never
   // started a trial and never had a provider subscription). Drives the
   // "Start free trial" CTA on the account/paywall screens.
@@ -59,6 +63,7 @@ export function computeEntitlement(
   const provider = providerOf(user);
   const periodEnd = user.subscriptionCurrentPeriodEnd;
   const status = user.subscriptionStatus as EntitlementStatus | null;
+  const cancelAtPeriodEnd = !!user.subscriptionCancelAtPeriodEnd;
 
   // The one-time free trial is available only to users who have never started a
   // trial AND never had a provider subscription (status null/none). A canceled or
@@ -90,22 +95,22 @@ const canStartTrial =
 
   // Admins (operator accounts) are never paywalled.
   if (user.isAdmin) {
-    return { entitled: true, status: "active", provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false, showAnnualOffer: false };
+    return { entitled: true, status: "active", provider, currentPeriodEnd: iso(periodEnd), cancelAtPeriodEnd: false, canStartTrial: false, showAnnualOffer: false };
   }
  if (user.role === "family") {
-  return { entitled: true, status: "comped", provider, currentPeriodEnd: null, canStartTrial: false, showAnnualOffer: false };
+  return { entitled: true, status: "comped", provider, currentPeriodEnd: null, cancelAtPeriodEnd: false, canStartTrial: false, showAnnualOffer: false };
 }
 
   // Complimentary access override: a redeemed promo code (persisted as
   // `compAccess`) or a deployer-controlled comp-email allowlist grants free full
   // access regardless of subscription state. This is the "secret override".
   if (user.compAccess || isCompEmail(user.email)) {
-    return { entitled: true, status: "comped", provider, currentPeriodEnd: null, canStartTrial: false, showAnnualOffer: false };
+    return { entitled: true, status: "comped", provider, currentPeriodEnd: null, cancelAtPeriodEnd: false, canStartTrial: false, showAnnualOffer: false };
   }
 
   // Active provider subscription always wins.
   if (status === "trialing" || status === "active") {
-    return { entitled: true, status, provider, currentPeriodEnd: iso(periodEnd), canStartTrial: false, showAnnualOffer: false };
+    return { entitled: true, status, provider, currentPeriodEnd: iso(periodEnd), cancelAtPeriodEnd, canStartTrial: false, showAnnualOffer: false };
   }
 
   // past_due: short grace after the paid period end. If the provider gave us no
@@ -115,7 +120,7 @@ const canStartTrial =
       ? new Date(periodEnd.getTime() + PAST_DUE_GRACE_DAYS * DAY_MS)
       : null;
     if (graceEnd && now < graceEnd) {
-      return { entitled: true, status: "past_due", provider, currentPeriodEnd: iso(periodEnd), canStartTrial, showAnnualOffer: false };
+      return { entitled: true, status: "past_due", provider, currentPeriodEnd: iso(periodEnd), cancelAtPeriodEnd: false, canStartTrial, showAnnualOffer: false };
     }
     // grace elapsed or unknown → fall through to the opt-in trial / lockout.
   }
@@ -130,6 +135,7 @@ const canStartTrial =
         status: "trialing",
         provider,
         currentPeriodEnd: trialEnd.toISOString(),
+        cancelAtPeriodEnd: false,
         canStartTrial: false,
         showAnnualOffer: false,
       };
@@ -140,7 +146,7 @@ const canStartTrial =
   // the most specific terminal status so the UI can explain why.
   const lockedStatus: EntitlementStatus =
     status === "canceled" ? "canceled" : status === "past_due" ? "past_due" : "none";
-  return { entitled: false, status: lockedStatus, provider, currentPeriodEnd: iso(periodEnd), canStartTrial, showAnnualOffer: annualOfferEligible };
+  return { entitled: false, status: lockedStatus, provider, currentPeriodEnd: iso(periodEnd), cancelAtPeriodEnd: false, canStartTrial, showAnnualOffer: annualOfferEligible };
 }
 
 // Shared shape for the OpenAPI `CurrentUser` response, used by /me and the

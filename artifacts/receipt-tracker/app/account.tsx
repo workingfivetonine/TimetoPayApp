@@ -51,6 +51,7 @@ type EntitlementStatus =
 function subscriptionLabel(
   status: EntitlementStatus | undefined,
   currentPeriodEnd: string | null | undefined,
+  cancelAtPeriodEnd?: boolean,
 ): string {
   const end = currentPeriodEnd
     ? new Date(currentPeriodEnd).toLocaleDateString()
@@ -59,6 +60,10 @@ function subscriptionLabel(
     case "trialing":
       return end ? `Free trial · ends ${end}` : "Free trial";
     case "active":
+      // Cancelled but still in the paid period: access lapses at period end
+      // instead of renewing.
+      if (cancelAtPeriodEnd)
+        return end ? `Premium access ends ${end}` : "Cancels at period end";
       return end ? `Active · renews ${end}` : "Active";
     case "past_due":
       return "Payment past due";
@@ -297,7 +302,11 @@ export default function AccountScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.rowText, { color: colors.foreground }]}>Subscription</Text>
                 <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-                  {subscriptionLabel(entitlement.status as EntitlementStatus, entitlement.currentPeriodEnd)}
+                  {subscriptionLabel(
+                    entitlement.status as EntitlementStatus,
+                    entitlement.currentPeriodEnd,
+                    (entitlement as { cancelAtPeriodEnd?: boolean }).cancelAtPeriodEnd,
+                  )}
                 </Text>
               </View>
               {hasProviderSub ? (

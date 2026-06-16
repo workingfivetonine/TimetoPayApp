@@ -218,6 +218,11 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(
     sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "board_last_seen_at" timestamptz`,
   );
+  // Whether the subscription is scheduled to cancel at period end (Stripe
+  // cancel_at_period_end) — drives "Premium access ends [date]" copy.
+  await db.execute(
+    sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "subscription_cancel_at_period_end" boolean NOT NULL DEFAULT false`,
+  );
   // Case-insensitive unique handle. Postgres allows multiple NULLs, so users
   // without a username yet don't conflict.
   await db.execute(
