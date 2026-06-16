@@ -1,29 +1,66 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { useRouter } from "expo-router";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 type Props = {
   label?: string;
   style?: StyleProp<ViewStyle>;
+  // "locked" = free user, paywalled. "trial" = entitled via the free trial
+  // (feature only temporarily available).
+  variant?: "locked" | "trial";
+  // Tappable (opens the paywall) + web hover tooltip. Default true.
+  interactive?: boolean;
 };
 
 /**
- * Small "Premium" pill used to mark features that require a paid subscription.
- * Shown to free users on locked surfaces so it's clear what's premium-only.
+ * Small "Premium" pill marking features that require a paid subscription.
+ * - locked: star + "Premium", tooltip "Sign up for full access".
+ * - trial:  star + "Premium · trial", tooltip "Premium — free during your trial".
+ * Tapping opens the paywall.
  */
-export function PremiumBadge({ label = "Premium", style }: Props) {
+export function PremiumBadge({ label, style, variant = "locked", interactive = true }: Props) {
   const colors = useColors();
+  const router = useRouter();
+  const isTrial = variant === "trial";
+  const text = label ?? (isTrial ? "Premium · trial" : "Premium");
+  const tooltip = isTrial
+    ? "Premium feature — temporarily available during your free trial"
+    : "Sign up for full access";
+  const bg = isTrial ? colors.secondary : colors.accent;
+  const fg = isTrial ? colors.foreground : colors.primary;
+
+  const content = (
+    <>
+      <Feather name="star" size={11} color={fg} />
+      <Text style={[styles.text, { color: fg }]}>{text}</Text>
+    </>
+  );
+  const boxStyle = [styles.badge, { backgroundColor: bg, borderColor: colors.primary }, style];
+
+  if (!interactive) {
+    return <View style={boxStyle}>{content}</View>;
+  }
   return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: colors.accent, borderColor: colors.primary },
-        style,
-      ]}
+    <TouchableOpacity
+      style={boxStyle}
+      onPress={() => router.push("/paywall")}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={tooltip}
+      // Native HTML hover tooltip on web (react-native-web forwards `title`).
+      {...(Platform.OS === "web" ? ({ title: tooltip } as object) : {})}
     >
-      <Feather name="star" size={11} color={colors.primary} />
-      <Text style={[styles.text, { color: colors.primary }]}>{label}</Text>
-    </View>
+      {content}
+    </TouchableOpacity>
   );
 }
 

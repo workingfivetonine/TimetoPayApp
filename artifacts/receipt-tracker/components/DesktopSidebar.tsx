@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import { useColors } from "@/hooks/useColors";
-import { usePremiumLock } from "@/hooks/usePremiumLock";
+import { usePremiumStatus } from "@/hooks/usePremiumLock";
 import { useBoardNotification } from "@/contexts/BoardNotification";
 
 const NAV = [
@@ -18,7 +18,14 @@ export function DesktopSidebar() {
   const colors = useColors();
   const router = useRouter();
   const pathname = usePathname();
-  const locked = usePremiumLock();
+  const premium = usePremiumStatus();
+  const showStar = premium === "locked" || premium === "trial";
+  const starColor = premium === "trial" ? colors.primary : "#F59E0B";
+  const starBg = premium === "trial" ? colors.accent : "#FEF3C7";
+  const starTip =
+    premium === "trial"
+      ? "Premium — free during your trial"
+      : "Premium — sign up for full access";
   const { newCount } = useBoardNotification();
 
   return (
@@ -59,12 +66,15 @@ export function DesktopSidebar() {
               >
                 {item.label}
               </Text>
-              {locked && item.premium && (
-                <View style={styles.premiumStar}>
-                  <Feather name="star" size={9} color="#F59E0B" />
+              {showStar && item.premium && (
+                <View
+                  style={[styles.premiumStar, { backgroundColor: starBg }]}
+                  {...({ title: starTip } as object)}
+                >
+                  <Feather name="star" size={9} color={starColor} />
                 </View>
               )}
-              {!locked && item.href === "/board" && newCount > 0 && (
+              {!showStar && item.href === "/board" && newCount > 0 && (
                 <View style={styles.notifBadge} />
               )}
             </TouchableOpacity>

@@ -14,3 +14,17 @@ export function usePremiumLock(): boolean {
   if (!me?.entitlement) return false;
   return !me.entitlement.entitled;
 }
+
+export type PremiumStatus = "locked" | "trial" | "entitled";
+
+// Like usePremiumLock, but distinguishes the trial state so the UI can show a
+// "premium — free during your trial" indicator vs a "locked, sign up" one.
+// Native is never gated → "entitled". While /me loads → "entitled" (no flash).
+export function usePremiumStatus(): PremiumStatus {
+  const { data: me } = useGetCurrentUser();
+  if (Platform.OS !== "web") return "entitled";
+  if (!me?.entitlement) return "entitled";
+  if (!me.entitlement.entitled) return "locked";
+  if (me.entitlement.status === "trialing") return "trial";
+  return "entitled";
+}
