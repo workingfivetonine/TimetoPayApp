@@ -212,6 +212,12 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "first_name" text`);
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_name" text`);
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar" text`);
+  // Community board "new since last visit" marker. The board route reads AND
+  // writes this column, so when push lags a deploy, GET/POST /board 500s with
+  // "column board_last_seen_at does not exist".
+  await db.execute(
+    sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "board_last_seen_at" timestamptz`,
+  );
   // Case-insensitive unique handle. Postgres allows multiple NULLs, so users
   // without a username yet don't conflict.
   await db.execute(
