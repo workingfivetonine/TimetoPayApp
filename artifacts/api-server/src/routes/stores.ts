@@ -11,6 +11,16 @@ import { resolveStoreLogo } from "../lib/storeLogo";
 
 const router = Router();
 
+// Normalize a user-supplied website to a storable string (or null). Adds https://
+// when no scheme is present so it's a tappable link, and caps the length.
+function normalizeWebsite(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return withScheme.slice(0, 500);
+}
+
 // Resolve the region columns to persist from a (partial) store body. Region
 // fields are independent of the rest of the body: only the keys actually present
 // are touched. countryCode must be a known country (or null to clear); a US
@@ -82,10 +92,14 @@ router.post("/", async (req, res): Promise<void> => {
     return;
   }
   const { countryCode: _c, stateCode: _s, ...rest } = parsed.data;
+  // `website` isn't in the (generated, drifted) CreateStoreBody schema, so read
+  // it straight off the raw body and normalize.
+  const website = normalizeWebsite((req.body as { website?: unknown }).website);
   const logoUrl = await resolveStoreLogo(parsed.data.name);
   const [store] = await db.insert(storesTable).values({
     ...rest,
     ...region.fields,
+    website,
     userId,
     logoUrl,
     deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : null,
@@ -132,12 +146,16 @@ router.patch("/:id", async (req, res): Promise<void> => {
     return;
   }
   const { countryCode: _c, stateCode: _s, ...rest } = parsed.data;
+  // Only update `website` when the key is present in the raw body (drifted schema).
+  const hasWebsite = Object.prototype.hasOwnProperty.call(req.body ?? {}, "website");
+  const website = hasWebsite ? normalizeWebsite((req.body as { website?: unknown }).website) : undefined;
   const logoUrl = parsed.data.name ? await resolveStoreLogo(parsed.data.name) : undefined;
   const [store] = await db
     .update(storesTable)
     .set({
       ...rest,
       ...region.fields,
+      ...(website !== undefined ? { website } : {}),
       ...(logoUrl !== undefined ? { logoUrl } : {}),
       deliveryFee: parsed.data.deliveryFee != null ? String(parsed.data.deliveryFee) : parsed.data.deliveryFee,
       minimumOrderAmount: parsed.data.minimumOrderAmount != null ? String(parsed.data.minimumOrderAmount) : parsed.data.minimumOrderAmount,

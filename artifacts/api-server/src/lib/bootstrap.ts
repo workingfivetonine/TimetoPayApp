@@ -204,6 +204,7 @@ async function ensureAdminExists(): Promise<void> {
 // tab, which 500s when `db.select()` references a column the DB doesn't yet have.)
 async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "logo_url" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "website" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "brand" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
 

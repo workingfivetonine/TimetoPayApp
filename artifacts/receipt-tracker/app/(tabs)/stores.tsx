@@ -47,6 +47,7 @@ interface StoreFormData {
   stateCode: string | null;
   address: string;
   phone: string;
+  website: string;
   openTimes: string;
   deliveryAvailable: boolean;
   deliveryFee: string;
@@ -60,6 +61,7 @@ const defaultForm: StoreFormData = {
   stateCode: null,
   address: "",
   phone: "",
+  website: "",
   openTimes: "",
   deliveryAvailable: false,
   deliveryFee: "",
@@ -136,6 +138,7 @@ export default function StoresScreen() {
       stateCode: store.stateCode ?? null,
       address: store.address ?? "",
       phone: store.phone ?? "",
+      website: (store as { website?: string | null }).website ?? "",
       openTimes: store.openTimes ?? "",
       deliveryAvailable: store.deliveryAvailable,
       deliveryFee: store.deliveryFee != null ? String(store.deliveryFee) : "",
@@ -154,6 +157,7 @@ export default function StoresScreen() {
       stateCode: form.countryCode === "US" ? form.stateCode : null,
       address: form.address.trim() || null,
       phone: form.phone.trim() || null,
+      website: form.website.trim() || null,
       openTimes: form.openTimes.trim() || null,
       deliveryAvailable: form.deliveryAvailable,
       deliveryFee: form.deliveryFee ? Number(form.deliveryFee) : null,
@@ -351,6 +355,18 @@ export default function StoresScreen() {
                 />
               </View>
             </View>
+
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>WEBSITE</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+              value={form.website}
+              onChangeText={(v) => setForm((f) => ({ ...f, website: v }))}
+              placeholder="example.com"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              keyboardType="url"
+              returnKeyType="next"
+            />
 
             {/* ── Delivery ───────────────────────────────── */}
             <SectionDivider label="DELIVERY" colors={colors} />

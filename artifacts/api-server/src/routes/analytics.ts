@@ -176,18 +176,20 @@ router.get("/stores/:id/summary", async (req, res): Promise<void> => {
   const totalSpend = receipts.reduce((sum, r) => sum + Number(r.total), 0);
   const avgReceipt = receipts.length ? totalSpend / receipts.length : 0;
 
-  // Resolve the user's private store to its canonical catalog store (by
-  // normalized name alias) so we can surface the admin-set website. Null when
-  // there's no matching catalog entry or no website on file.
-  let websiteUrl: string | null = null;
-  const norm = normalizeName(store.name);
-  if (norm) {
-    const [match] = await db
-      .select({ websiteUrl: catalogStoresTable.websiteUrl })
-      .from(catalogStoreAliasesTable)
-      .innerJoin(catalogStoresTable, eq(catalogStoresTable.id, catalogStoreAliasesTable.catalogStoreId))
-      .where(eq(catalogStoreAliasesTable.normalizedName, norm));
-    websiteUrl = match?.websiteUrl ?? null;
+  // Prefer the website the user entered on their own store. Otherwise resolve
+  // the private store to its canonical catalog store (by normalized name alias)
+  // to surface the admin-set website. Null when neither has one on file.
+  let websiteUrl: string | null = (store as { website?: string | null }).website ?? null;
+  if (!websiteUrl) {
+    const norm = normalizeName(store.name);
+    if (norm) {
+      const [match] = await db
+        .select({ websiteUrl: catalogStoresTable.websiteUrl })
+        .from(catalogStoreAliasesTable)
+        .innerJoin(catalogStoresTable, eq(catalogStoresTable.id, catalogStoreAliasesTable.catalogStoreId))
+        .where(eq(catalogStoreAliasesTable.normalizedName, norm));
+      websiteUrl = match?.websiteUrl ?? null;
+    }
   }
 
   const deliveryFee = store.deliveryFee ? Number(store.deliveryFee) : null;

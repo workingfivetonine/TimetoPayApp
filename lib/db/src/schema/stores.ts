@@ -14,6 +14,7 @@ export const storesTable = pgTable("stores", {
   stateCode: text("state_code"),
   address: text("address"),
   phone: text("phone"),
+  website: text("website"),
   openTimes: text("open_times"),
   deliveryAvailable: boolean("delivery_available").notNull().default(false),
   deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }),

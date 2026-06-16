@@ -109,12 +109,20 @@ export default function StoreDetailScreen() {
             {summary.address && (
               <TouchableOpacity
                 style={[styles.infoRow, { borderTopColor: colors.border }]}
-                onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(summary.address!)}`)}
+                onPress={() =>
+                  Linking.openURL(
+                    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                      `${summary.storeName} ${summary.address}`,
+                    )}`,
+                  )
+                }
                 activeOpacity={0.6}
               >
-                <Feather name="map-pin" size={15} color={colors.mutedForeground} />
-                <Text style={[styles.infoText, { color: colors.foreground }]} numberOfLines={2}>{summary.address}</Text>
-                <Feather name="external-link" size={13} color={colors.mutedForeground} />
+                <Feather name="navigation" size={15} color={colors.primary} />
+                <Text style={[styles.infoText, { color: colors.foreground }]} numberOfLines={2}>
+                  {summary.address}
+                </Text>
+                <Text style={[styles.infoAction, { color: colors.primary }]}>Directions</Text>
               </TouchableOpacity>
             )}
             {summary.phone && (
@@ -128,12 +136,26 @@ export default function StoreDetailScreen() {
                 <Feather name="external-link" size={13} color={colors.mutedForeground} />
               </TouchableOpacity>
             )}
-            {summary.openTimes && (
-              <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
-                <Feather name="clock" size={15} color={colors.mutedForeground} />
-                <Text style={[styles.infoText, { color: colors.foreground }]}>{summary.openTimes}</Text>
-              </View>
-            )}
+            <TouchableOpacity
+              style={[styles.infoRow, { borderTopColor: colors.border }]}
+              onPress={() =>
+                Linking.openURL(
+                  `https://www.google.com/search?q=${encodeURIComponent(
+                    `${summary.storeName} ${summary.address ?? ""} hours`,
+                  )}`,
+                )
+              }
+              activeOpacity={0.6}
+            >
+              <Feather name="clock" size={15} color={colors.mutedForeground} />
+              <Text style={[styles.infoText, { color: colors.foreground }]}>
+                {summary.openTimes || "Check hours on Google"}
+              </Text>
+              <Feather name="external-link" size={13} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            <Text style={[styles.infoFootnote, { color: colors.mutedForeground }]}>
+              Tip: tap an address for directions or hours to look them up on Google.
+            </Text>
         </View>
 
         {/* Delivery Card */}
@@ -307,6 +329,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
+  },
+  infoAction: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  infoFootnote: {
+    fontSize: 11.5,
+    fontFamily: "Inter_400Regular",
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   deliveryHeader: {
     flexDirection: "row",
