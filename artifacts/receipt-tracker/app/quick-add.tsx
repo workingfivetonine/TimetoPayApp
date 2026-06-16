@@ -29,6 +29,7 @@ import {
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
+import { DateField } from "@/components/DateField";
 import { getApiOrigin } from "@/lib/apiBase";
 
 interface LineItemRow {
@@ -267,15 +268,13 @@ export default function QuickAddScreen() {
         <View style={s.fieldWrap}>
           <Text style={[s.label, { color: colors.mutedForeground }]}>Date (optional)</Text>
           <View style={[s.dateRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            <Feather name="calendar" size={15} color={colors.mutedForeground} style={{ marginLeft: 12 }} />
-            <TextInput
-              style={[s.dateInput, { color: colors.foreground }]}
+            <Feather name="calendar" size={15} color={colors.mutedForeground} style={{ marginLeft: 12, marginRight: 8 }} />
+            <DateField
               value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
+              onChange={setDate}
+              style={[s.dateInput, { color: colors.foreground }]}
               placeholderTextColor={colors.mutedForeground}
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="next"
+              color={colors.foreground}
             />
           </View>
         </View>

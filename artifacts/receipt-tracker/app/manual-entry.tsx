@@ -26,6 +26,7 @@ import {
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { DateField } from "@/components/DateField";
 import { getApiOrigin } from "@/lib/apiBase";
 
 interface LineItemRow {
@@ -274,14 +275,23 @@ export default function ManualEntryScreen() {
         <View style={s.row}>
           <View style={s.flex1}>
             <Field label="Date *" colors={colors}>
-              <TextInput
-                style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.mutedForeground}
+              <DateField
                 value={date}
-                onChangeText={setDate}
-                keyboardType="numbers-and-punctuation"
-                returnKeyType="next"
+                onChange={setDate}
+                style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
+                placeholderTextColor={colors.mutedForeground}
+                color={colors.foreground}
+                webStyle={{
+                  borderWidth: 1,
+                  borderStyle: "solid",
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  borderRadius: 10,
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                }}
               />
             </Field>
           </View>
