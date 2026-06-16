@@ -359,6 +359,14 @@ export function renderSubscriptionThankYou(data: { name: string | null }): Rende
 // Each function mirrors its renderXxx counterpart but returns a flat
 // Record<string, string> of {{{VARIABLE}}} values for Resend's template API.
 
+export function renderWelcomeVars(data: { name: string | null }): Record<string, string> {
+  return { NAME: greetName(data.name) };
+}
+
+export function renderSubscriptionThankYouVars(data: { name: string | null }): Record<string, string> {
+  return { NAME: greetName(data.name) };
+}
+
 export function renderTrialEndingVars(data: {
   name: string | null;
   daysLeft: number;

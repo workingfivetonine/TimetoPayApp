@@ -24,6 +24,12 @@ function layout(heading: string, bodyHtml: string): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head><body style="margin:0;padding:0;background:${BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${INK};"><div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{{SUBJECT}}}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};padding:24px 12px;"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CARD};border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);"><tr><td style="background:${TEAL};padding:20px 28px;"><span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:0.2px;">${BRAND}</span></td></tr><tr><td style="padding:28px;"><h1 style="margin:0 0 16px;font-size:21px;line-height:1.3;color:${INK};">${heading}</h1>${bodyHtml}</td></tr><tr><td style="padding:18px 28px;border-top:1px solid #e5e7eb;"><p style="margin:0 0 8px;font-size:12px;color:${MUTED};line-height:1.6;">You're receiving this because email reminders are on for your ${BRAND} account. <a href="https://5to9shopping.com/account" style="color:${MUTED};">Manage preferences</a> &middot; <a href="{{{UNSUBSCRIBE_URL}}}" style="color:${MUTED};">Unsubscribe</a></p><p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">FivetoNine LLC &middot; 483 Chestnut Street, Cedarhurst, NY 11518</p></td></tr></table></td></tr></table></body></html>`;
 }
 
+// Transactional layout (welcome / thank-you): no unsubscribe link (not
+// promotional), just the brand reason + mailing address.
+function layoutTransactional(heading: string, bodyHtml: string): string {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head><body style="margin:0;padding:0;background:${BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${INK};"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};padding:24px 12px;"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CARD};border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);"><tr><td style="background:${TEAL};padding:20px 28px;"><span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:0.2px;">${BRAND}</span></td></tr><tr><td style="padding:28px;"><h1 style="margin:0 0 16px;font-size:21px;line-height:1.3;color:${INK};">${heading}</h1>${bodyHtml}</td></tr><tr><td style="padding:18px 28px;border-top:1px solid #e5e7eb;"><p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">You're receiving this because you have a ${BRAND} account.</p><p style="margin:8px 0 0;font-size:12px;color:${MUTED};line-height:1.6;">FivetoNine LLC &middot; 483 Chestnut Street, Cedarhurst, NY 11518</p></td></tr></table></td></tr></table></body></html>`;
+}
+
 interface TemplateDef {
   envVar: string;
   name: string;
@@ -98,6 +104,30 @@ function buildTemplates(): TemplateDef[] {
         `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${INK};display:{{{IS_CHANGE}}};">That's <strong>{{{CHANGE_AMOUNT}}} {{{CHANGE_DIRECTION}}}</strong> than the previous month ({{{PREVIOUS_TOTAL}}}).</p>`,
       ].join("")),
       text: "Hi {{{NAME}}}, your monthly TimetoPay recap ({{{PERIOD_START}}} to {{{PERIOD_END}}}): {{{TOTAL}}}. {{{CHANGE_LINE_TEXT}}}",
+    },
+    {
+      envVar: "RESEND_TEMPLATE_WELCOME",
+      name: `${BRAND} — Welcome`,
+      subject: "Welcome to TimetoPay! 🎉",
+      html: layoutTransactional("Welcome aboard, {{{NAME}}}!", [
+        p("Thanks for joining TimetoPay — the easiest way to track grocery prices and spend less."),
+        p("Here's how to get started:"),
+        p("📸 <strong>Scan a receipt</strong> — snap a photo or upload a PDF and we'll pull out every item and price.<br/>📊 <strong>Track prices</strong> over time across every store.<br/>🛒 <strong>Build a smart shopping list</strong> with the best price for each item."),
+        p("Add your first receipt whenever you're ready — your price history grows from there."),
+      ].join("")),
+      text: "Welcome to TimetoPay, {{{NAME}}}! Scan a receipt to start tracking grocery prices, build a smart shopping list, and spend less.",
+    },
+    {
+      envVar: "RESEND_TEMPLATE_THANK_YOU",
+      name: `${BRAND} — Subscription Thank You`,
+      subject: "Thanks for subscribing to TimetoPay",
+      html: layoutTransactional("Thank you, {{{NAME}}}!", [
+        p("Your TimetoPay subscription is active — thank you for your support. 🙌"),
+        p("You now have full access to:"),
+        p("✨ <strong>Unlimited AI receipt scanning</strong><br/>📈 <strong>Full price history &amp; analytics</strong><br/>🗂️ <strong>The cross-store price catalog</strong>"),
+        p("You can manage your subscription anytime from your account screen. Happy shopping!"),
+      ].join("")),
+      text: "Thank you, {{{NAME}}}! Your TimetoPay subscription is active. You now have unlimited AI receipt scanning, full price history & analytics, and the cross-store catalog.",
     },
   ];
 }
