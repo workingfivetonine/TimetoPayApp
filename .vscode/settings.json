@@ -1,0 +1,5 @@
+{
+    "chat.restoreLastPanelSession": true,
+    "github.copilot.chat.agent.autoFix": true,
+    "github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions": false
+}

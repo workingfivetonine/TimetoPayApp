@@ -153,11 +153,29 @@ async function listExisting(key: string): Promise<Array<{ id: string; name: stri
   return data.data ?? [];
 }
 
+// Resend's Templates API requires every {{{VARIABLE}}} used in a template to be
+// declared in a `variables` list (and reserved names must NOT be declared).
+// Extract them from the subject/html/text so the declaration always matches.
+const RESERVED_VARS = new Set(["FIRST_NAME", "LAST_NAME", "EMAIL", "RESEND_UNSUBSCRIBE_URL"]);
+
+function templateVariables(tmpl: TemplateDef): { key: string; type: "string" }[] {
+  const found = new Set<string>();
+  const re = /\{\{\{(\w+)\}\}\}/g;
+  for (const field of [tmpl.subject, tmpl.html, tmpl.text]) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(field)) !== null) {
+      const name = m[1]!;
+      if (!RESERVED_VARS.has(name)) found.add(name);
+    }
+  }
+  return [...found].map((key) => ({ key, type: "string" as const }));
+}
+
 async function createTemplate(key: string, tmpl: TemplateDef): Promise<string> {
   const res = await fetch(`${RESEND_API}/templates`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ name: tmpl.name, subject: tmpl.subject, html: tmpl.html, text: tmpl.text }),
+    body: JSON.stringify({ name: tmpl.name, subject: tmpl.subject, html: tmpl.html, text: tmpl.text, variables: templateVariables(tmpl) }),
   });
   if (!res.ok) throw new Error(`POST /templates: ${res.status} — ${await res.text()}`);
   return ((await res.json()) as { id: string }).id;
@@ -167,7 +185,7 @@ async function updateTemplate(key: string, id: string, tmpl: TemplateDef): Promi
   const res = await fetch(`${RESEND_API}/templates/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ name: tmpl.name, subject: tmpl.subject, html: tmpl.html, text: tmpl.text }),
+    body: JSON.stringify({ name: tmpl.name, subject: tmpl.subject, html: tmpl.html, text: tmpl.text, variables: templateVariables(tmpl) }),
   });
   if (!res.ok) throw new Error(`PATCH /templates/${id}: ${res.status} — ${await res.text()}`);
 }
