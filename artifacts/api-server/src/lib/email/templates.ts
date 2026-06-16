@@ -355,6 +355,32 @@ export function renderSubscriptionThankYou(data: { name: string | null }): Rende
   return { subject, html, text };
 }
 
+// ── Account deleted / subscription cancelled (transactional) ──────────────────
+export function renderAccountDeleted(data: {
+  name: string | null;
+  subscriptionCancelled: boolean;
+}): RenderedEmail {
+  const name = greetNameHtml(data.name);
+  const subject = "Your TimetoPay account has been deleted";
+  const cancelLine = data.subscriptionCancelled
+    ? paragraph("Your subscription has been cancelled — you won't be charged again.")
+    : "";
+  const html = layout({
+    heading: "Your account has been deleted",
+    preview: subject,
+    bodyHtml: `
+      ${paragraph(`Hi ${name}, your ${BRAND} account and all of its data have been permanently deleted, as requested.`)}
+      ${cancelLine}
+      ${paragraph("If this wasn't you, please contact us right away at support@5to9shopping.com.")}
+      ${paragraph(`Thanks for giving ${BRAND} a try — you're always welcome back.`)}
+    `,
+  });
+  const text = `Hi ${greetName(data.name)}, your ${BRAND} account and all its data have been permanently deleted.${
+    data.subscriptionCancelled ? " Your subscription has been cancelled — you won't be charged again." : ""
+  } If this wasn't you, contact support@5to9shopping.com.`;
+  return { subject, html, text };
+}
+
 // ── Template variable renderers (used when RESEND_TEMPLATE_* env vars are set)
 // Each function mirrors its renderXxx counterpart but returns a flat
 // Record<string, string> of {{{VARIABLE}}} values for Resend's template API.
@@ -365,6 +391,16 @@ export function renderWelcomeVars(data: { name: string | null }): Record<string,
 
 export function renderSubscriptionThankYouVars(data: { name: string | null }): Record<string, string> {
   return { NAME: greetName(data.name) };
+}
+
+export function renderAccountDeletedVars(data: {
+  name: string | null;
+  subscriptionCancelled: boolean;
+}): Record<string, string> {
+  return {
+    NAME: greetName(data.name),
+    SUB_DISPLAY: data.subscriptionCancelled ? "block" : "none",
+  };
 }
 
 export function renderTrialEndingVars(data: {

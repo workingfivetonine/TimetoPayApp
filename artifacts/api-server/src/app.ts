@@ -10,6 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { stripeWebhookHandler } from "./routes/stripeWebhook";
+import { clerkWebhookHandler } from "./routes/clerkWebhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -46,6 +47,14 @@ app.post(
   "/api/stripe/webhook",
   express.raw({ type: "application/json", limit: "5mb" }),
   stripeWebhookHandler,
+);
+
+// Clerk (Svix) webhook also needs the raw body for signature verification.
+// Cancels the subscription + removes data when a user is deleted in Clerk.
+app.post(
+  "/api/webhooks/clerk",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  clerkWebhookHandler,
 );
 
 app.use(express.json({ limit: "20mb" }));

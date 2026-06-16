@@ -129,6 +129,18 @@ function buildTemplates(): TemplateDef[] {
       ].join("")),
       text: "Thank you, {{{NAME}}}! Your TimetoPay subscription is active. You now have unlimited AI receipt scanning, full price history & analytics, and the cross-store catalog.",
     },
+    {
+      envVar: "RESEND_TEMPLATE_ACCOUNT_DELETED",
+      name: `${BRAND} — Account Deleted`,
+      subject: "Your TimetoPay account has been deleted",
+      html: layoutTransactional("Your account has been deleted", [
+        p("Hi {{{NAME}}}, your TimetoPay account and all of its data have been permanently deleted, as requested."),
+        `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${INK};display:{{{SUB_DISPLAY}}};">Your subscription has been cancelled — you won't be charged again.</p>`,
+        p("If this wasn't you, please contact us right away at support@5to9shopping.com."),
+        p("Thanks for giving TimetoPay a try — you're always welcome back."),
+      ].join("")),
+      text: "Hi {{{NAME}}}, your TimetoPay account and all its data have been permanently deleted. If this wasn't you, contact support@5to9shopping.com.",
+    },
   ];
 }
 

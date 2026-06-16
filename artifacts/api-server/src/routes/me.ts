@@ -11,6 +11,8 @@ import {
 } from "../lib/username";
 import { clerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
+import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
+import { sendAccountDeletedEmail } from "../lib/email/transactional";
 
 const router = Router();
 
@@ -54,6 +56,9 @@ router.delete("/", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Admin accounts can't be deleted from here." });
     return;
   }
+  // Cancel any active subscription FIRST so a deleted account stops billing.
+  const subscriptionCancelled = !!(user.stripeSubscriptionId || user.paypalSubscriptionId);
+  await cancelUserSubscription(user);
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   try {
     await clerkClient.users.deleteUser(userId);
@@ -62,6 +67,7 @@ router.delete("/", async (req, res): Promise<void> => {
     // orphaned Clerk identity simply re-provisions an empty account on next login).
     logger.error({ err, userId }, "Clerk user deletion failed after account delete");
   }
+  if (user.email) void sendAccountDeletedEmail(user.email, subscriptionCancelled);
   res.json({ deleted: true });
 });
 

@@ -15,6 +15,8 @@ import { normalizeName } from "../lib/catalog";
 import { computeEntitlement } from "../lib/billing/entitlement";
 import { runAdminDigest } from "../lib/adminDigest";
 import { seedResendTemplates } from "../lib/email/resendTemplateSeeder";
+import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
+import { sendAccountDeletedEmail } from "../lib/email/transactional";
 
 const router = Router();
 
@@ -386,7 +388,11 @@ router.delete("/users/:userId", async (req, res): Promise<void> => {
     return;
   }
 
+  // Cancel any active subscription so the deleted user stops being billed.
+  const subscriptionCancelled = !!(target.stripeSubscriptionId || target.paypalSubscriptionId);
+  await cancelUserSubscription(target);
   await deleteClerkUser(userId, req.log);
+  if (target.email) void sendAccountDeletedEmail(target.email, subscriptionCancelled);
 
   res.json({ success: true });
 });
