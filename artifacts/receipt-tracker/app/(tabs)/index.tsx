@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { ShareInvite } from "@/components/ShareInvite";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { EntitlementBanner } from "@/components/EntitlementBanner";
 import { WelcomeTour } from "@/components/WelcomeTour";
 
 type ReceiptSort = "recent" | "price" | "store";
@@ -179,6 +180,7 @@ export default function ReceiptsScreen() {
       </View>
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
+      <EntitlementBanner />
 
       {hasReceipts ? (
         <ListControls

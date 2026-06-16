@@ -138,14 +138,11 @@ export async function runReminderSweep(
     const updates: Partial<UserRow> = {};
 
     // ── Payment reminders ─────────────────────────────────────────────────
-    // Trial-ending is a critical, non-optional notification — always sent.
+    // Trial-ending and payment-past-due are critical, non-optional notifications
+    // (losing access is something the user must be told) — always sent,
+    // regardless of the marketing opt-out. Each dedupes internally.
     await maybeTrialEnding(user, now, updates, bump);
-    if (user.notifyPaymentReminders) {
-      await maybePastDue(user, now, updates, bump);
-    } else if (user.subscriptionStatus !== "past_due" && user.lastPastDueSentAt) {
-      // Keep the past-due cursor reset semantics even if reminders are off.
-      updates.lastPastDueSentAt = null;
-    }
+    await maybePastDue(user, now, updates, bump);
 
     // Engagement reminders only go to currently-entitled users (a past_due,
     // grace-elapsed user gets the payment reminder above, not nudges).
