@@ -325,6 +325,8 @@ export function renderWelcome(data: { name: string | null }): RenderedEmail {
         "📸 <strong>Scan a receipt</strong> — snap a photo or upload a PDF and we'll pull out every item and price.<br/>📊 <strong>Track prices</strong> over time across every store.<br/>🛒 <strong>Build a smart shopping list</strong> with the best price for each item.",
       )}
       ${paragraph("Add your first receipt whenever you're ready — your price history grows from there.")}
+      ${paragraph(`${BRAND} is powered by your own data — the more receipts you scan, the smarter your prices and shopping list get.`)}
+      ${paragraph(`You can manage which emails you receive anytime in your <a href="${WEB}/account" style="color:${TEAL_DARK};">account settings</a>.`)}
     `,
   });
   const text = `Welcome to ${BRAND}, ${greetName(

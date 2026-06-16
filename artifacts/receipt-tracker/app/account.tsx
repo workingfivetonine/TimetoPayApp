@@ -485,8 +485,8 @@ const NOTIFICATION_TOGGLES: {
 }[] = [
   {
     key: "notifyPaymentReminders",
-    label: "Payment reminders",
-    description: "Trial ending soon and payment-past-due alerts",
+    label: "Payment alerts",
+    description: "Notify me if a subscription payment fails (trial-ending reminders are always sent)",
     icon: "credit-card",
     // No frequency setting — billing alerts fire on events, not a schedule
   },

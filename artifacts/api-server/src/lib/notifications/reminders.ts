@@ -138,8 +138,9 @@ export async function runReminderSweep(
     const updates: Partial<UserRow> = {};
 
     // ── Payment reminders ─────────────────────────────────────────────────
+    // Trial-ending is a critical, non-optional notification — always sent.
+    await maybeTrialEnding(user, now, updates, bump);
     if (user.notifyPaymentReminders) {
-      await maybeTrialEnding(user, now, updates, bump);
       await maybePastDue(user, now, updates, bump);
     } else if (user.subscriptionStatus !== "past_due" && user.lastPastDueSentAt) {
       // Keep the past-due cursor reset semantics even if reminders are off.

@@ -12,7 +12,7 @@ import {
 import { clerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
 import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
-import { sendAccountDeletedEmail } from "../lib/email/transactional";
+import { sendAccountDeletedEmail, sendWelcomeEmail } from "../lib/email/transactional";
 
 const router = Router();
 
@@ -202,6 +202,13 @@ router.patch("/profile", async (req, res): Promise<void> => {
     res.status(409).json({ error: "That username is taken." });
     return;
   }
+  // First-time profile completion (no username yet) → send the welcome email
+  // here, where we know the user's chosen name, instead of at first login.
+  const [prior] = await db
+    .select({ username: usersTable.username })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  const isFirstProfile = !prior?.username;
   try {
     const [user] = await db
       .update(usersTable)
@@ -216,6 +223,9 @@ router.patch("/profile", async (req, res): Promise<void> => {
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
+    }
+    if (isFirstProfile && user.email) {
+      void sendWelcomeEmail(user.email, firstName || username);
     }
     res.json(formatCurrentUser(user));
   } catch {

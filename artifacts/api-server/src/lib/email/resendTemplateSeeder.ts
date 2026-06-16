@@ -114,6 +114,8 @@ function buildTemplates(): TemplateDef[] {
         p("Here's how to get started:"),
         p("📸 <strong>Scan a receipt</strong> — snap a photo or upload a PDF and we'll pull out every item and price.<br/>📊 <strong>Track prices</strong> over time across every store.<br/>🛒 <strong>Build a smart shopping list</strong> with the best price for each item."),
         p("Add your first receipt whenever you're ready — your price history grows from there."),
+        p("TimetoPay is powered by your own data — the more receipts you scan, the smarter your prices and shopping list get."),
+        p(`You can manage which emails you receive anytime in your <a href="https://5to9shopping.com/account" style="color:${TEAL_DARK};">account settings</a>.`),
       ].join("")),
       text: "Welcome to TimetoPay, {{{NAME}}}! Scan a receipt to start tracking grocery prices, build a smart shopping list, and spend less.",
     },

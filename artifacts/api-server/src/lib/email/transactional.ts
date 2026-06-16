@@ -14,14 +14,14 @@ import {
 import { displayNameFromEmail } from "../notifications/snark";
 import { logger } from "../logger";
 
-export async function sendWelcomeEmail(email: string): Promise<void> {
+export async function sendWelcomeEmail(email: string, name?: string | null): Promise<void> {
   try {
-    const name = displayNameFromEmail(email);
+    const displayName = name?.trim() || displayNameFromEmail(email);
     const templateId = process.env.RESEND_TEMPLATE_WELCOME;
     if (templateId) {
-      await sendEmailWithTemplate({ to: email, templateId, variables: renderWelcomeVars({ name }) });
+      await sendEmailWithTemplate({ to: email, templateId, variables: renderWelcomeVars({ name: displayName }) });
     } else {
-      await sendEmail({ to: email, ...renderWelcome({ name }) });
+      await sendEmail({ to: email, ...renderWelcome({ name: displayName }) });
     }
   } catch (err) {
     logger.error({ err }, "Welcome email failed");
