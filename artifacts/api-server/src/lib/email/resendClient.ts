@@ -41,6 +41,8 @@ export interface SendTemplateParams {
   to: string;
   templateId: string;
   variables: Record<string, string>;
+  // Adds RFC 8058 one-click unsubscribe headers (same as the non-template path).
+  unsubscribeUrl?: string;
 }
 
 export interface SendResult {
@@ -57,7 +59,7 @@ export async function sendEmailWithTemplate(params: SendTemplateParams): Promise
     return { sent: false, reason: "not-configured" };
   }
 
-  const body = {
+  const body: Record<string, unknown> = {
     from: fromHeader(sender),
     to: [params.to],
     template: {
@@ -65,6 +67,12 @@ export async function sendEmailWithTemplate(params: SendTemplateParams): Promise
       variables: params.variables,
     },
   };
+  if (params.unsubscribeUrl) {
+    body.headers = {
+      "List-Unsubscribe": `<${params.unsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+  }
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

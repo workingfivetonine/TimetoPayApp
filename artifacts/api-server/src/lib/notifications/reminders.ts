@@ -183,7 +183,7 @@ async function maybeTrialEnding(
   const trialData = { name: displayNameFromEmail(user.email), daysLeft, trialEndsAt: trialEnd.toISOString(), unsubscribeUrl };
   const templateId = process.env.RESEND_TEMPLATE_TRIAL_ENDING;
   const res = templateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId, variables: renderTrialEndingVars(trialData) })
+    ? await sendEmailWithTemplate({ to: user.email!, templateId, unsubscribeUrl, variables: { ...renderTrialEndingVars(trialData), UNSUBSCRIBE_URL: unsubscribeUrl } })
     : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderTrialEnding(trialData) });
   if (res.sent) {
     updates.lastTrialEndingSentAt = now;
@@ -213,7 +213,7 @@ async function maybePastDue(
   };
   const pastDueTemplateId = process.env.RESEND_TEMPLATE_PAST_DUE;
   const res = pastDueTemplateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId: pastDueTemplateId, variables: renderPastDueVars(pastDueData) })
+    ? await sendEmailWithTemplate({ to: user.email!, templateId: pastDueTemplateId, unsubscribeUrl, variables: { ...renderPastDueVars(pastDueData), UNSUBSCRIBE_URL: unsubscribeUrl } })
     : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderPastDue(pastDueData) });
   if (res.sent) {
     updates.lastPastDueSentAt = now;
@@ -245,7 +245,7 @@ async function maybeListExport(
   const listData = { name: displayNameFromEmail(user.email), itemCount: listCount, unsubscribeUrl };
   const listTemplateId = process.env.RESEND_TEMPLATE_LIST_EXPORT;
   const res = listTemplateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId: listTemplateId, variables: renderListExportVars(listData) })
+    ? await sendEmailWithTemplate({ to: user.email!, templateId: listTemplateId, unsubscribeUrl, variables: { ...renderListExportVars(listData), UNSUBSCRIBE_URL: unsubscribeUrl } })
     : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderListExport(listData) });
   if (res.sent) {
     updates.lastListExportSentAt = now;
@@ -305,7 +305,7 @@ async function maybeReceiptInactivity(
   };
   const inactivityTemplateId = process.env.RESEND_TEMPLATE_RECEIPT_INACTIVITY;
   const res = inactivityTemplateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId: inactivityTemplateId, variables: renderReceiptInactivityVars(inactivityData) })
+    ? await sendEmailWithTemplate({ to: user.email!, templateId: inactivityTemplateId, unsubscribeUrl, variables: { ...renderReceiptInactivityVars(inactivityData), UNSUBSCRIBE_URL: unsubscribeUrl } })
     : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderReceiptInactivity(inactivityData) });
   if (res.sent) {
     updates.lastReceiptInactivitySentAt = now;
@@ -347,7 +347,7 @@ async function maybeSpendSummaries(
       };
       const weeklyTemplateId = process.env.RESEND_TEMPLATE_WEEKLY_SUMMARY;
       const res = weeklyTemplateId
-        ? await sendEmailWithTemplate({ to: user.email!, templateId: weeklyTemplateId, variables: renderWeeklySummaryVars(weeklyData) })
+        ? await sendEmailWithTemplate({ to: user.email!, templateId: weeklyTemplateId, unsubscribeUrl, variables: { ...renderWeeklySummaryVars(weeklyData), UNSUBSCRIBE_URL: unsubscribeUrl } })
         : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderWeeklySummary(weeklyData) });
       if (res.sent) {
         updates.lastWeeklySummarySentAt = now;
@@ -385,7 +385,7 @@ async function maybeSpendSummaries(
       };
       const monthlyTemplateId = process.env.RESEND_TEMPLATE_MONTHLY_SUMMARY;
       const res = monthlyTemplateId
-        ? await sendEmailWithTemplate({ to: user.email!, templateId: monthlyTemplateId, variables: renderMonthlySummaryVars(monthlyData) })
+        ? await sendEmailWithTemplate({ to: user.email!, templateId: monthlyTemplateId, unsubscribeUrl, variables: { ...renderMonthlySummaryVars(monthlyData), UNSUBSCRIBE_URL: unsubscribeUrl } })
         : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderMonthlySummary(monthlyData) });
       if (res.sent) {
         updates.lastMonthlySummarySentAt = now;
