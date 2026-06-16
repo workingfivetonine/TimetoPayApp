@@ -367,27 +367,33 @@ export default function BoardScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Community</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.headerIconBtn}
+            style={styles.headerLabelBtn}
             onPress={() => setSortDir((d) => (d === "newest" ? "oldest" : "newest"))}
             hitSlop={8}
+            accessibilityLabel="Sort posts by newest or oldest"
           >
             <Feather
               name={sortDir === "newest" ? "arrow-down" : "arrow-up"}
-              size={18}
+              size={16}
               color={colors.foreground}
             />
+            <Text style={[styles.headerLabel, { color: colors.foreground }]}>Sort</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.headerIconBtn}
+            style={styles.headerLabelBtn}
             onPress={() => void refetch()}
             hitSlop={8}
             disabled={isRefetching}
+            accessibilityLabel="Refresh posts"
           >
             <Feather
               name="refresh-cw"
-              size={18}
+              size={16}
               color={isRefetching ? colors.mutedForeground : colors.foreground}
             />
+            <Text style={[styles.headerLabel, { color: isRefetching ? colors.mutedForeground : colors.foreground }]}>
+              Refresh
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.composeBtn, { backgroundColor: colors.primary }]}
@@ -860,6 +866,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 8,
   },
+  headerLabelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 36,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  headerLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   composeBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -21,7 +21,7 @@ type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
 // Privacy / Support are standalone server-rendered pages (see server/serve.js),
 // not in-app routes — open them as full web pages.
-function openLegalPage(page: "privacy" | "support" | "donate") {
+function openLegalPage(page: "privacy" | "terms" | "support" | "donate") {
   if (Platform.OS === "web") {
     window.location.href = `/${page}`;
   } else {
@@ -252,6 +252,13 @@ export default function LandingPage() {
               accessibilityRole="link"
             >
               <Text style={styles.footerLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.footerDot}>·</Text>
+            <TouchableOpacity
+              onPress={() => openLegalPage("terms")}
+              accessibilityRole="link"
+            >
+              <Text style={styles.footerLink}>Terms</Text>
             </TouchableOpacity>
             <Text style={styles.footerDot}>·</Text>
             <TouchableOpacity

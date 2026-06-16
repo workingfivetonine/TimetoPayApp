@@ -7,6 +7,7 @@
     { "source": "/donate",  "destination": "/donate.html" },
     { "source": "/support", "destination": "/support.html" },
     { "source": "/terms",   "destination": "/terms.html" },
+    { "source": "/help",    "destination": "/help.html" },
     { "source": "/(.*)",    "destination": "/index.html" }
   ]
 }
