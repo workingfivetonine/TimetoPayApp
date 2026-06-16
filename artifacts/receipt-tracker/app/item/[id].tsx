@@ -251,7 +251,10 @@ export default function ItemHistoryScreen() {
     return () => {
       active = false;
     };
-  }, [itemId, getToken]);
+    // Load once per item. getToken's identity changes every render, so including
+    // it would re-fetch constantly and wipe what the user is typing (brand/size).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
 
   const saveDetails = async (patch: { brand?: string; size?: string; category?: string }) => {
     if (!isOnline) {

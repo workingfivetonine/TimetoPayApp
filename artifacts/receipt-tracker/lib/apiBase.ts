@@ -16,7 +16,12 @@ export function getApiOrigin(): string {
     return apiUrl;
   }
   if (isProdWeb()) {
-    return window.location.origin;
+    // The API runs on the `api.` subdomain (Railway), NOT the frontend origin.
+    // Derive it from the current host so the app keeps working even when the
+    // EXPO_PUBLIC_API_URL build var is unset — otherwise every /api call hits the
+    // SPA and returns HTML ("Unexpected token '<' ... is not valid JSON").
+    const host = window.location.hostname.replace(/^www\./, "");
+    return `https://api.${host}`;
   }
   return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 }
