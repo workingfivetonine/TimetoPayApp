@@ -74,7 +74,10 @@ export default function ProfileSetupScreen() {
     return () => {
       active = false;
     };
-  }, [authedFetch]);
+    // Run ONCE on mount. (authedFetch closes over Clerk's getToken, whose
+    // identity changes each render — including it here would loop forever.)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced live availability check as the username changes.
   React.useEffect(() => {
@@ -103,7 +106,10 @@ export default function ProfileSetupScreen() {
       active = false;
       clearTimeout(t);
     };
-  }, [username, authedFetch]);
+    // Re-check only when the typed username changes (not when authedFetch's
+    // identity churns from getToken).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
 
   const shuffleAvatar = () => setAvatarSeed(randomSeed());
 
