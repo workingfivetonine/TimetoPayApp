@@ -15,7 +15,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
-import { downloadShoppingListPdf, type PriceMode } from "@/lib/shoppingListPdf";
+import { downloadShoppingListPdf, type PriceMode, type GroupMode } from "@/lib/shoppingListPdf";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,6 +131,7 @@ export function ShoppingListPdfModal({
   const [activeCats, setActiveCats] = useState<Set<string>>(new Set());
   const [activeStores, setActiveStores] = useState<Set<string>>(new Set());
   const [priceMode, setPriceMode] = useState<PriceMode>("lowest");
+  const [groupMode, setGroupMode] = useState<GroupMode>("category");
 
   // Merge state
   const [mergePairs, setMergePairs] = useState<MergePair[]>([]);
@@ -388,6 +389,7 @@ export function ShoppingListPdfModal({
         customItems,
         preparedFor,
         priceMode,
+        groupMode,
         quantities: Object.fromEntries(quantities),
         currencySymbol: symbol,
       });
@@ -552,6 +554,17 @@ export function ShoppingListPdfModal({
               >
                 <Text style={[styles.priceToggleText, { color: colors.primary }]}>
                   {priceMode === "lowest" ? "$ Lowest" : "⏱ Recent"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.priceToggle, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() =>
+                  setGroupMode((m) => (m === "category" ? "store" : m === "store" ? "alpha" : "category"))
+                }
+                accessibilityLabel="Change how the list is grouped"
+              >
+                <Text style={[styles.priceToggleText, { color: colors.primary }]}>
+                  {groupMode === "category" ? "📂 By category" : groupMode === "store" ? "🏬 By store" : "🔤 A–Z"}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -36,6 +36,8 @@ export interface ShoppingListPdfOptions {
   quantities?: Record<number, number>;
   // Visual currency symbol (no conversion). Defaults to "$".
   currencySymbol?: string;
+  // How to group the printable list. Defaults to "category".
+  groupMode?: GroupMode;
 }
 
 function getPriceAndStore(
@@ -54,12 +56,18 @@ function getPriceAndStore(
   };
 }
 
+// How the printable list is grouped/sorted.
+export type GroupMode = "category" | "store" | "alpha";
+const NO_STORE = "No preferred store";
+const ALL_ITEMS = "All items";
+
 function toSectionGroups(
   regularItems: ShoppingListItem[],
   oneOffItems: ShoppingListItem[],
   customItems: string[],
   priceMode: PriceMode,
   quantities: Record<number, number>,
+  groupMode: GroupMode,
 ): SectionGroup[] {
   const sections: SectionGroup[] = [];
 
@@ -69,26 +77,34 @@ function toSectionGroups(
     for (const item of items) {
       const cat = item.category?.trim() || UNKNOWN_CATEGORY;
       const { price, store } = getPriceAndStore(item, priceMode);
-      const bucket = catMap.get(cat) ?? [];
+      // Bucket key depends on the chosen grouping; the item still carries its
+      // real category/store for display.
+      const key =
+        groupMode === "store" ? store?.trim() || NO_STORE
+        : groupMode === "alpha" ? ALL_ITEMS
+        : cat;
+      const bucket = catMap.get(key) ?? [];
       bucket.push({ itemName: item.itemName, icon: item.icon ?? null, category: cat, storeName: store, price, ranOutAt: item.ranOutAt ?? null, isCustom: false, quantity: quantities[item.itemId] ?? 1 });
-      catMap.set(cat, bucket);
+      catMap.set(key, bucket);
     }
 
     if (includeCustom) {
       for (const name of customItems) {
         const n = name.trim();
         if (!n) continue;
-        const bucket = catMap.get("Added") ?? [];
+        const key = groupMode === "alpha" ? ALL_ITEMS : "Added";
+        const bucket = catMap.get(key) ?? [];
         bucket.push({ itemName: n, icon: null, category: "Added", storeName: null, price: null, ranOutAt: null, isCustom: true, quantity: 1 });
-        catMap.set("Added", bucket);
+        catMap.set(key, bucket);
       }
     }
 
     const sortKey = (a: string, b: string) => {
-      if (a === "Added") return 1;
-      if (b === "Added") return -1;
-      if (a === UNKNOWN_CATEGORY) return 1;
-      if (b === UNKNOWN_CATEGORY) return -1;
+      // Keep the catch-all buckets last regardless of grouping.
+      for (const tail of ["Added", UNKNOWN_CATEGORY, NO_STORE]) {
+        if (a === tail) return 1;
+        if (b === tail) return -1;
+      }
       return a.localeCompare(b);
     };
 
@@ -189,7 +205,8 @@ export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
   const customItems = opts.customItems ?? [];
   const quantities = opts.quantities ?? {};
   const symbol = opts.currencySymbol || "$";
-  const sections = toSectionGroups(opts.regularItems, opts.oneOffItems, customItems, priceMode, quantities);
+  const groupMode = opts.groupMode ?? "category";
+  const sections = toSectionGroups(opts.regularItems, opts.oneOffItems, customItems, priceMode, quantities, groupMode);
   const totalItems = opts.regularItems.length + opts.oneOffItems.length + customItems.filter((n) => n.trim()).length;
   const preparedFor = (opts.preparedFor ?? "").trim();
   const dateStr = new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
