@@ -20,6 +20,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import {
@@ -64,6 +65,7 @@ function toIso(dateStr: string): string {
 export default function ReviewReceiptScreen() {
   const { getToken } = useAuth();
   const colors = useColors();
+  const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -168,12 +170,22 @@ export default function ReviewReceiptScreen() {
           const n = parseFloat(value);
           return { ...li, price: isNaN(n) ? li.price : n, priceUncertain: false };
         }
-        const n = parseInt(value, 10);
+        // Quantity is numeric(10,3) — allow decimals so weights like 2.35 lb work.
+        const n = parseFloat(value);
         return { ...li, quantity: isNaN(n) ? li.quantity : n };
       });
       return { ...r, lineItems: items };
     });
   };
+  // Toggle a row between flat unit-price and price-per-pound (weight) mode.
+  const toggleWeight = (idx: number) =>
+    setReceipt((r) => {
+      if (!r) return r;
+      const items = r.lineItems.map((li, i) =>
+        i === idx ? { ...li, byWeight: !li.byWeight } : li,
+      );
+      return { ...r, lineItems: items };
+    });
   const removeItem = (idx: number) =>
     setReceipt((r) => r && { ...r, lineItems: r.lineItems.filter((_, i) => i !== idx) });
   const addItem = () =>
@@ -367,7 +379,7 @@ export default function ReviewReceiptScreen() {
               <View style={styles.itemNumRow}>
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={[styles.itemSubLabel, { color: colors.mutedForeground }]}>
-                    Unit price
+                    {li.byWeight ? "Price / lb" : "Unit price"}
                     {li.priceUncertain && <Text style={{ color: WARN }}> ⚠</Text>}
                   </Text>
                   <TextInput
@@ -389,7 +401,7 @@ export default function ReviewReceiptScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.itemSubLabel, { color: colors.mutedForeground }]}>
-                    Qty
+                    {li.byWeight ? "Weight (lb)" : "Qty"}
                   </Text>
                   <TextInput
                     style={[
@@ -398,12 +410,35 @@ export default function ReviewReceiptScreen() {
                     ]}
                     value={String(li.quantity)}
                     onChangeText={(v) => setItemField(idx, "quantity", v)}
-                    keyboardType="number-pad"
-                    placeholder="1"
+                    keyboardType="decimal-pad"
+                    placeholder={li.byWeight ? "0.00" : "1"}
                     placeholderTextColor={colors.mutedForeground}
                     returnKeyType="done"
                   />
                 </View>
+              </View>
+
+              {/* Weight toggle + computed line total */}
+              <View style={styles.itemWeightRow}>
+                <TouchableOpacity
+                  onPress={() => toggleWeight(idx)}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  style={styles.weightToggle}
+                >
+                  <Feather
+                    name={li.byWeight ? "check-square" : "square"}
+                    size={14}
+                    color={li.byWeight ? colors.primary : colors.mutedForeground}
+                  />
+                  <Text style={[styles.weightToggleText, { color: li.byWeight ? colors.primary : colors.mutedForeground }]}>
+                    Priced by weight (per lb)
+                  </Text>
+                </TouchableOpacity>
+                {li.byWeight ? (
+                  <Text style={[styles.lineTotal, { color: colors.foreground }]}>
+                    = {format(li.price * li.quantity)}
+                  </Text>
+                ) : null}
               </View>
             </View>
           );
@@ -567,6 +602,24 @@ const styles = StyleSheet.create({
   },
   itemNumRow: {
     flexDirection: "row",
+  },
+  itemWeightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  weightToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  weightToggleText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+  lineTotal: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
   },
   itemSubLabel: {
     fontSize: 11,

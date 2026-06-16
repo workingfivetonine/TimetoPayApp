@@ -6,6 +6,10 @@ export interface ParsedLineItem {
   category?: string | null;
   nameUncertain?: boolean;
   priceUncertain?: boolean;
+  // UI-only: when true the row is priced by weight, so `price` is the
+  // price-per-pound and `quantity` is the weight in pounds. The stored line
+  // total is still price × quantity, so no special backend handling is needed.
+  byWeight?: boolean;
 }
 
 export interface ParsedReceiptData {
