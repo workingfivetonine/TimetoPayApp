@@ -81,14 +81,13 @@ router.post("/checkout", async (req, res): Promise<void> => {
         });
         return;
       }
-      // The 20% coupon is the ONE-TIME post-trial offer. Enforce eligibility
-      // server-side (not just in the client modal) so it can't be requested
-      // repeatedly for unlimited discounted checkouts: apply the coupon ONLY when
-      // the user currently qualifies (computeEntitlement.showAnnualOffer = free,
-      // trial ended, not dismissed). Ineligible users may still buy annual, but
-      // at full price.
+      // Annual is a STANDING ~20%-off deal: always apply the annual coupon when
+      // configured so the discount the paywall advertises is the price actually
+      // charged. (Note: if the coupon's Stripe duration is "once", only the first
+      // year is discounted; for a permanent discount set the annual price itself
+      // to the discounted amount.)
       const coupon = process.env.STRIPE_ANNUAL_COUPON_ID;
-      if (coupon && computeEntitlement(user).showAnnualOffer) {
+      if (coupon) {
         discounts = [{ coupon }];
       }
     } else {
@@ -178,6 +177,55 @@ router.post("/checkout", async (req, res): Promise<void> => {
     return;
   }
   res.json({ url: approveUrl, provider: "paypal" });
+});
+
+// Live subscription prices so the paywall reflects the real Stripe amounts
+// instead of hardcoded text. Returns monthly + annual (with the annual coupon's
+// percent-off and the resulting effective price). Falls back to sensible
+// defaults when Stripe or the price IDs aren't configured.
+router.get("/prices", async (_req, res): Promise<void> => {
+  const fallback = {
+    monthly: { amount: 599, currency: "usd", interval: "month" },
+    annual: { amount: 7188, currency: "usd", interval: "year", percentOff: 20, effectiveAmount: 5750 },
+  };
+  try {
+    if (!(await isStripeConfigured())) {
+      res.json(fallback);
+      return;
+    }
+    const stripe = await getUncachableStripeClient();
+    const monthlyId = process.env.STRIPE_PRICE_ID;
+    const annualId = process.env.STRIPE_ANNUAL_PRICE_ID;
+    const couponId = process.env.STRIPE_ANNUAL_COUPON_ID;
+    const [monthly, annual, coupon] = await Promise.all([
+      monthlyId ? stripe.prices.retrieve(monthlyId).catch(() => null) : null,
+      annualId ? stripe.prices.retrieve(annualId).catch(() => null) : null,
+      couponId ? stripe.coupons.retrieve(couponId).catch(() => null) : null,
+    ]);
+    const percentOff = coupon?.percent_off ?? 0;
+    const annualAmount = annual?.unit_amount ?? fallback.annual.amount;
+    const effectiveAmount = percentOff
+      ? Math.round(annualAmount * (1 - percentOff / 100))
+      : annualAmount;
+    res.json({
+      monthly:
+        monthly?.unit_amount != null
+          ? { amount: monthly.unit_amount, currency: monthly.currency, interval: monthly.recurring?.interval ?? "month" }
+          : fallback.monthly,
+      annual:
+        annual?.unit_amount != null
+          ? {
+              amount: annualAmount,
+              currency: annual.currency,
+              interval: annual.recurring?.interval ?? "year",
+              percentOff,
+              effectiveAmount,
+            }
+          : fallback.annual,
+    });
+  } catch {
+    res.json(fallback);
+  }
 });
 
 // Returns a provider URL to manage or cancel the current subscription.

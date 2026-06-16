@@ -1,7 +1,7 @@
-import { useClerk } from "@clerk/expo";
+import { useAuth, useClerk } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +24,7 @@ import {
   useStartFreeTrial,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 
 type Provider = "stripe" | "paypal";
 
@@ -62,6 +63,36 @@ export default function PaywallScreen() {
   const startTrial = useStartFreeTrial();
 
   const canStartTrial = me?.entitlement?.canStartTrial ?? false;
+
+  const { getToken } = useAuth();
+  const [selectedPlan, setSelectedPlan] = useState<"monthly" | "annual">("annual");
+
+  // Live prices from Stripe so the screen always matches what's actually charged.
+  const { data: prices } = useQuery({
+    queryKey: ["billing", "prices"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/billing/prices`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("prices");
+      return res.json() as Promise<{
+        monthly: { amount: number };
+        annual: { amount: number; percentOff: number; effectiveAmount: number };
+      }>;
+    },
+  });
+
+  const fmt = (cents: number) => {
+    const d = cents / 100;
+    return Number.isInteger(d) ? `$${d}` : `$${d.toFixed(2)}`;
+  };
+  const monthlyCents = prices?.monthly.amount ?? 599;
+  const annualCents = prices?.annual.effectiveAmount ?? 5750;
+  const savingsPercent = Math.max(
+    0,
+    Math.round((1 - annualCents / (monthlyCents * 12)) * 100),
+  );
 
   const refreshMe = async () => {
     await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
@@ -106,7 +137,7 @@ export default function PaywallScreen() {
     setError(null);
     setPending(provider);
     checkout.mutate(
-      { data: { provider } },
+      { data: { provider, plan: provider === "paypal" ? "monthly" : selectedPlan } },
       {
         onSuccess: (res) => openUrl(res.url),
         onError: () => {
@@ -170,12 +201,58 @@ export default function PaywallScreen() {
             : "Subscribe to keep scanning receipts, tracking prices, and building your smart shopping list."}
         </Text>
 
+        {/* Plan selector */}
+        <TouchableOpacity
+          style={[
+            styles.planCard,
+            { backgroundColor: colors.card, borderColor: selectedPlan === "annual" ? colors.primary : colors.border },
+          ]}
+          onPress={() => setSelectedPlan("annual")}
+          activeOpacity={0.85}
+        >
+          {savingsPercent > 0 ? (
+            <View style={[styles.planBadge, { backgroundColor: colors.primary }]}>
+              <Text style={styles.planBadgeText}>BEST VALUE · SAVE {savingsPercent}%</Text>
+            </View>
+          ) : null}
+          <View style={styles.planRow}>
+            <Feather
+              name={selectedPlan === "annual" ? "check-circle" : "circle"}
+              size={20}
+              color={selectedPlan === "annual" ? colors.primary : colors.mutedForeground}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.planName, { color: colors.foreground }]}>Annual</Text>
+              <Text style={[styles.planSub, { color: colors.mutedForeground }]}>
+                {fmt(annualCents)}/year · {fmt(Math.round(annualCents / 12))}/mo
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.planCard,
+            { backgroundColor: colors.card, borderColor: selectedPlan === "monthly" ? colors.primary : colors.border },
+          ]}
+          onPress={() => setSelectedPlan("monthly")}
+          activeOpacity={0.85}
+        >
+          <View style={styles.planRow}>
+            <Feather
+              name={selectedPlan === "monthly" ? "check-circle" : "circle"}
+              size={20}
+              color={selectedPlan === "monthly" ? colors.primary : colors.mutedForeground}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.planName, { color: colors.foreground }]}>Monthly</Text>
+              <Text style={[styles.planSub, { color: colors.mutedForeground }]}>{fmt(monthlyCents)}/month</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Features */}
         <View style={[styles.priceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.price, { color: colors.foreground }]}>$5.99</Text>
-          <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}>
-            per month
-          </Text>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           {[
             "Unlimited AI receipt scanning",
             "Price history & analytics",
@@ -239,26 +316,36 @@ export default function PaywallScreen() {
                   { color: canStartTrial ? colors.primary : colors.primaryForeground },
                 ]}
               >
-                Pay with card
+                Pay with card · {selectedPlan === "annual" ? `${fmt(annualCents)}/yr` : `${fmt(monthlyCents)}/mo`}
               </Text>
             </>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.payBtnOutline, { borderColor: colors.primary }]}
-          onPress={() => startCheckout("paypal")}
-          disabled={pending !== null}
-          activeOpacity={0.85}
-        >
-          {pending === "paypal" ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : (
-            <Text style={[styles.payBtnText, { color: colors.primary }]}>
-              Pay with PayPal
-            </Text>
-          )}
-        </TouchableOpacity>
+        {selectedPlan === "monthly" ? (
+          <TouchableOpacity
+            style={[styles.payBtnOutline, { borderColor: colors.primary }]}
+            onPress={() => startCheckout("paypal")}
+            disabled={pending !== null}
+            activeOpacity={0.85}
+          >
+            {pending === "paypal" ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text style={[styles.payBtnText, { color: colors.primary }]}>
+                Pay with PayPal
+              </Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <Text style={[styles.cancelNote, { color: colors.mutedForeground }]}>
+            Annual is card-only — choose Monthly to pay with PayPal.
+          </Text>
+        )}
+
+        <Text style={[styles.cancelNote, { color: colors.mutedForeground }]}>
+          Cancel anytime{canStartTrial ? " — your 30-day free trial is free, no charge until it ends" : ""}.
+        </Text>
 
         <View style={styles.promoSection}>
           <Text style={[styles.promoLabel, { color: colors.mutedForeground }]}>
@@ -365,6 +452,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   payBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  planCard: { borderWidth: 1.5, borderRadius: 14, padding: 16, marginBottom: 10 },
+  planRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  planName: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  planSub: { fontSize: 13, fontFamily: "Inter_500Medium", marginTop: 2 },
+  planBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginBottom: 10 },
+  planBadgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  cancelNote: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 6 },
   orLabel: { fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "center", marginTop: 2 },
   promoSection: { marginTop: 10, gap: 8 },
   promoLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
