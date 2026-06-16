@@ -10,13 +10,19 @@ Live at **[5to9shopping.com](https://5to9shopping.com)**
 
 ## Features
 
-- **AI receipt scanning** — upload a photo or PDF, get items and prices extracted automatically
+- **AI receipt scanning** — upload a photo or PDF, get items and prices extracted automatically. Free accounts get a limited number of single-photo scans (1/week, 4/month); paid accounts get unlimited scanning plus PDF and multi-receipt uploads.
+- **Review before save** — an editable review screen for every scan: fix the store, date, total, and each line item inline, including a per-item "priced by weight" mode (price-per-pound × weight).
 - **Price history** — track what you pay for each item across every store over time
-- **Smart shopping list** — auto-built from your purchase history, sorted by store, with best-price indicators
-- **Spend analytics** — weekly and monthly spending summaries with trend comparison
-- **Store management** — track multiple stores with delivery fees, hours, and contact info
+- **Smart shopping list** — auto-built from your purchase history, with best-price indicators, "ran out"/"buy more" toggles, undo, and a printable export grouped by category, store, or A–Z
+- **Spend analytics** — this-month and since-join spend totals, weekly/monthly trends, and a spend calendar with per-day quick-add
+- **Multi-currency display** — prices render in the user's local currency symbol based on their country (visual only — amounts are never converted)
+- **Store management** — track multiple stores with delivery fees, hours, website, and Google Maps directions
+- **Community board** — a moderated tips/deals board for subscribers with 2+ uploaded receipts
+- **Profile & onboarding** — unique username + generated avatar, shown as the author on the community board
 - **Cross-store catalog** — region-scoped shared item catalog for price benchmarking
-- **Subscriptions** — Stripe and PayPal billing with trial support
+- **Subscriptions** — Stripe and PayPal billing with an opt-in free trial, in-app trial-ending and payment-failed banners, and a self-service "manage/cancel" flow
+- **Email** — welcome, subscription thank-you, trial-ending, payment past-due, and account-deleted emails (dashboard-editable via Resend templates); all reminders default OFF and carry CAN-SPAM unsubscribe footers
+- **Privacy & GDPR** — privacy policy, Terms/Privacy acceptance at signup, full data export, and self-service account + data deletion (cancels billing)
 - **PWA support** — installable on mobile home screen, offline-capable
 
 ---
@@ -150,7 +156,11 @@ All DNS is managed through Vercel's DNS panel (Vercel nameservers). Key records:
 - Entitlement is computed server-side from `subscriptionStatus` — never trust client-reported subscription state
 - PDF parsing uses `poppler` (`pdftoppm`) for rasterization — must be installed on the server
 - Clerk authentication uses a direct CNAME (`clerk.5to9shopping.com`) — no proxy
-- All email notifications default to OFF for new users
+- All email notifications default to OFF for new users; trial-ending and payment-past-due notices are the exception (always sent, as losing access is critical)
+- The web paywall is enforced server-side per feature (`requirePremium` / `allowFreeSingleScan`); native clients are never paywalled (App Store IAP policy)
+- The committed API client (`lib/api-client-react`, `lib/api-zod`) is generated but has drifted from the OpenAPI spec — **do not regenerate**. Add new endpoints as raw Express routes called via `fetch`, and read new fields via casts.
+- Additive schema changes are applied at server boot via idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` in `bootstrap.ts` (no migration step in the deploy)
+- Multi-currency is display-only: a country→symbol map in `lib/geo`; amounts are shown as entered and never converted
 
 ---
 
