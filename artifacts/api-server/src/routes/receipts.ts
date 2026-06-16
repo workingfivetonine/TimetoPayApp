@@ -19,7 +19,9 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
 import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
-import { requirePremium } from "../middlewares/requireEntitlement.js";
+import { requirePremium, allowFreeSingleScan } from "../middlewares/requireEntitlement.js";
+import { getFreeScanUsage, recordFreeScan } from "../lib/billing/freeScan.js";
+import { computeEntitlement } from "../lib/billing/entitlement.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (
@@ -318,6 +320,26 @@ function parseJson(content: string): ParsedReceipt | null {
 }
 
 const router = Router();
+
+// Free-tier scan budget for the scan screen: how many AI scans the caller has
+// left this period. Entitled / native / admin callers are unlimited.
+router.get("/scan-usage", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const platform = req.header("x-client-platform")?.toLowerCase();
+  const native = platform === "ios" || platform === "android";
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const entitlement = computeEntitlement(user);
+  if (native || user.isAdmin || entitlement.entitled) {
+    res.json({ entitled: true, unlimited: true });
+    return;
+  }
+  const usage = await getFreeScanUsage(userId);
+  res.json({ entitled: false, unlimited: false, ...usage });
+});
 
 function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) {
   return {
@@ -647,7 +669,7 @@ Rules:
 });
 
 // Parse receipt image with AI
-router.post("/parse", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse", allowFreeSingleScan, imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -684,6 +706,14 @@ router.post("/parse", requirePremium, imageGuard, async (req, res): Promise<void
     if (!parsed) {
       res.status(500).json({ error: "Failed to parse AI response as JSON" });
       return;
+    }
+    // A free user's metered scan only counts once it actually produced a result.
+    if (req.recordFreeScanOnSuccess) {
+      try {
+        await recordFreeScan(req.userId!);
+      } catch (e) {
+        req.log.warn({ e }, "Failed to record free scan usage");
+      }
     }
     res.json(parsed);
   } catch (err) {

@@ -24,7 +24,7 @@ import {
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceipts";
@@ -79,6 +79,40 @@ export default function ScanScreen() {
   const queryClient = useQueryClient();
   const locked = usePremiumLock();
   const [scanning, setScanning] = useState(false);
+
+  // Free-tier scan budget. Free (locked) users get a limited number of
+  // single-photo AI scans; this drives the usage line + whether the photo
+  // button is enabled. Refetched after each scan so the count stays current.
+  type ScanUsage = {
+    entitled: boolean;
+    unlimited?: boolean;
+    week?: number;
+    month?: number;
+    weekLimit?: number;
+    monthLimit?: number;
+    canScan?: boolean;
+  };
+  const { data: scanUsage, refetch: refetchScanUsage } = useQuery<ScanUsage>({
+    queryKey: ["scan-usage"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await expoFetch(`${getApiOrigin()}/api/receipts/scan-usage`, {
+        headers: {
+          "x-client-platform": Platform.OS,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(`scan-usage ${res.status}`);
+      return (await res.json()) as ScanUsage;
+    },
+  });
+  // Free users can still scan until they hit the cap; default to allowing the
+  // first scan while usage is loading.
+  const freeScansLeft =
+    scanUsage && scanUsage.month != null && scanUsage.monthLimit != null
+      ? Math.max(0, scanUsage.monthLimit - scanUsage.month)
+      : null;
+  const canFreeScan = scanUsage?.canScan ?? true;
   const [scanningLabel, setScanningLabel] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
@@ -92,8 +126,8 @@ export default function ScanScreen() {
   // the call sites show an upsell + route to the paywall instead of a generic
   // "could not read" error.
   class PremiumRequiredError extends Error {
-    constructor() {
-      super("premium_required");
+    constructor(message?: string) {
+      super(message ?? "premium_required");
     }
   }
 
@@ -107,8 +141,12 @@ export default function ScanScreen() {
     }
   }
 
-  const promptUpgrade = () => {
-    showErrorToast("Premium required", "AI scanning is a premium feature.");
+  const promptUpgrade = (message?: string) => {
+    const isLimit = !!message && message !== "premium_required";
+    showErrorToast(
+      isLimit ? "Free scans used up" : "Premium required",
+      isLimit ? message! : "AI scanning is a premium feature.",
+    );
     router.push("/paywall");
   };
 
@@ -167,11 +205,13 @@ export default function ScanScreen() {
   };
 
   const handlePickImage = async () => {
+    // Free users are limited to a single photo per scan; only paid users can
+    // select multiple photos (same/different receipt batching).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       base64: true,
       quality: 1.0,
-      allowsMultipleSelection: true,
+      allowsMultipleSelection: !locked,
     });
     if (result.canceled || result.assets.length === 0) return;
 
@@ -311,13 +351,18 @@ export default function ScanScreen() {
         },
         body: JSON.stringify({ imageBase64: editedBase64 }),
       });
-      if (response.status === 403) throw new PremiumRequiredError();
+      if (response.status === 403) {
+        const body = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+        throw new PremiumRequiredError(body?.error === "free_scan_limit_reached" ? body?.message : undefined);
+      }
       if (!response.ok) throw new UploadError(response.status);
       const parsed = (await response.json()) as ParsedReceiptData;
+      // A free scan was just consumed — refresh the remaining count.
+      void refetchScanUsage();
       setPendingReceipt(parsed, editedBase64);
       router.push("/review-receipt");
     } catch (err) {
-      if (err instanceof PremiumRequiredError) promptUpgrade();
+      if (err instanceof PremiumRequiredError) promptUpgrade(err.message);
       else showUploadFailure(err, "image", () => parseImage(editedBase64));
     } finally {
       setScanning(false);
@@ -446,72 +491,93 @@ export default function ScanScreen() {
 
         {locked ? <PremiumBadge style={styles.premiumBadge} /> : null}
         <Text style={[styles.headline, { color: colors.foreground }]}>
-          {locked ? "AI receipt scanning" : "Upload a receipt"}
+          {locked ? "Scan a receipt" : "Upload a receipt"}
         </Text>
         <Text style={[styles.subtext, { color: colors.mutedForeground }]}>
           {locked
-            ? "Subscribe to scan photos and PDFs — AI extracts the store, items, and prices for you. You can still add receipts manually below for free."
+            ? "Snap a photo and AI pulls out the store, items, and prices. Free accounts get a few scans a month — subscribe for unlimited, plus PDF and multi-receipt uploads."
             : "AI extracts the store, items, and prices automatically"}
         </Text>
 
-        {locked ? (
-          <TouchableOpacity
-            style={[styles.primaryBtn, styles.upgradeBtn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push("/paywall")}
-            activeOpacity={0.85}
+        {/* Free-tier usage line */}
+        {locked && freeScansLeft != null ? (
+          <Text
+            style={[
+              styles.hint,
+              { color: canFreeScan ? colors.primary : "#dc2626", marginTop: 0, marginBottom: 6, fontFamily: "Inter_600SemiBold" },
+            ]}
           >
-            <Feather name="zap" size={18} color="#fff" />
-            <Text style={styles.primaryBtnText}>Subscribe to unlock</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {/* Upload buttons */}
-            <View style={styles.buttons}>
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-                onPress={handlePickImage}
-                disabled={scanning}
-                activeOpacity={0.8}
-              >
-                <Feather name="image" size={20} color="#fff" />
-                <Text style={styles.primaryBtnText}>Choose Photo</Text>
-              </TouchableOpacity>
+            {canFreeScan
+              ? `${freeScansLeft} free scan${freeScansLeft === 1 ? "" : "s"} left this month`
+              : "You've used your free scans for now"}
+          </Text>
+        ) : null}
 
-              <TouchableOpacity
-                style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={handlePickPdf}
-                disabled={scanning}
-                activeOpacity={0.8}
-              >
-                <Feather name="file-text" size={20} color={colors.foreground} />
-                <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
-                  Upload PDF
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-              PDFs work best for online order confirmations
+        {/* Upload buttons */}
+        <View style={styles.buttons}>
+          <TouchableOpacity
+            style={[
+              styles.primaryBtn,
+              { backgroundColor: colors.primary },
+              locked && !canFreeScan && { opacity: 0.6 },
+            ]}
+            onPress={locked && !canFreeScan ? () => router.push("/paywall") : handlePickImage}
+            disabled={scanning}
+            activeOpacity={0.8}
+          >
+            <Feather name={locked && !canFreeScan ? "zap" : "image"} size={20} color="#fff" />
+            <Text style={styles.primaryBtnText}>
+              {locked && !canFreeScan ? "Subscribe to scan" : "Choose Photo"}
             </Text>
+          </TouchableOpacity>
 
-            <View style={[styles.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.tipsTitle, { color: colors.foreground }]}>
-                Tips for the best scan
+          {locked ? (
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/paywall")}
+              disabled={scanning}
+              activeOpacity={0.8}
+            >
+              <Feather name="lock" size={16} color={colors.mutedForeground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>
+                PDF & multi — Premium
               </Text>
-              {[
-                "Lay the receipt flat and fill the frame, corner to corner.",
-                "Use bright, even light — avoid shadows and glare.",
-                "Long receipt? Take a few photos and choose “Same receipt”.",
-                "For online orders, upload the emailed PDF for the cleanest read.",
-              ].map((tip, i) => (
-                <View key={i} style={styles.tipRow}>
-                  <Feather name="check" size={13} color={colors.primary} style={{ marginTop: 2 }} />
-                  <Text style={[styles.tipText, { color: colors.mutedForeground }]}>{tip}</Text>
-                </View>
-              ))}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={handlePickPdf}
+              disabled={scanning}
+              activeOpacity={0.8}
+            >
+              <Feather name="file-text" size={20} color={colors.foreground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
+                Upload PDF
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+          {locked ? "One photo per scan on the free plan" : "PDFs work best for online order confirmations"}
+        </Text>
+
+        <View style={[styles.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.tipsTitle, { color: colors.foreground }]}>
+            Tips for the best scan
+          </Text>
+          {[
+            "Lay the receipt flat and fill the frame, corner to corner.",
+            "Use bright, even light — avoid shadows and glare.",
+            "Long receipt? Take a few photos and choose “Same receipt” (Premium).",
+            "For online orders, upload the emailed PDF for the cleanest read (Premium).",
+          ].map((tip, i) => (
+            <View key={i} style={styles.tipRow}>
+              <Feather name="check" size={13} color={colors.primary} style={{ marginTop: 2 }} />
+              <Text style={[styles.tipText, { color: colors.mutedForeground }]}>{tip}</Text>
             </View>
-          </>
-        )}
+          ))}
+        </View>
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 

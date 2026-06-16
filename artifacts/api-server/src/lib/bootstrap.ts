@@ -205,6 +205,17 @@ async function ensureAdminExists(): Promise<void> {
 async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "logo_url" text`);
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "website" text`);
+
+  // Free-tier AI scan metering (one row per free scan). Created here because the
+  // table may not exist yet when drizzle-kit push lags the deploy.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "free_scan_events" (
+    "id" serial PRIMARY KEY,
+    "user_id" text NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "free_scan_events_user_created_idx" ON "free_scan_events" ("user_id", "created_at")`,
+  );
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "brand" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
 

@@ -2,6 +2,18 @@ import type { Request, RequestHandler } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { computeEntitlement } from "../lib/billing/entitlement";
+import { getFreeScanUsage } from "../lib/billing/freeScan";
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      // Set by allowFreeSingleScan when a FREE user is permitted a metered scan;
+      // the route records the scan only after it succeeds.
+      recordFreeScanOnSuccess?: boolean;
+    }
+  }
+}
 
 // User-facing copy returned (verbatim) on a premium denial so the client can
 // display it directly without inventing its own message.
@@ -66,3 +78,50 @@ export const requirePremium: RequestHandler = async (req, res, next) => {
     .status(403)
     .json({ error: "premium_required", message: PREMIUM_REQUIRED_MESSAGE, entitlement });
 }
+
+// Copy returned when a free user has used up their free scans for the period.
+export const FREE_SCAN_LIMIT_MESSAGE =
+  "You've used all your free AI scans for now. Subscribe for unlimited scanning, or add receipts manually.";
+
+// Like requirePremium, but lets a FREE user through for a SINGLE-photo scan when
+// they're within the free-tier limits (1/week, 4/month). Used only on the
+// single-image `parse` endpoint — batch/PDF stay premium-only. When it lets a
+// free user through it sets req.recordFreeScanOnSuccess so the route records the
+// scan only after it actually succeeds (a failed parse never burns a credit).
+export const allowFreeSingleScan: RequestHandler = async (req, res, next) => {
+  if (isNativeClient(req)) {
+    next();
+    return;
+  }
+  const userId = req.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (req.isAdmin) {
+    next();
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const entitlement = computeEntitlement(user);
+  if (entitlement.entitled) {
+    next();
+    return;
+  }
+
+  const freeScan = await getFreeScanUsage(userId);
+  if (!freeScan.canScan) {
+    res
+      .status(403)
+      .json({ error: "free_scan_limit_reached", message: FREE_SCAN_LIMIT_MESSAGE, entitlement, freeScan });
+    return;
+  }
+  req.recordFreeScanOnSuccess = true;
+  next();
+};
