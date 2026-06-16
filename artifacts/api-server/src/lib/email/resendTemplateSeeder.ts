@@ -219,6 +219,8 @@ export async function seedResendTemplates(): Promise<SeedResult> {
       result.envVars[tmpl.envVar] = newId;
       result.created.push(tmpl.name);
     }
+    // Stay under Resend's rate limit (max 5 requests/second).
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
   return result;
