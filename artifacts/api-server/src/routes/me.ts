@@ -13,6 +13,7 @@ import { clerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
 import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
 import { sendAccountDeletedEmail, sendWelcomeEmail } from "../lib/email/transactional";
+import { loopsUpsertContact } from "../lib/email/loops";
 
 const router = Router();
 
@@ -226,6 +227,15 @@ router.patch("/profile", async (req, res): Promise<void> => {
     }
     if (isFirstProfile && user.email) {
       void sendWelcomeEmail(user.email, firstName || username);
+    }
+    // Keep the Loops contact's profile fields current on every save.
+    if (user.email) {
+      void loopsUpsertContact(user.email, {
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        username: user.username ?? null,
+        country: user.countryCode ?? null,
+      });
     }
     res.json(formatCurrentUser(user));
   } catch {

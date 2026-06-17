@@ -16,15 +16,11 @@ export async function sendWelcomeEmail(email: string, name?: string | null): Pro
   }
 }
 
-export async function sendSubscriptionThankYouEmail(email: string): Promise<void> {
-  try {
-    await loopsSendEvent(email, "subscription_started", {
-      contactProperties: { subscriptionStatus: "active" },
-    });
-  } catch (err) {
-    logger.error({ err }, "Subscription thank-you event failed");
-  }
-}
+// NOTE: the "subscription started / thank-you" and "payment past due" emails are
+// intentionally NOT sent from the app — they're owned by the Stripe→Loops
+// integration (triggered by customer.subscription.created / invoice.payment_failed)
+// so billing email is single-sourced. The app still syncs the billing facts to
+// the Loops contact (see lib/billing/loopsSync.ts).
 
 export async function sendAccountDeletedEmail(
   email: string,

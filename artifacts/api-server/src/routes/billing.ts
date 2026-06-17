@@ -19,7 +19,6 @@ import {
 } from "../lib/billing/paypalClient";
 import { computeEntitlement, formatCurrentUser } from "../lib/billing/entitlement";
 import { isValidPromoCode } from "../lib/billing/promo";
-import { sendSubscriptionThankYouEmail } from "../lib/email/transactional";
 import { syncSubscriberToLoops } from "../lib/billing/loopsSync";
 
 const router = Router();
@@ -321,12 +320,8 @@ router.post("/paypal/finalize", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, userId))
     .returning();
 
-  // One-time thank-you on the transition into an entitling status.
-  const wasEntitling =
-    owner.subscriptionStatus === "active" || owner.subscriptionStatus === "trialing";
-  if ((newStatus === "active" || newStatus === "trialing") && !wasEntitling && user.email) {
-    void sendSubscriptionThankYouEmail(user.email);
-  }
+  // Billing emails (thank-you) are sent by the Stripe→Loops integration, not the
+  // app — we just keep the Loops contact's billing facts current here.
   void syncSubscriberToLoops(user);
 
   res.json(formatCurrentUser(user));

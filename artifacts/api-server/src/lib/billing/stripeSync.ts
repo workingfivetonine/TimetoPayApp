@@ -6,7 +6,6 @@ import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import type { EntitlementStatus } from "./entitlement";
 import { syncSubscriberToLoops, planFromStripePriceId } from "./loopsSync";
 import { logger } from "../logger";
-import { sendSubscriptionThankYouEmail } from "../email/transactional";
 
 // Maps a Stripe subscription status onto our provider-agnostic status.
 export function mapStripeStatus(s: string): EntitlementStatus {
@@ -107,15 +106,6 @@ async function reconcileFromStripeEvent(event: Stripe.Event): Promise<void> {
       updatedUser,
       planFromStripePriceId(sub.items?.data?.[0]?.price?.id),
     );
-  }
-
-  // One-time thank-you the first time the subscription becomes active/trialing
-  // (transition only — avoids re-sending on every subscription.updated event).
-  const wasEntitling =
-    user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing";
-  const nowEntitling = newStatus === "active" || newStatus === "trialing";
-  if (nowEntitling && !wasEntitling && user.email) {
-    void sendSubscriptionThankYouEmail(user.email);
   }
 
   logger.info(

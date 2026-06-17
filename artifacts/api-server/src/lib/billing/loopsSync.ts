@@ -35,5 +35,7 @@ export async function syncSubscriberToLoops(
     cancelAtPeriodEnd: !!user.subscriptionCancelAtPeriodEnd,
     entitled: ent.entitled,
     trialEndsAt,
+    country: user.countryCode ?? null,
+    username: user.username ?? null,
   });
 }
