@@ -188,6 +188,14 @@ function InitialLayout() {
   // render that enabled it and the effect that would have updated the getter.
   setAuthTokenGetter(() => getToken());
 
+  // Re-resolve the generated client's base URL at RUNTIME. The module-level
+  // setBaseUrl(getApiOrigin()) above runs during Expo's static web export in
+  // Node (no `window`), so it can capture the wrong origin and bake it into the
+  // bundle — which is why generated-client calls (e.g. /api/stores) hit
+  // http://localhost while raw fetches (which call getApiOrigin per-request)
+  // correctly reach api.<host>. Re-setting here, in the browser, fixes it.
+  setBaseUrl(getApiOrigin());
+
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
   const onPricing = segments[0] === "pricing";
