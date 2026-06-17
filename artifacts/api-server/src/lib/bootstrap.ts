@@ -241,6 +241,69 @@ async function ensureSchemaColumns(): Promise<void> {
     sql`CREATE UNIQUE INDEX IF NOT EXISTS "users_username_lower_unique" ON "users" (lower("username"))`,
   );
 
+  // ── Community board tables ──────────────────────────────────────────────
+  // drizzle-kit push lagged the board feature, so on the live DB these tables
+  // can be missing columns (or absent entirely) — which 500s GET /board AND
+  // GET /board/admin/pending (admin moderation). Ensure the tables exist and
+  // carry every column the board routes select. All idempotent.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "board_posts" (
+    "id" serial PRIMARY KEY,
+    "user_id" text NOT NULL,
+    "content" text NOT NULL,
+    "status" text NOT NULL DEFAULT 'pending',
+    "tag" text,
+    "region" text,
+    "agree_count" integer NOT NULL DEFAULT 0,
+    "thanks_count" integer NOT NULL DEFAULT 0,
+    "reply_count" integer NOT NULL DEFAULT 0,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "approved_at" timestamptz,
+    "approved_by" text
+  )`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "status" text NOT NULL DEFAULT 'pending'`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "tag" text`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "region" text`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "agree_count" integer NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "thanks_count" integer NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "reply_count" integer NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "approved_at" timestamptz`);
+  await db.execute(sql`ALTER TABLE "board_posts" ADD COLUMN IF NOT EXISTS "approved_by" text`);
+
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "board_replies" (
+    "id" serial PRIMARY KEY,
+    "post_id" integer NOT NULL,
+    "user_id" text NOT NULL,
+    "content" text NOT NULL,
+    "status" text NOT NULL DEFAULT 'pending',
+    "region" text,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "approved_at" timestamptz,
+    "approved_by" text
+  )`);
+  await db.execute(sql`ALTER TABLE "board_replies" ADD COLUMN IF NOT EXISTS "status" text NOT NULL DEFAULT 'pending'`);
+  await db.execute(sql`ALTER TABLE "board_replies" ADD COLUMN IF NOT EXISTS "region" text`);
+  await db.execute(sql`ALTER TABLE "board_replies" ADD COLUMN IF NOT EXISTS "approved_at" timestamptz`);
+  await db.execute(sql`ALTER TABLE "board_replies" ADD COLUMN IF NOT EXISTS "approved_by" text`);
+
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "board_agrees" (
+    "id" serial PRIMARY KEY,
+    "post_id" integer NOT NULL,
+    "user_id" text NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "board_agrees_post_user_idx" ON "board_agrees" ("post_id", "user_id")`,
+  );
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "board_thanks" (
+    "id" serial PRIMARY KEY,
+    "post_id" integer NOT NULL,
+    "user_id" text NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "board_thanks_post_user_idx" ON "board_thanks" ("post_id", "user_id")`,
+  );
+
   // Notification opt-ins must default OFF, but the live DB created these columns
   // with DEFAULT true (the schema default was flipped to false in code only AFTER
   // the columns were already pushed). Re-assert the correct default so new users
