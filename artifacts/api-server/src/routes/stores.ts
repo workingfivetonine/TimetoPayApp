@@ -79,6 +79,28 @@ router.get("/", async (req, res): Promise<void> => {
   );
 });
 
+// Re-resolve and persist a logo for every one of the caller's stores. Powers
+// the "Refresh logos" button so the user can pull logos on demand instead of
+// waiting for the boot-time backfill.
+router.post("/refresh-logos", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const stores = await db
+    .select({ id: storesTable.id, name: storesTable.name })
+    .from(storesTable)
+    .where(eq(storesTable.userId, userId));
+  let updated = 0;
+  for (const s of stores) {
+    const logoUrl = await resolveStoreLogo(s.name);
+    if (!logoUrl) continue;
+    await db
+      .update(storesTable)
+      .set({ logoUrl })
+      .where(and(eq(storesTable.id, s.id), eq(storesTable.userId, userId)));
+    updated += 1;
+  }
+  res.json({ updated, total: stores.length });
+});
+
 router.post("/", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const parsed = CreateStoreBody.safeParse(req.body);

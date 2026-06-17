@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
+import { storeLogoUrl } from "@/lib/storeLogo";
 import type { Store } from "@workspace/api-client-react";
 
 interface Props {
@@ -14,6 +15,10 @@ interface Props {
 export function StoreCard({ store, onPress, onEdit }: Props) {
   const colors = useColors();
   const { format } = useCurrency();
+  // Prefer the stored logo; fall back to a name-derived favicon so a logo shows
+  // even before the server backfill runs. Show the placeholder icon if it fails.
+  const logoUri = store.logoUrl || storeLogoUrl(store.name);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   return (
     <TouchableOpacity
@@ -23,11 +28,12 @@ export function StoreCard({ store, onPress, onEdit }: Props) {
     >
       <View style={styles.left}>
         <View style={[styles.iconContainer, { backgroundColor: colors.accent }]}>
-          {store.logoUrl ? (
+          {logoUri && !logoFailed ? (
             <Image
-              source={{ uri: store.logoUrl }}
+              source={{ uri: logoUri }}
               style={styles.logo}
               resizeMode="contain"
+              onError={() => setLogoFailed(true)}
             />
           ) : (
             <Feather name="shopping-bag" size={18} color={colors.primary} />

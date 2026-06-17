@@ -37,9 +37,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { RegionPicker } from "@/components/RegionPicker";
-import { confirmDestructive } from "@/lib/confirm";
+import { confirmDestructive, notify } from "@/lib/confirm";
+import { getApiOrigin } from "@/lib/apiBase";
 import type { Store } from "@workspace/api-client-react";
 import { useRouter } from "expo-router";
+import { useAuth } from "@clerk/expo";
 
 interface StoreFormData {
   name: string;
@@ -86,6 +88,31 @@ export default function StoresScreen() {
   const [form, setForm] = useState<StoreFormData>(defaultForm);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<StoreSort>("az");
+  const [refreshingLogos, setRefreshingLogos] = useState(false);
+  const { getToken } = useAuth();
+
+  // "Pull" logos on demand: re-resolve a logo for each store server-side so they
+  // appear without waiting for the boot-time backfill.
+  const handleRefreshLogos = async () => {
+    setRefreshingLogos(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/stores/refresh-logos`, {
+        method: "POST",
+        headers: {
+          "x-client-platform": Platform.OS,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(`refresh-logos ${res.status}`);
+      await queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
+      notify("Logos refreshed", "Store logos have been pulled and updated.");
+    } catch {
+      notify("Couldn't refresh logos", "Please try again in a moment.");
+    } finally {
+      setRefreshingLogos(false);
+    }
+  };
 
   const { data: stores, isLoading, dataUpdatedAt } = useListStores();
   const createMutation = useCreateStore();
@@ -225,13 +252,30 @@ export default function StoresScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Stores</Text>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: colors.primary }]}
-          onPress={openAdd}
-          activeOpacity={0.8}
-        >
-          <Feather name="plus" size={20} color="#fff" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          {hasStores ? (
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: colors.secondary }]}
+              onPress={handleRefreshLogos}
+              disabled={refreshingLogos}
+              activeOpacity={0.8}
+              accessibilityLabel="Refresh store logos"
+            >
+              {refreshingLogos ? (
+                <ActivityIndicator size="small" color={colors.foreground} />
+              ) : (
+                <Feather name="refresh-cw" size={18} color={colors.foreground} />
+              )}
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            onPress={openAdd}
+            activeOpacity={0.8}
+          >
+            <Feather name="plus" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
