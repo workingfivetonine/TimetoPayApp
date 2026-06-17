@@ -7,7 +7,7 @@ import {
   adminNotificationStateTable,
 } from "@workspace/db";
 import { logger } from "./logger";
-import { sendGmail } from "./email/gmailClient";
+import { loopsSendTransactional } from "./email/loops";
 
 // Up to this many example names per section in the digest body.
 const SAMPLE_LIMIT = 10;
@@ -265,9 +265,17 @@ export async function runAdminDigest(opts: {
     }
   }
 
-  const { subject, text, html } = composeEmail(digest);
+  const { subject, text } = composeEmail(digest);
   try {
-    await sendGmail({ to: recipient, subject, text, html });
+    // Sent via a Loops transactional (create it with {subject}/{body} data
+    // variables, set its ID as LOOPS_TRANSACTIONAL_ADMIN_DIGEST_ID). Throwing on
+    // a non-send preserves the existing cursor-rollback/retry behavior.
+    const result = await loopsSendTransactional(
+      recipient,
+      process.env.LOOPS_TRANSACTIONAL_ADMIN_DIGEST_ID,
+      { subject, body: text },
+    );
+    if (!result.sent) throw new Error(`admin digest not sent (${result.reason ?? "unknown"})`);
   } catch (err) {
     logger.error({ err }, "Admin digest email send failed");
     // Roll the claimed cursor back so the unsent window is reported next time.

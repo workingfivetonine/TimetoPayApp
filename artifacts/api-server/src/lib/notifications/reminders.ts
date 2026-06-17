@@ -4,9 +4,10 @@
 // period using the per-type "last sent" cursors on `usersTable`. Recipients are
 // gated to subscription-related users only (entitled trialing/active/comped, or
 // past_due) via `computeEntitlement`, and each type also honors the user's
-// opt-out toggle. Every send goes through Resend with code-rendered HTML (see
-// `lib/email/templates.ts`); when Resend isn't configured the send is a graceful
-// no-op and the cursor is NOT advanced, so reminders resume once config lands.
+// opt-out toggle. Each reminder is fired to Loops as an EVENT (the email itself
+// is built in the Loops dashboard); when Loops isn't configured the send is a
+// graceful no-op and the cursor is NOT advanced, so reminders resume once the
+// LOOPS_API_KEY lands.
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 import {
   db,
@@ -16,22 +17,7 @@ import {
   lineItemsTable,
 } from "@workspace/db";
 import { computeEntitlement, TRIAL_DAYS } from "../billing/entitlement";
-import { sendEmail, sendEmailWithTemplate } from "../email/resendClient";
-import { buildUnsubscribeUrl } from "../email/unsubscribe";
-import {
-  renderTrialEnding,
-  renderTrialEndingVars,
-  renderPastDue,
-  renderPastDueVars,
-  renderListExport,
-  renderListExportVars,
-  renderReceiptInactivity,
-  renderReceiptInactivityVars,
-  renderWeeklySummary,
-  renderWeeklySummaryVars,
-  renderMonthlySummary,
-  renderMonthlySummaryVars,
-} from "../email/templates";
+import { loopsSendEvent } from "../email/loops";
 import {
   comparePeriods,
   monthStartOf,
@@ -177,12 +163,10 @@ async function maybeTrialEnding(
   if (now < windowOpen || now >= trialEnd) return;
   const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY_MS));
 
-  const unsubscribeUrl = buildUnsubscribeUrl(user.id);
-  const trialData = { name: displayNameFromEmail(user.email), daysLeft, trialEndsAt: trialEnd.toISOString(), unsubscribeUrl };
-  const templateId = process.env.RESEND_TEMPLATE_TRIAL_ENDING;
-  const res = templateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId, unsubscribeUrl, variables: { ...renderTrialEndingVars(trialData), UNSUBSCRIBE_URL: unsubscribeUrl } })
-    : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderTrialEnding(trialData) });
+  const res = await loopsSendEvent(user.email!, "trial_ending", {
+    eventProperties: { daysLeft, trialEndsAt: trialEnd.toISOString() },
+    contactProperties: { firstName: displayNameFromEmail(user.email), trialEndsAt: trialEnd.toISOString() },
+  });
   if (res.sent) {
     updates.lastTrialEndingSentAt = now;
     bump("trialEnding");
@@ -203,16 +187,12 @@ async function maybePastDue(
   }
   if (user.lastPastDueSentAt) return; // already notified for this episode
 
-  const unsubscribeUrl = buildUnsubscribeUrl(user.id);
-  const pastDueData = {
-    name: displayNameFromEmail(user.email),
-    currentPeriodEnd: user.subscriptionCurrentPeriodEnd ? user.subscriptionCurrentPeriodEnd.toISOString() : null,
-    unsubscribeUrl,
-  };
-  const pastDueTemplateId = process.env.RESEND_TEMPLATE_PAST_DUE;
-  const res = pastDueTemplateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId: pastDueTemplateId, unsubscribeUrl, variables: { ...renderPastDueVars(pastDueData), UNSUBSCRIBE_URL: unsubscribeUrl } })
-    : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderPastDue(pastDueData) });
+  const res = await loopsSendEvent(user.email!, "payment_past_due", {
+    eventProperties: {
+      currentPeriodEnd: user.subscriptionCurrentPeriodEnd ? user.subscriptionCurrentPeriodEnd.toISOString() : null,
+    },
+    contactProperties: { subscriptionStatus: "past_due" },
+  });
   if (res.sent) {
     updates.lastPastDueSentAt = now;
     bump("pastDue");
@@ -239,12 +219,10 @@ async function maybeListExport(
   const listCount = await countShoppingListItems(user.id);
   if (listCount <= 0) return;
 
-  const unsubscribeUrl = buildUnsubscribeUrl(user.id);
-  const listData = { name: displayNameFromEmail(user.email), itemCount: listCount, unsubscribeUrl };
-  const listTemplateId = process.env.RESEND_TEMPLATE_LIST_EXPORT;
-  const res = listTemplateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId: listTemplateId, unsubscribeUrl, variables: { ...renderListExportVars(listData), UNSUBSCRIBE_URL: unsubscribeUrl } })
-    : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderListExport(listData) });
+  const res = await loopsSendEvent(user.email!, "list_export_ready", {
+    eventProperties: { itemCount: listCount },
+    contactProperties: { firstName: displayNameFromEmail(user.email) },
+  });
   if (res.sent) {
     updates.lastListExportSentAt = now;
     bump("listExport");
@@ -292,19 +270,15 @@ async function maybeReceiptInactivity(
     displayName: displayNameFromEmail(user.email),
   });
 
-  const unsubscribeUrl = buildUnsubscribeUrl(user.id);
-  const inactivityData = {
-    name: displayNameFromEmail(user.email),
-    daysSinceLastReceipt: daysSince,
-    headline: snark.headline,
-    body: snark.body,
-    neglectedStaple: neglectedStaple?.name ?? null,
-    unsubscribeUrl,
-  };
-  const inactivityTemplateId = process.env.RESEND_TEMPLATE_RECEIPT_INACTIVITY;
-  const res = inactivityTemplateId
-    ? await sendEmailWithTemplate({ to: user.email!, templateId: inactivityTemplateId, unsubscribeUrl, variables: { ...renderReceiptInactivityVars(inactivityData), UNSUBSCRIBE_URL: unsubscribeUrl } })
-    : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderReceiptInactivity(inactivityData) });
+  const res = await loopsSendEvent(user.email!, "receipt_inactivity", {
+    eventProperties: {
+      daysSinceLastReceipt: daysSince,
+      headline: snark.headline,
+      body: snark.body,
+      neglectedStaple: neglectedStaple?.name ?? null,
+    },
+    contactProperties: { firstName: displayNameFromEmail(user.email) },
+  });
   if (res.sent) {
     updates.lastReceiptInactivitySentAt = now;
     bump("receiptInactivity");
@@ -320,7 +294,6 @@ async function maybeSpendSummaries(
   bump: (t: string) => void,
 ): Promise<void> {
   const spendFrequency = user.notifySpendSummaryFrequency ?? "weekly";
-  const unsubscribeUrl = buildUnsubscribeUrl(user.id);
 
   // Weekly: recap the just-completed Mon–Sun week vs the week before it. The
   // recap becomes available at the start of the current week.
@@ -336,17 +309,14 @@ async function maybeSpendSummaries(
     const previousTotal = sumReceiptsInRange(receipts, priorWeekStart, completedWeekStart);
     if (total > 0 || previousTotal > 0) {
       const cmp = comparePeriods(total, previousTotal);
-      const weeklyData = {
-        name: displayNameFromEmail(user.email),
-        periodStart: completedWeekStart.toISOString().split("T")[0],
-        periodEnd: new Date(currentWeekStart.getTime() - DAY_MS).toISOString().split("T")[0],
-        unsubscribeUrl,
-        ...cmp,
-      };
-      const weeklyTemplateId = process.env.RESEND_TEMPLATE_WEEKLY_SUMMARY;
-      const res = weeklyTemplateId
-        ? await sendEmailWithTemplate({ to: user.email!, templateId: weeklyTemplateId, unsubscribeUrl, variables: { ...renderWeeklySummaryVars(weeklyData), UNSUBSCRIBE_URL: unsubscribeUrl } })
-        : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderWeeklySummary(weeklyData) });
+      const res = await loopsSendEvent(user.email!, "weekly_summary", {
+        eventProperties: {
+          periodStart: completedWeekStart.toISOString().split("T")[0],
+          periodEnd: new Date(currentWeekStart.getTime() - DAY_MS).toISOString().split("T")[0],
+          ...cmp,
+        },
+        contactProperties: { firstName: displayNameFromEmail(user.email) },
+      });
       if (res.sent) {
         updates.lastWeeklySummarySentAt = now;
         bump("weeklySummary");
@@ -374,17 +344,14 @@ async function maybeSpendSummaries(
     const previousTotal = sumReceiptsInRange(receipts, priorMonthStart, completedMonthStart);
     if (total > 0 || previousTotal > 0) {
       const cmp = comparePeriods(total, previousTotal);
-      const monthlyData = {
-        name: displayNameFromEmail(user.email),
-        periodStart: completedMonthStart.toISOString().split("T")[0],
-        periodEnd: new Date(currentMonthStart.getTime() - DAY_MS).toISOString().split("T")[0],
-        unsubscribeUrl,
-        ...cmp,
-      };
-      const monthlyTemplateId = process.env.RESEND_TEMPLATE_MONTHLY_SUMMARY;
-      const res = monthlyTemplateId
-        ? await sendEmailWithTemplate({ to: user.email!, templateId: monthlyTemplateId, unsubscribeUrl, variables: { ...renderMonthlySummaryVars(monthlyData), UNSUBSCRIBE_URL: unsubscribeUrl } })
-        : await sendEmail({ to: user.email!, unsubscribeUrl, ...renderMonthlySummary(monthlyData) });
+      const res = await loopsSendEvent(user.email!, "monthly_summary", {
+        eventProperties: {
+          periodStart: completedMonthStart.toISOString().split("T")[0],
+          periodEnd: new Date(currentMonthStart.getTime() - DAY_MS).toISOString().split("T")[0],
+          ...cmp,
+        },
+        contactProperties: { firstName: displayNameFromEmail(user.email) },
+      });
       if (res.sent) {
         updates.lastMonthlySummarySentAt = now;
         bump("monthlySummary");

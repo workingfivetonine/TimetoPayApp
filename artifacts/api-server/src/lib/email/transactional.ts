@@ -1,44 +1,28 @@
-// Transactional emails sent in response to a user action (not scheduled
-// reminders): the signup welcome and the subscription thank-you. These are not
-// gated by the notify_* opt-out flags and carry no unsubscribe link — they are
-// one-off, account-related messages, not marketing.
-import { sendEmail, sendEmailWithTemplate } from "./resendClient";
-import {
-  renderWelcome,
-  renderSubscriptionThankYou,
-  renderWelcomeVars,
-  renderSubscriptionThankYouVars,
-  renderAccountDeleted,
-  renderAccountDeletedVars,
-} from "./templates";
+// Transactional lifecycle emails (signup welcome, subscription thank-you,
+// account-deleted). These are sent as Loops EVENTS — the email content and any
+// follow-up automation are built in the Loops dashboard, keyed to the event
+// name. Each call also keeps the Loops contact's properties fresh. No Resend.
+import { loopsSendEvent, loopsUpsertContact } from "./loops";
 import { displayNameFromEmail } from "../notifications/snark";
 import { logger } from "../logger";
 
 export async function sendWelcomeEmail(email: string, name?: string | null): Promise<void> {
   try {
-    const displayName = name?.trim() || displayNameFromEmail(email);
-    const templateId = process.env.RESEND_TEMPLATE_WELCOME;
-    if (templateId) {
-      await sendEmailWithTemplate({ to: email, templateId, variables: renderWelcomeVars({ name: displayName }) });
-    } else {
-      await sendEmail({ to: email, ...renderWelcome({ name: displayName }) });
-    }
+    const firstName = name?.trim() || displayNameFromEmail(email);
+    await loopsUpsertContact(email, { firstName });
+    await loopsSendEvent(email, "welcome", { contactProperties: { firstName } });
   } catch (err) {
-    logger.error({ err }, "Welcome email failed");
+    logger.error({ err }, "Welcome event failed");
   }
 }
 
 export async function sendSubscriptionThankYouEmail(email: string): Promise<void> {
   try {
-    const name = displayNameFromEmail(email);
-    const templateId = process.env.RESEND_TEMPLATE_THANK_YOU;
-    if (templateId) {
-      await sendEmailWithTemplate({ to: email, templateId, variables: renderSubscriptionThankYouVars({ name }) });
-    } else {
-      await sendEmail({ to: email, ...renderSubscriptionThankYou({ name }) });
-    }
+    await loopsSendEvent(email, "subscription_started", {
+      contactProperties: { subscriptionStatus: "active" },
+    });
   } catch (err) {
-    logger.error({ err }, "Subscription thank-you email failed");
+    logger.error({ err }, "Subscription thank-you event failed");
   }
 }
 
@@ -47,18 +31,10 @@ export async function sendAccountDeletedEmail(
   subscriptionCancelled: boolean,
 ): Promise<void> {
   try {
-    const name = displayNameFromEmail(email);
-    const templateId = process.env.RESEND_TEMPLATE_ACCOUNT_DELETED;
-    if (templateId) {
-      await sendEmailWithTemplate({
-        to: email,
-        templateId,
-        variables: renderAccountDeletedVars({ name, subscriptionCancelled }),
-      });
-    } else {
-      await sendEmail({ to: email, ...renderAccountDeleted({ name, subscriptionCancelled }) });
-    }
+    await loopsSendEvent(email, "account_deleted", {
+      eventProperties: { subscriptionCancelled },
+    });
   } catch (err) {
-    logger.error({ err }, "Account-deleted email failed");
+    logger.error({ err }, "Account-deleted event failed");
   }
 }
