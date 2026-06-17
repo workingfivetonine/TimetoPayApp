@@ -21,7 +21,7 @@ Live at **[5to9shopping.com](https://5to9shopping.com)**
 - **Profile & onboarding** — unique username + generated avatar, shown as the author on the community board
 - **Cross-store catalog** — region-scoped shared item catalog for price benchmarking
 - **Subscriptions** — Stripe and PayPal billing with an opt-in free trial, in-app trial-ending and payment-failed banners, and a self-service "manage/cancel" flow
-- **Email** — welcome, subscription thank-you, trial-ending, payment past-due, and account-deleted emails (dashboard-editable via Resend templates); all reminders default OFF and carry CAN-SPAM unsubscribe footers
+- **Email** — welcome, subscription thank-you, trial-ending, payment past-due, account-deleted, and spend-summary emails sent via **Loops** as events (content + automations designed in the Loops dashboard); all reminders default OFF
 - **Privacy & GDPR** — privacy policy, Terms/Privacy acceptance at signup, full data export, and self-service account + data deletion (cancels billing)
 - **PWA support** — installable on mobile home screen, offline-capable
 
@@ -37,7 +37,7 @@ Live at **[5to9shopping.com](https://5to9shopping.com)**
 | Auth | Clerk |
 | AI | OpenAI (vision model for receipt parsing) |
 | Payments | Stripe + PayPal |
-| Email | Resend |
+| Email | Loops (loops.so) |
 | Frontend hosting | Vercel |
 | Backend hosting | Railway |
 | Database hosting | Neon |
@@ -90,9 +90,9 @@ TimetoPayApp/
 | `PAYPAL_WEBHOOK_ID` | PayPal webhook ID |
 | `AI_INTEGRATIONS_OPENAI_API_KEY` | OpenAI API key |
 | `AI_INTEGRATIONS_OPENAI_BASE_URL` | `https://api.openai.com/v1` |
-| `RESEND_API_KEY` | Resend email API key |
-| `RESEND_FROM_EMAIL` | Sending email address |
-| `RESEND_FROM_NAME` | Sending name |
+| `LOOPS_API_KEY` | Loops API key (app.loops.so → Settings → API) |
+| `LOOPS_TRANSACTIONAL_SUPPORT_ID` | Loops transactional ID for the support-form relay |
+| `LOOPS_TRANSACTIONAL_ADMIN_DIGEST_ID` | Loops transactional ID for the admin digest |
 | `ADMIN_EMAIL` | Admin digest recipient |
 | `ADMIN_BOOTSTRAP_EMAILS` | Email(s) to auto-promote to master_admin |
 | `WEB_BASE_URL` | `https://5to9shopping.com` |
