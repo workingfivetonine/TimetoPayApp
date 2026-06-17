@@ -15,7 +15,13 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 // Module-level configuration
 // ---------------------------------------------------------------------------
 
-let _baseUrl: string | null = null;
+// Either a fixed string or a resolver invoked per-request. A resolver is
+// strongly preferred in Expo web: the base URL depends on `window.location`,
+// which isn't correct at module-eval time during static export, so resolving
+// lazily on each request guarantees the right origin regardless of when
+// setBaseUrl was called.
+type BaseUrlResolver = () => string | null | undefined;
+let _baseUrl: string | BaseUrlResolver | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 let _clientPlatform: string | null = null;
 
@@ -23,11 +29,18 @@ let _clientPlatform: string | null = null;
  * Set a base URL that is prepended to every relative request URL
  * (i.e. paths that start with `/`).
  *
- * Useful for Expo bundles that need to call a remote API server.
- * Pass `null` to clear the base URL.
+ * Pass a STRING for a fixed base, or a FUNCTION to resolve it lazily on every
+ * request (recommended for Expo web — avoids baking a wrong origin at build
+ * time). Pass `null` to clear.
  */
-export function setBaseUrl(url: string | null): void {
-  _baseUrl = url ? url.replace(/\/+$/, "") : null;
+export function setBaseUrl(url: string | BaseUrlResolver | null): void {
+  _baseUrl = typeof url === "function" ? url : url ? url.replace(/\/+$/, "") : null;
+}
+
+// Resolve the configured base URL to a normalized string (or null) at call time.
+function resolveBaseUrl(): string | null {
+  const value = typeof _baseUrl === "function" ? _baseUrl() : _baseUrl;
+  return value ? value.replace(/\/+$/, "") : null;
 }
 
 /**
@@ -72,12 +85,13 @@ function isUrl(input: RequestInfo | URL): input is URL {
 }
 
 function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
-  if (!_baseUrl) return input;
+  const base = resolveBaseUrl();
+  if (!base) return input;
   const url = resolveUrl(input);
   // Only prepend to relative paths (starting with /)
   if (!url.startsWith("/")) return input;
 
-  const absolute = `${_baseUrl}${url}`;
+  const absolute = `${base}${url}`;
   if (typeof input === "string") return absolute;
   if (isUrl(input)) return new URL(absolute);
   return new Request(absolute, input as Request);

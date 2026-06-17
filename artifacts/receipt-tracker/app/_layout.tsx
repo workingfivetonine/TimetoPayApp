@@ -46,7 +46,10 @@ import {
 // serving origin so the app works on the custom domain AND the *.replit.app
 // domain (baked absolute URLs would be cross-origin on the other domain and
 // break Clerk's session — blank screen). Native/dev use the build-time domain.
-setBaseUrl(getApiOrigin());
+// Pass a RESOLVER (not a fixed string): the generated client then computes the
+// origin on every request in the browser, so it can never bake/keep a wrong
+// value (e.g. http://localhost) from Expo's no-window static-export module eval.
+setBaseUrl(() => getApiOrigin());
 
 // Declare the platform so the server can enforce the web-only paywall (native
 // clients are intentionally never paywalled to avoid app-store IAP policy).
@@ -188,13 +191,10 @@ function InitialLayout() {
   // render that enabled it and the effect that would have updated the getter.
   setAuthTokenGetter(() => getToken());
 
-  // Re-resolve the generated client's base URL at RUNTIME. The module-level
-  // setBaseUrl(getApiOrigin()) above runs during Expo's static web export in
-  // Node (no `window`), so it can capture the wrong origin and bake it into the
-  // bundle — which is why generated-client calls (e.g. /api/stores) hit
-  // http://localhost while raw fetches (which call getApiOrigin per-request)
-  // correctly reach api.<host>. Re-setting here, in the browser, fixes it.
-  setBaseUrl(getApiOrigin());
+  // Keep the base-URL resolver registered (idempotent). The resolver form means
+  // every request computes the origin fresh in the browser, so an early query
+  // (before this render) can't grab a stale/wrong base.
+  setBaseUrl(() => getApiOrigin());
 
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
