@@ -205,6 +205,18 @@ async function ensureAdminExists(): Promise<void> {
 async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "logo_url" text`);
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "website" text`);
+  // Ensure every other stores column the route SELECTs exists — a single missing
+  // column makes `db.select()` (SELECT *) 500 the whole Stores tab. Idempotent.
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "country_code" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "state_code" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "address" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "phone" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "open_times" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "delivery_available" boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "delivery_fee" numeric(10, 2)`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "minimum_order_amount" numeric(10, 2)`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "notes" text`);
+  await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "updated_at" timestamptz NOT NULL DEFAULT now()`);
 
   // Free-tier AI scan metering (one row per free scan). Created here because the
   // table may not exist yet when drizzle-kit push lags the deploy.
