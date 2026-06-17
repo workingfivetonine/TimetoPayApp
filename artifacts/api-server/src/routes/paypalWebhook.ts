@@ -7,6 +7,7 @@ import {
   mapPaypalStatus,
   isPaypalConfigured,
 } from "../lib/billing/paypalClient";
+import { syncSubscriberToLoops } from "../lib/billing/loopsSync";
 
 // Public, PayPal-signed webhook. Uses the parsed JSON body. We verify the
 // signature server-side via PayPal's verification API before trusting anything,
@@ -63,7 +64,7 @@ export async function paypalWebhookHandler(
         const periodEnd = sub.billing_info?.next_billing_time
           ? new Date(sub.billing_info.next_billing_time)
           : null;
-        await db
+        const [updatedUser] = await db
           .update(usersTable)
           .set({
             subscriptionProvider: "paypal",
@@ -71,7 +72,9 @@ export async function paypalWebhookHandler(
             subscriptionCurrentPeriodEnd: periodEnd,
             paypalSubscriptionId: sub.id,
           })
-          .where(eq(usersTable.id, userId));
+          .where(eq(usersTable.id, userId))
+          .returning();
+        if (updatedUser) void syncSubscriberToLoops(updatedUser);
         req.log.info(
           { userId, status: sub.status },
           "Reconciled user subscription from PayPal webhook",

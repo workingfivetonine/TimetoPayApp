@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import type { EntitlementStatus } from "./entitlement";
+import { syncSubscriberToLoops, planFromStripePriceId } from "./loopsSync";
 import { logger } from "../logger";
 import { sendSubscriptionThankYouEmail } from "../email/transactional";
 
@@ -88,7 +89,7 @@ async function reconcileFromStripeEvent(event: Stripe.Event): Promise<void> {
     typeof rawEnd === "number" ? new Date(rawEnd * 1000) : null;
 
   const newStatus = mapStripeStatus(sub.status);
-  await db
+  const [updatedUser] = await db
     .update(usersTable)
     .set({
       subscriptionProvider: "stripe",
@@ -97,7 +98,16 @@ async function reconcileFromStripeEvent(event: Stripe.Event): Promise<void> {
       subscriptionCancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
       stripeSubscriptionId: sub.id,
     })
-    .where(eq(usersTable.id, user.id));
+    .where(eq(usersTable.id, user.id))
+    .returning();
+
+  // Keep the Loops contact's billing properties current (plan, renewal, status).
+  if (updatedUser) {
+    void syncSubscriberToLoops(
+      updatedUser,
+      planFromStripePriceId(sub.items?.data?.[0]?.price?.id),
+    );
+  }
 
   // One-time thank-you the first time the subscription becomes active/trialing
   // (transition only — avoids re-sending on every subscription.updated event).

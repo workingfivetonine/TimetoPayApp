@@ -20,6 +20,7 @@ import {
 import { computeEntitlement, formatCurrentUser } from "../lib/billing/entitlement";
 import { isValidPromoCode } from "../lib/billing/promo";
 import { sendSubscriptionThankYouEmail } from "../lib/email/transactional";
+import { syncSubscriberToLoops } from "../lib/billing/loopsSync";
 
 const router = Router();
 
@@ -326,6 +327,7 @@ router.post("/paypal/finalize", async (req, res): Promise<void> => {
   if ((newStatus === "active" || newStatus === "trialing") && !wasEntitling && user.email) {
     void sendSubscriptionThankYouEmail(user.email);
   }
+  void syncSubscriberToLoops(user);
 
   res.json(formatCurrentUser(user));
 });
