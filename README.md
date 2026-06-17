@@ -161,6 +161,7 @@ All DNS is managed through Vercel's DNS panel (Vercel nameservers). Key records:
 - The committed API client (`lib/api-client-react`, `lib/api-zod`) is generated but has drifted from the OpenAPI spec — **do not regenerate**. Add new endpoints as raw Express routes called via `fetch`, and read new fields via casts.
 - Additive schema changes are applied at server boot via idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` in `bootstrap.ts` (no migration step in the deploy)
 - Multi-currency is display-only: a country→symbol map in `lib/geo`; amounts are shown as entered and never converted
+- The API base URL is pinned in `artifacts/receipt-tracker/vercel.json` (`build.env.EXPO_PUBLIC_API_URL = https://api.5to9shopping.com`). `getApiOrigin()` returns this first, so the generated client can never fall back to `localhost` (it otherwise tried to derive the origin, which fails during Expo's no-`window` static build)
 
 ---
 

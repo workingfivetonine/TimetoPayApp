@@ -2,6 +2,11 @@
   "installCommand": "NODE_ENV=development pnpm install --shamefully-hoist",
   "buildCommand": "pnpm exec expo export --platform web",
   "outputDirectory": "dist",
+  "build": {
+    "env": {
+      "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com"
+    }
+  },
   "rewrites": [
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/donate",  "destination": "/donate.html" },
