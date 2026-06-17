@@ -366,19 +366,21 @@ export default function ImageEditor({
         ? []
         : [{ crop: { originX, originY, width: cropWidth, height: cropHeight } }];
       // Cap the longest edge so large HDR phone photos upload quickly while
-      // keeping enough detail for OCR. Receipts are usually portrait, so resize
-      // by whichever dimension is dominant rather than width alone.
-      if (Math.max(finalWidth, finalHeight) > 2000) {
+      // keeping enough detail for OCR. 2400px + lighter compression preserves
+      // small price digits (the most-misread part of a receipt) while staying
+      // well under the ~7.5 MB decoded-image cap. Receipts are usually portrait,
+      // so resize by whichever dimension is dominant rather than width alone.
+      if (Math.max(finalWidth, finalHeight) > 2400) {
         actions.push(
           finalWidth >= finalHeight
-            ? { resize: { width: 2000 } }
-            : { resize: { height: 2000 } }
+            ? { resize: { width: 2400 } }
+            : { resize: { height: 2400 } }
         );
       }
 
       const result = await manipulateAsync(curUri, actions, {
         format: SaveFormat.JPEG,
-        compress: 0.7,
+        compress: 0.9,
         base64: true,
       });
 
