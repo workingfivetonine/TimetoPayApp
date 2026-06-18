@@ -124,10 +124,11 @@ export async function runReminderSweep(
     const updates: Partial<UserRow> = {};
 
     // ── Payment reminders ─────────────────────────────────────────────────
-    // Trial-ending is app-driven (Stripe can't time the opt-in trial) and always
-    // sent regardless of the marketing opt-out. Payment-past-due is owned by the
-    // Stripe→Loops integration (invoice.payment_failed), so it is NOT fired here.
+    // Trial-ending and payment-past-due are critical, non-optional notifications
+    // (losing access is something the user must be told) — always fired to Loops
+    // regardless of the marketing opt-out. Each dedupes internally.
     await maybeTrialEnding(user, now, updates, bump);
+    await maybePastDue(user, now, updates, bump);
 
     // Engagement reminders only go to currently-entitled users (a past_due,
     // grace-elapsed user gets the payment reminder above, not nudges).
@@ -169,6 +170,32 @@ async function maybeTrialEnding(
   if (res.sent) {
     updates.lastTrialEndingSentAt = now;
     bump("trialEnding");
+  }
+}
+
+// ── Payment past due ────────────────────────────────────────────────────────
+async function maybePastDue(
+  user: UserRow,
+  now: Date,
+  updates: Partial<UserRow>,
+  bump: (t: string) => void,
+): Promise<void> {
+  if (user.subscriptionStatus !== "past_due") {
+    // Reset so the NEXT distinct past_due episode re-notifies.
+    if (user.lastPastDueSentAt) updates.lastPastDueSentAt = null;
+    return;
+  }
+  if (user.lastPastDueSentAt) return; // already notified for this episode
+
+  const res = await loopsSendEvent(user.email!, "payment_past_due", {
+    eventProperties: {
+      currentPeriodEnd: user.subscriptionCurrentPeriodEnd ? user.subscriptionCurrentPeriodEnd.toISOString() : null,
+    },
+    contactProperties: { subscriptionStatus: "past_due" },
+  });
+  if (res.sent) {
+    updates.lastPastDueSentAt = now;
+    bump("pastDue");
   }
 }
 
