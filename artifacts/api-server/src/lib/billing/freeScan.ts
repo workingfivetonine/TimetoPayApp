@@ -1,9 +1,11 @@
 // Free-tier AI scan metering. Non-entitled (free) web users get a small taste of
-// AI receipt scanning — a single photo at a time, capped at 1 per rolling 7 days
-// AND 4 per rolling 30 days. Entitled/native/admin users are never metered.
+// AI receipt scanning — a single photo at a time, capped at 4 per rolling 30
+// days. Entitled/native/admin users are never metered.
 import { and, eq, gt } from "drizzle-orm";
 import { db, freeScanEventsTable } from "@workspace/db";
 
+// Weekly cap retained for reference/telemetry but no longer gates scanning —
+// only the monthly cap does (a single scan used to trip the old 1/week rule).
 export const FREE_SCAN_PER_WEEK = 1;
 export const FREE_SCAN_PER_MONTH = 4;
 
@@ -34,7 +36,7 @@ export async function getFreeScanUsage(
     month,
     weekLimit: FREE_SCAN_PER_WEEK,
     monthLimit: FREE_SCAN_PER_MONTH,
-    canScan: week < FREE_SCAN_PER_WEEK && month < FREE_SCAN_PER_MONTH,
+    canScan: month < FREE_SCAN_PER_MONTH,
   };
 }
 

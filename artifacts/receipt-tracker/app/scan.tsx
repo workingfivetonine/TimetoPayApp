@@ -21,6 +21,7 @@ import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
   getListReceiptsQueryKey,
+  getListStoresQueryKey,
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
@@ -117,9 +118,9 @@ export default function ScanScreen() {
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
   const invalidateAll = () => {
-    // Only invalidate receipts - the main data that changed
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-    // Let other queries refresh naturally when needed
+    // A scan can create a new store — refresh the Stores list so it appears.
+    queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
   };
 
   // Thrown when the server returns 403 (premium feature, free web user). Lets

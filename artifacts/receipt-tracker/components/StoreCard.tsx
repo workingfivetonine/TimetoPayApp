@@ -15,10 +15,12 @@ interface Props {
 export function StoreCard({ store, onPress, onEdit }: Props) {
   const colors = useColors();
   const { format } = useCurrency();
-  // Prefer the stored logo; fall back to a name-derived favicon so a logo shows
-  // even before the server backfill runs. Show the placeholder icon if it fails.
-  const logoUri = store.logoUrl || storeLogoUrl(store.name);
-  const [logoFailed, setLogoFailed] = useState(false);
+  // Try the stored logo first, then a name-derived favicon (so a dead stored URL
+  // — e.g. an old Clearbit link — falls through to the working favicon instead of
+  // jumping straight to the placeholder), then the placeholder icon.
+  const logoSources = [...new Set([store.logoUrl, storeLogoUrl(store.name)].filter(Boolean) as string[])];
+  const [srcIndex, setSrcIndex] = useState(0);
+  const logoUri = logoSources[srcIndex];
 
   return (
     <TouchableOpacity
@@ -28,12 +30,13 @@ export function StoreCard({ store, onPress, onEdit }: Props) {
     >
       <View style={styles.left}>
         <View style={[styles.iconContainer, { backgroundColor: colors.accent }]}>
-          {logoUri && !logoFailed ? (
+          {logoUri ? (
             <Image
+              key={logoUri}
               source={{ uri: logoUri }}
               style={styles.logo}
               resizeMode="contain"
-              onError={() => setLogoFailed(true)}
+              onError={() => setSrcIndex((i) => i + 1)}
             />
           ) : (
             <Feather name="shopping-bag" size={18} color={colors.primary} />

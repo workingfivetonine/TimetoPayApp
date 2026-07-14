@@ -27,6 +27,7 @@ import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
   getListReceiptsQueryKey,
+  getListStoresQueryKey,
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
@@ -77,6 +78,18 @@ export default function ReviewReceiptScreen() {
   );
   const [saving, setSaving] = useState(false);
 
+  // Raw text buffers for the numeric inputs (price / qty / total). Keeping the
+  // typed text lets users clear the field and type a fresh integer or a partial
+  // decimal ("2", "2.", "0.5") instead of the value snapping back to the old
+  // number on every keystroke.
+  const [numText, setNumText] = useState<Record<string, string>>({});
+  const setNum = (key: string, text: string, applyValid: () => void) => {
+    setNumText((m) => ({ ...m, [key]: text }));
+    if (!isNaN(parseFloat(text))) applyValid();
+  };
+  const numVal = (key: string, current: number) =>
+    numText[key] !== undefined ? numText[key] : String(current);
+
   const warnBg = isDark ? WARN_BG_DARK : WARN_BG_LIGHT;
   const warnBorder = isDark ? WARN_BORDER_DARK : WARN_BORDER_LIGHT;
 
@@ -97,6 +110,9 @@ export default function ReviewReceiptScreen() {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+    // A scanned receipt can create a new store, so refresh the Stores list too —
+    // otherwise the new store doesn't appear until a manual refresh.
+    queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
@@ -314,8 +330,8 @@ export default function ReviewReceiptScreen() {
               </Text>
               <TextInput
                 style={[styles.fieldInput, fieldStyle(receipt.totalUncertain)]}
-                value={String(receipt.total)}
-                onChangeText={setTotal}
+                value={numVal("total", receipt.total)}
+                onChangeText={(v) => setNum("total", v, () => setTotal(v))}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor={colors.mutedForeground}
@@ -391,8 +407,8 @@ export default function ReviewReceiptScreen() {
                         color: colors.foreground,
                       },
                     ]}
-                    value={String(li.price)}
-                    onChangeText={(v) => setItemField(idx, "price", v)}
+                    value={numVal(`p${idx}`, li.price)}
+                    onChangeText={(v) => setNum(`p${idx}`, v, () => setItemField(idx, "price", v))}
                     keyboardType="decimal-pad"
                     placeholder="0.00"
                     placeholderTextColor={colors.mutedForeground}
@@ -408,8 +424,8 @@ export default function ReviewReceiptScreen() {
                       styles.itemNumInput,
                       { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground },
                     ]}
-                    value={String(li.quantity)}
-                    onChangeText={(v) => setItemField(idx, "quantity", v)}
+                    value={numVal(`q${idx}`, li.quantity)}
+                    onChangeText={(v) => setNum(`q${idx}`, v, () => setItemField(idx, "quantity", v))}
                     keyboardType="decimal-pad"
                     placeholder={li.byWeight ? "0.00" : "1"}
                     placeholderTextColor={colors.mutedForeground}
