@@ -13,7 +13,7 @@ import { clerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
 import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
 import { sendAccountDeletedEmail, sendWelcomeEmail } from "../lib/email/transactional";
-import { loopsUpsertContact } from "../lib/email/loops";
+import { loopsUpsertContact, loopsSendEvent } from "../lib/email/loops";
 
 const router = Router();
 
@@ -155,6 +155,24 @@ router.patch("/notifications", async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
+
+  // Fire a single "email preferences updated" confirmation, debounced to once
+  // per 10 minutes so flipping several toggles (each a separate save) doesn't
+  // send a burst of emails. The email itself is built in Loops.
+  const PREFS_EMAIL_DEBOUNCE_MS = 10 * 60 * 1000;
+  const lastSent = user.lastPrefsEmailSentAt;
+  if (user.email && (!lastSent || Date.now() - lastSent.getTime() > PREFS_EMAIL_DEBOUNCE_MS)) {
+    void loopsSendEvent(
+      user.email,
+      "preferences_updated",
+      user.firstName ? { contactProperties: { firstName: user.firstName } } : {},
+    );
+    await db
+      .update(usersTable)
+      .set({ lastPrefsEmailSentAt: new Date() })
+      .where(eq(usersTable.id, userId));
+  }
+
   res.json(formatNotificationPreferences(user));
 });
 

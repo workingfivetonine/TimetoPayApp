@@ -199,6 +199,27 @@ match your logo/colors once in Loops' brand settings.
 
 ---
 
+## 10. Email preferences updated — event: `preferences_updated`
+**Sends when:** a user changes their email/notification settings (debounced to at
+most one per 10 minutes, so flipping several toggles sends a single email).
+**Variables:** `firstName`
+
+**Subject:** Your TimetoPay email preferences were updated
+**Preview:** A quick confirmation of your changes.
+
+**Body:**
+> Hi {{ firstName }},
+>
+> This is a quick confirmation that your email preferences on TimetoPay were just updated.
+>
+> You can review or change them anytime under **Account → Notifications**:
+>
+> [Manage preferences →](https://5to9shopping.com/account)
+>
+> If you didn't make this change, please reply and let us know.
+
+---
+
 ## Transactional (not a Loop) — Support relay
 Create this under **Loops → Transactional** (not Loops/automations). It sends to
 your support inbox when someone submits the in-app support form. Copy its

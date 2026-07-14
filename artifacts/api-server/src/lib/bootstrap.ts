@@ -242,6 +242,10 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(
     sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "board_last_seen_at" timestamptz`,
   );
+  // Debounce cursor for the "email preferences updated" confirmation email.
+  await db.execute(
+    sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_prefs_email_sent_at" timestamptz`,
+  );
   // Whether the subscription is scheduled to cancel at period end (Stripe
   // cancel_at_period_end) — drives "Premium access ends [date]" copy.
   await db.execute(

@@ -96,6 +96,9 @@ notifySpendSummaryFrequency: text("notify_spend_summary_frequency").default("wee
     lastPastDueSentAt: timestamp("last_past_due_sent_at", { withTimezone: true }),
     lastListExportSentAt: timestamp("last_list_export_sent_at", { withTimezone: true }),
     lastReceiptInactivitySentAt: timestamp("last_receipt_inactivity_sent_at", { withTimezone: true }),
+    // Debounce for the "email preferences updated" confirmation — coalesces a
+    // burst of per-toggle saves into a single email.
+    lastPrefsEmailSentAt: timestamp("last_prefs_email_sent_at", { withTimezone: true }),
     // When the user last viewed the community board — used to compute the unread count badge.
     boardLastSeenAt: timestamp("board_last_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
