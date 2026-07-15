@@ -141,6 +141,7 @@ export default function ReviewReceiptScreen() {
           storeStateCode: receipt.storeStateCode ?? undefined,
           purchasedAt: toIso(receipt.purchasedAt),
           total: receipt.total,
+          deliveryFee: receipt.deliveryFee ?? undefined,
           lineItems: receipt.lineItems.map((li) => ({
             name: li.name,
             price: li.price,
@@ -174,6 +175,15 @@ export default function ReviewReceiptScreen() {
   const setTotal = (v: string) => {
     const n = parseFloat(v);
     setReceipt((r) => r && { ...r, total: isNaN(n) ? r.total : n, totalUncertain: false });
+  };
+  const setDeliveryFee = (v: string) => {
+    const trimmed = v.trim();
+    if (trimmed === "") {
+      setReceipt((r) => r && { ...r, deliveryFee: null });
+      return;
+    }
+    const n = parseFloat(trimmed);
+    setReceipt((r) => r && { ...r, deliveryFee: isNaN(n) ? r.deliveryFee ?? null : n });
   };
   const setItemField = (
     idx: number,
@@ -341,6 +351,22 @@ export default function ReviewReceiptScreen() {
                 returnKeyType="done"
               />
             </View>
+          </View>
+
+          {/* Delivery / service fee (auto-detected; blank = none) */}
+          <View style={{ marginTop: 12 }}>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+              Delivery / service fee (optional)
+            </Text>
+            <TextInput
+              style={[styles.fieldInput, fieldStyle(false)]}
+              value={numVal("deliveryFee", receipt.deliveryFee ?? 0)}
+              onChangeText={(v) => setNum("deliveryFee", v, () => setDeliveryFee(v))}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor={colors.mutedForeground}
+              returnKeyType="done"
+            />
           </View>
         </View>
 

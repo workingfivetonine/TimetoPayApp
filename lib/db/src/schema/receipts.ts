@@ -11,6 +11,10 @@ export const receiptsTable = pgTable("receipts", {
   purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull(),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
   totalBeforeTax: numeric("total_before_tax", { precision: 10, scale: 2 }),
+  // Delivery / service fee charged on the receipt (not a purchased product, so
+  // it's kept off the line items). Null = none detected. Feeds the "additional
+  // fees" analytics. Visual-only currency, like `total`.
+  deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }),
   imageUri: text("image_uri"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

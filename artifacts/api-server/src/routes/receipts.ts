@@ -222,7 +222,7 @@ TYPICAL RECEIPT LAYOUT — use this as a reference map when reading the image:
   │  Subtotal:                   9.73   │  ← IGNORE (not a line item)
   │  Loyalty discount:          -0.50   │  ← IGNORE
   │  VAT (20%):                  1.62   │  ← IGNORE
-  │  Delivery fee:               1.99   │  ← IGNORE
+  │  Delivery fee:               1.99   │  ← deliveryFee (NOT a line item)
   │  Tip:                        1.00   │  ← IGNORE
   │─────────────────────────────────────│
   │  TOTAL:                     10.23   │  ← total (the final amount paid)
@@ -242,6 +242,7 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
   "dateUncertain": false,
   "total": 10.23,
   "totalUncertain": false,
+  "deliveryFee": 1.99,
   "lineItems": [
     { "name": "Whole Milk 2L",       "icon": "🥛", "category": "Dairy & Eggs",    "price": 1.35, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
     { "name": "Free Range Eggs",     "icon": "🥚", "category": "Dairy & Eggs",    "price": 2.49, "quantity": 2, "nameUncertain": false, "priceUncertain": false },
@@ -262,6 +263,7 @@ Now extract data from the receipt image provided and return ONLY a single valid 
   "dateUncertain": <true if date was blurry/missing/guessed, false if clearly readable>,
   "total": <final total paid as a number>,
   "totalUncertain": <true if total was blurry/missing/guessed, false if clearly readable>,
+  "deliveryFee": <the delivery and/or service fee charged, as a number; 0 if the receipt shows none>,
   "lineItems": [
     {
       "name": "Clean Title Case name",
@@ -279,6 +281,7 @@ Rules:
 - storeCountryCode: infer the store's country from the address, currency symbol, phone format, language, or tax labels (e.g. "VAT" → UK/EU, "GST" → AU/CA, "$" with a US state abbreviation → US). Return the uppercase ISO-3166 alpha-2 code (e.g. "US", "GB", "CA", "AU"). If you genuinely cannot tell, return null.
 - storeStateCode: ONLY for a US store, return the USPS 2-letter state code (e.g. "CA", "NY", "TX") read from the address. For any non-US store, or if the US state is unreadable, return null.
 - Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
+- deliveryFee: capture the delivery fee and/or service/handling fee charged for the order (sum them if both appear) as a positive number. This is NOT a line item — never add it to lineItems. If the receipt shows no delivery or service fee (e.g. an in-store purchase), return 0. Do NOT count tips, taxes, or bag fees here.
 - icon must be exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots, 🍗 chicken, 🧻 paper towels). If unsure, use 🛒.
 - category MUST be EXACTLY one of these fixed values (copy verbatim): "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". Pick the single best fit; use "Other" only if nothing else fits.
 - price is always the per-unit price; if only a line total is shown for qty > 1, divide to get the unit price.
@@ -295,6 +298,7 @@ type ParsedReceipt = {
   storeStateCode?: string | null;
   purchasedAt: string;
   total: number;
+  deliveryFee?: number | null;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
 };
 
@@ -347,6 +351,7 @@ function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) 
     storeName,
     total: Number(r.total),
     totalBeforeTax: r.totalBeforeTax != null ? Number(r.totalBeforeTax) : null,
+    deliveryFee: r.deliveryFee != null ? Number(r.deliveryFee) : null,
     purchasedAt: r.purchasedAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
   };
@@ -814,6 +819,7 @@ async function persistParsedReceipt(userId: string, parsed: {
   storeStateCode?: string | null;
   purchasedAt: string;
   total: number;
+  deliveryFee?: number | null;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[];
 }) {
   // Uploading user's own region, used as the fallback for new/unstamped stores.
@@ -868,6 +874,11 @@ async function persistParsedReceipt(userId: string, parsed: {
         storeId: store.id,
         purchasedAt: new Date(parsed.purchasedAt),
         total: String(parsed.total),
+        // Only persist a delivery fee when one was actually detected (> 0).
+        deliveryFee:
+          parsed.deliveryFee != null && parsed.deliveryFee > 0
+            ? String(parsed.deliveryFee)
+            : null,
       })
       .returning();
 
@@ -1009,7 +1020,7 @@ router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
+  const parsed = req.body as { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;

@@ -232,6 +232,8 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
   // Per-purchase unit of measure for a line item's quantity (each/lb/kg/oz/L/ml…).
   await db.execute(sql`ALTER TABLE "line_items" ADD COLUMN IF NOT EXISTS "unit" text`);
+  // Delivery / service fee captured from a receipt (feeds "additional fees" analytics).
+  await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "delivery_fee" numeric(10, 2)`);
 
   // Public profile columns (username / names / avatar) for the onboarding step.
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "username" text`);

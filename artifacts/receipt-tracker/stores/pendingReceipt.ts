@@ -21,6 +21,9 @@ export interface ParsedReceiptData {
   dateUncertain?: boolean;
   total: number;
   totalUncertain?: boolean;
+  // Delivery / service fee detected on the receipt (0 or absent = none). Kept
+  // separate from line items; shown and editable on the review screen.
+  deliveryFee?: number | null;
   lineItems: ParsedLineItem[];
 }
 

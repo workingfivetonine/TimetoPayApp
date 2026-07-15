@@ -307,6 +307,20 @@ export default function ReceiptDetailScreen() {
 
         {/* Total summary */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {(() => {
+            // deliveryFee is a drifted field not in the generated type — read via cast.
+            const deliveryFee = (receipt as { deliveryFee?: number | null }).deliveryFee;
+            return deliveryFee != null && deliveryFee > 0 ? (
+              <View style={[styles.totalRow, { marginBottom: 8 }]}>
+                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>
+                  Delivery / service fee
+                </Text>
+                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>
+                  {format(Number(deliveryFee))}
+                </Text>
+              </View>
+            ) : null;
+          })()}
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
             <Text style={[styles.totalAmount, { color: colors.foreground }]}>
