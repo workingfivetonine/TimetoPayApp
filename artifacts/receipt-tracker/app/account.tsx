@@ -109,6 +109,30 @@ export default function AccountScreen() {
     entitlement.status !== "comped" &&
     entitlement.status !== "active";
 
+  // Reconcile subscription state straight from the provider once when the account
+  // screen opens for a provider-backed user. This is a safety net for a delayed or
+  // missed billing webhook: without it, a subscription cancelled in the provider's
+  // portal could keep showing "Active · renews …" until the next webhook lands.
+  const syncedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (syncedRef.current || !hasProviderSub || !isOnline) return;
+    syncedRef.current = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${getApiOrigin()}/api/billing/sync`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+        }
+      } catch {
+        // Non-fatal — the stored entitlement still renders.
+      }
+    })();
+  }, [hasProviderSub, isOnline, getToken, queryClient]);
+
   const handleStartTrial = () => {
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to start your trial.");

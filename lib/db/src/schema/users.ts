@@ -101,6 +101,10 @@ notifySpendSummaryFrequency: text("notify_spend_summary_frequency").default("wee
     lastPrefsEmailSentAt: timestamp("last_prefs_email_sent_at", { withTimezone: true }),
     // When the user last viewed the community board — used to compute the unread count badge.
     boardLastSeenAt: timestamp("board_last_seen_at", { withTimezone: true }),
+    // Trusted community poster: when true, this user's board posts and replies go
+    // live immediately, skipping the pending-approval queue. Set by an admin from
+    // the user's admin detail screen. Default false = everything is reviewed first.
+    boardAutoApprove: boolean("board_auto_approve").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

@@ -177,7 +177,18 @@ export default function BoardScreen() {
       return res.json() as Promise<{ id: number; status: string }>;
     },
     onSuccess: (result) => {
-      if (result?.id) pendingPostIds.current.add(result.id);
+      // Auto-approved (trusted/admin) posts are already live; everything else
+      // enters the moderation queue. Confirm either way so the user knows the
+      // submission landed.
+      if (result?.status === "approved") {
+        showSuccessToast("Posted!", "Your message is now live on the community board.");
+      } else {
+        if (result?.id) pendingPostIds.current.add(result.id);
+        showSuccessToast(
+          "Thank you for your submission",
+          "It will be reviewed and appear shortly.",
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["board"] });
       setComposeText("");
       setComposeTag(null);
@@ -247,9 +258,18 @@ export default function BoardScreen() {
         body: JSON.stringify({ content }),
       });
       if (!res.ok) throw new Error("Failed to submit reply");
-      return res.json();
+      return res.json() as Promise<{ id: number; status: string }>;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result?.status === "approved") {
+        queryClient.invalidateQueries({ queryKey: ["board"] });
+        showSuccessToast("Reply posted!", "Your reply is now live.");
+      } else {
+        showSuccessToast(
+          "Thank you for your submission",
+          "Your reply will be reviewed and appear shortly.",
+        );
+      }
       setReplyingTo(null);
       setReplyText("");
     },

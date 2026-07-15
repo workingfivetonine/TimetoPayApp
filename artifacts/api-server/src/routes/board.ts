@@ -191,12 +191,25 @@ router.post("/", async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const region = buildRegion(user?.countryCode ?? null, user?.stateCode ?? null);
 
+  // Trusted posters (admin-flagged) and admins skip the moderation queue — their
+  // posts go live immediately (status "approved", stamped as approved now).
+  const autoApprove = !!req.isAdmin || !!user?.boardAutoApprove;
+  const status = autoApprove ? "approved" : "pending";
+
   const [post] = await db
     .insert(boardPostsTable)
-    .values({ userId, content: trimmed, tag: resolvedTag, region, status: "pending" })
+    .values({
+      userId,
+      content: trimmed,
+      tag: resolvedTag,
+      region,
+      status,
+      approvedAt: autoApprove ? new Date() : null,
+      approvedBy: autoApprove ? userId : null,
+    })
     .returning({ id: boardPostsTable.id });
 
-  res.status(201).json({ id: post!.id, status: "pending" });
+  res.status(201).json({ id: post!.id, status });
 });
 
 // POST /board/:id/agree — toggle agree on a post
@@ -333,12 +346,33 @@ router.post("/:id/replies", async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const region = buildRegion(user?.countryCode ?? null, user?.stateCode ?? null);
 
+  // Trusted posters + admins skip moderation. An auto-approved reply is live at
+  // once, so bump the parent post's reply count immediately (mirrors what the
+  // admin reply-approve path does).
+  const autoApprove = !!req.isAdmin || !!user?.boardAutoApprove;
+  const status = autoApprove ? "approved" : "pending";
+
   const [reply] = await db
     .insert(boardRepliesTable)
-    .values({ postId, userId, content: trimmed, region, status: "pending" })
+    .values({
+      postId,
+      userId,
+      content: trimmed,
+      region,
+      status,
+      approvedAt: autoApprove ? new Date() : null,
+      approvedBy: autoApprove ? userId : null,
+    })
     .returning({ id: boardRepliesTable.id });
 
-  res.status(201).json({ id: reply!.id, status: "pending" });
+  if (autoApprove) {
+    await db
+      .update(boardPostsTable)
+      .set({ replyCount: sql`reply_count + 1` })
+      .where(eq(boardPostsTable.id, postId));
+  }
+
+  res.status(201).json({ id: reply!.id, status });
 });
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -417,6 +451,26 @@ router.post("/admin/reply/:id/reject", requireAdmin, async (req, res): Promise<v
     .where(and(eq(boardRepliesTable.id, id), eq(boardRepliesTable.status, "pending")));
 
   res.json({ success: true });
+});
+
+// Toggle a user's "post without review" trust flag. When enabled, that user's
+// future posts + replies skip the moderation queue and go live immediately.
+router.post("/admin/user/:userId/auto-approve", requireAdmin, async (req, res): Promise<void> => {
+  const { userId } = req.params;
+  const { enabled } = req.body as { enabled?: boolean };
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "enabled (boolean) is required" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ boardAutoApprove: enabled })
+    .where(eq(usersTable.id, userId as string))
+    .returning({ id: usersTable.id, boardAutoApprove: usersTable.boardAutoApprove });
+
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+  res.json({ id: updated.id, boardAutoApprove: updated.boardAutoApprove });
 });
 
 export default router;

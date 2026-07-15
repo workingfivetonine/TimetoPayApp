@@ -147,6 +147,9 @@ export default function ReviewReceiptScreen() {
             quantity: li.quantity,
             icon: li.icon ?? undefined,
             category: li.category ?? undefined,
+            // "Priced by weight" rows record the weight in pounds — persist the
+            // unit so the saved item shows "2.5 lb" instead of a bare "×2.5".
+            unit: li.byWeight ? "lb" : undefined,
           })),
         }),
       });

@@ -253,6 +253,11 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(
     sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "subscription_cancel_at_period_end" boolean NOT NULL DEFAULT false`,
   );
+  // Trusted community poster flag — when true, board posts/replies skip the
+  // approval queue. Read by POST /board, so a missing column would 500 posting.
+  await db.execute(
+    sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "board_auto_approve" boolean NOT NULL DEFAULT false`,
+  );
   // Case-insensitive unique handle. Postgres allows multiple NULLs, so users
   // without a username yet don't conflict.
   await db.execute(

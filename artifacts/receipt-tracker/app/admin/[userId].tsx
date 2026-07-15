@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/expo";
 import React from "react";
 import {
   ActivityIndicator,
@@ -8,6 +9,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -21,6 +23,7 @@ import {
   useAdminMergeUsers,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { getApiOrigin } from "@/lib/apiBase";
 import { EmptyState } from "@/components/EmptyState";
 
 type Role = "master_admin" | "family" | "general";
@@ -47,12 +50,36 @@ export default function AdminUserDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { getToken } = useAuth();
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const { data: users } = useAdminListUsers();
   const { data, isLoading, error } = useAdminGetUserReceipts(userId);
 
   const current = users?.find((u) => u.id === userId);
+  // boardAutoApprove is a drifted field not in the generated type — read via cast.
+  const autoApprove = !!(current as { boardAutoApprove?: boolean } | undefined)?.boardAutoApprove;
+
+  // Toggle the "post to community without review" trust flag (raw fetch: the
+  // generated client predates this endpoint).
+  const setAutoApprove = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/admin/user/${userId}/auto-approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json() as Promise<{ boardAutoApprove: boolean }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
   const otherUsers = (users ?? []).filter((u) => u.id !== userId);
 
   const setRole = useAdminSetUserRole();
@@ -177,6 +204,29 @@ export default function AdminUserDetailScreen() {
           ) : null}
         </View>
 
+        {/* Community trust */}
+        {current ? (
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Community board</Text>
+            <View style={styles.trustRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.roleLabel, { color: colors.foreground }]}>Post without review</Text>
+                <Text style={[styles.roleHint, { color: colors.mutedForeground }]}>
+                  {isMaster
+                    ? "Admins always post without review."
+                    : "When on, this user's posts and replies go live immediately, skipping the approval queue."}
+                </Text>
+              </View>
+              <Switch
+                value={isMaster || autoApprove}
+                onValueChange={(v) => setAutoApprove.mutate(v)}
+                disabled={isMaster || setAutoApprove.isPending}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+          </View>
+        ) : null}
+
         {/* Merge */}
         {!isMaster && otherUsers.length > 0 ? (
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -281,6 +331,7 @@ const styles = StyleSheet.create({
   },
   roleLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   roleHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  trustRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
   note: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 12, lineHeight: 17 },
   mergeRow: {
     flexDirection: "row",

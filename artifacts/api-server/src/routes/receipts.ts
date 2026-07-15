@@ -814,7 +814,7 @@ async function persistParsedReceipt(userId: string, parsed: {
   storeStateCode?: string | null;
   purchasedAt: string;
   total: number;
-  lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
+  lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[];
 }) {
   // Uploading user's own region, used as the fallback for new/unstamped stores.
   const [u] = await db
@@ -897,7 +897,7 @@ async function persistParsedReceipt(userId: string, parsed: {
 
       const [lineItem] = await tx
         .insert(lineItemsTable)
-        .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity) })
+        .values({ receiptId: receipt.id, itemId: item.id, price: String(li.price), quantity: String(li.quantity), unit: li.unit ?? null })
         .returning();
 
       savedLineItems.push({
@@ -1009,7 +1009,7 @@ router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[] };
+  const parsed = req.body as { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;

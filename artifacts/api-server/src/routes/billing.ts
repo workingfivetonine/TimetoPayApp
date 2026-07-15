@@ -20,6 +20,7 @@ import {
 import { computeEntitlement, formatCurrentUser } from "../lib/billing/entitlement";
 import { isValidPromoCode } from "../lib/billing/promo";
 import { syncSubscriberToLoops } from "../lib/billing/loopsSync";
+import { mapStripeStatus } from "../lib/billing/stripeSync";
 import { sendSubscriptionThankYouEmail } from "../lib/email/transactional";
 
 const router = Router();
@@ -260,6 +261,72 @@ router.post("/manage", async (req, res): Promise<void> => {
   }
 
   res.status(404).json({ error: "No active subscription to manage." });
+});
+
+// Reconcile the caller's subscription state directly from the provider. This is
+// a safety net for when a webhook is delayed or missed (e.g. a portal
+// cancellation that never synced): the account screen calls this on load so the
+// "Renews / Cancels / Premium access ends" label always reflects reality. Reads
+// the live subscription authoritatively — never trusts client-reported state.
+router.post("/sync", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const user = await loadUser(userId);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  try {
+    if (user.subscriptionProvider === "stripe" && user.stripeSubscriptionId && (await isStripeConfigured())) {
+      const stripe = await getUncachableStripeClient();
+      const sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+      // current_period_end sits at the top level on older API versions and on the
+      // first item on newer ones — read whichever is present.
+      const rawEnd =
+        (sub as unknown as { current_period_end?: number }).current_period_end ??
+        sub.items?.data?.[0]?.current_period_end;
+      const periodEnd = typeof rawEnd === "number" ? new Date(rawEnd * 1000) : null;
+      const [updated] = await db
+        .update(usersTable)
+        .set({
+          subscriptionStatus: mapStripeStatus(sub.status),
+          subscriptionCurrentPeriodEnd: periodEnd,
+          subscriptionCancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+        })
+        .where(eq(usersTable.id, userId))
+        .returning();
+      void syncSubscriberToLoops(updated);
+      res.json(formatCurrentUser(updated));
+      return;
+    }
+
+    if (user.subscriptionProvider === "paypal" && user.paypalSubscriptionId && isPaypalConfigured()) {
+      const sub = await getPaypalSubscription(user.paypalSubscriptionId);
+      const periodEnd = sub.billing_info?.next_billing_time
+        ? new Date(sub.billing_info.next_billing_time)
+        : null;
+      const [updated] = await db
+        .update(usersTable)
+        .set({
+          subscriptionStatus: mapPaypalStatus(sub.status),
+          subscriptionCurrentPeriodEnd: periodEnd,
+          // PayPal has no "cancel at period end" state — a cancel is immediate.
+          subscriptionCancelAtPeriodEnd: false,
+        })
+        .where(eq(usersTable.id, userId))
+        .returning();
+      void syncSubscriberToLoops(updated);
+      res.json(formatCurrentUser(updated));
+      return;
+    }
+
+    // Nothing to reconcile (no provider subscription) — return current state.
+    res.json(formatCurrentUser(user));
+  } catch (err) {
+    req.log.error({ err }, "Failed to sync subscription from provider");
+    // Non-fatal: fall back to the stored state so the account screen still loads.
+    res.json(formatCurrentUser(user));
+  }
 });
 
 // Finalize a PayPal subscription after the user approves it. The server reads

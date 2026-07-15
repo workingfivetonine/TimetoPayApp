@@ -107,6 +107,7 @@ router.get("/users", async (_req, res): Promise<void> => {
       itemCount: itemMap.get(u.id) ?? 0,
       receiptCount: receiptMap.get(u.id)?.receiptCount ?? 0,
       totalSpend: Math.round(Number(receiptMap.get(u.id)?.totalSpend ?? 0) * 100) / 100,
+      boardAutoApprove: u.boardAutoApprove,
     })),
   );
 });
