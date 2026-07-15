@@ -185,11 +185,17 @@ export const listStores = async (
   params?: { limit?: number; offset?: number },
   options?: RequestInit
 ): Promise<Store[]> => {
-  const url = new URL(getListStoresUrl(), 'http://localhost');
-  if (params?.limit) url.searchParams.set('limit', String(params.limit));
-  if (params?.offset) url.searchParams.set('offset', String(params.offset));
-  
-  return customFetch<Store[]>(url.toString(),
+  // Build a RELATIVE path + query string. Do NOT wrap in `new URL(path,
+  // 'http://localhost')` — that produces an absolute http://localhost URL that
+  // customFetch's base-URL logic (which only rewrites relative paths) passes
+  // through unchanged, so /api/stores would hit the visitor's own machine.
+  const search = new URLSearchParams();
+  if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  const path = qs ? `${getListStoresUrl()}?${qs}` : getListStoresUrl();
+
+  return customFetch<Store[]>(path,
   {
     ...options,
     method: 'GET'
