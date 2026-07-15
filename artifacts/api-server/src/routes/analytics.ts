@@ -56,6 +56,67 @@ router.get("/spend", async (req, res): Promise<void> => {
   });
 });
 
+// Additional fees analytics: how much the user has paid in delivery/service
+// fees, totalled for this week / month / year / all-time, plus a per-store
+// breakdown (which stores cost the most in fees). Uses the receipts.delivery_fee
+// captured at scan time.
+router.get("/fees", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+
+  // Calendar-window cutoffs in UTC: start of this ISO week (Monday), month, year.
+  const now = new Date();
+  const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const dow = (now.getUTCDay() + 6) % 7; // 0 = Monday
+  const startOfWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dow));
+
+  const feeExpr = sql<number>`COALESCE(SUM(${receiptsTable.deliveryFee}), 0)`;
+  const windowSum = (cutoff: Date) =>
+    sql<number>`COALESCE(SUM(CASE WHEN ${receiptsTable.purchasedAt} >= ${cutoff.toISOString()} THEN ${receiptsTable.deliveryFee} ELSE 0 END), 0)`;
+
+  const rows = await db
+    .select({
+      storeId: receiptsTable.storeId,
+      storeName: storesTable.name,
+      allTime: feeExpr,
+      year: windowSum(startOfYear),
+      month: windowSum(startOfMonth),
+      week: windowSum(startOfWeek),
+    })
+    .from(receiptsTable)
+    .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+    .where(and(eq(receiptsTable.userId, userId), sql`${receiptsTable.deliveryFee} IS NOT NULL`))
+    .groupBy(receiptsTable.storeId, storesTable.name);
+
+  const round = (n: number) => Math.round(Number(n) * 100) / 100;
+  const totals = rows.reduce(
+    (acc, r) => ({
+      week: acc.week + Number(r.week),
+      month: acc.month + Number(r.month),
+      year: acc.year + Number(r.year),
+      allTime: acc.allTime + Number(r.allTime),
+    }),
+    { week: 0, month: 0, year: 0, allTime: 0 },
+  );
+
+  const byStore = rows
+    .map((r) => ({
+      storeId: r.storeId,
+      storeName: r.storeName ?? "Unknown",
+      allTime: round(Number(r.allTime)),
+    }))
+    .filter((s) => s.allTime > 0)
+    .sort((a, b) => b.allTime - a.allTime);
+
+  res.json({
+    week: round(totals.week),
+    month: round(totals.month),
+    year: round(totals.year),
+    allTime: round(totals.allTime),
+    byStore,
+  });
+});
+
 // Item price history — the deeper analytics insight, gated as premium on web.
 router.get("/items/:id/price-history", requirePremium, async (req, res): Promise<void> => {
   const userId = req.userId!;

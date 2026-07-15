@@ -182,6 +182,19 @@ export default function AnalyticsScreen() {
     enabled: activeTab === "items" && !locked,
   });
 
+  const { data: feesData } = useQuery({
+    queryKey: ["analytics", "fees"],
+    queryFn: () =>
+      analyticsGet<{
+        week: number;
+        month: number;
+        year: number;
+        allTime: number;
+        byStore: { storeId: number; storeName: string; allTime: number }[];
+      }>("fees"),
+    enabled: activeTab === "items" && !locked,
+  });
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -447,6 +460,45 @@ export default function AnalyticsScreen() {
           )}
           {activeTab === "items" && !locked && (
             <>
+              {/* Additional fees (delivery / service) */}
+              {(feesData?.allTime ?? 0) > 0 && (
+                <>
+                  <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>ADDITIONAL FEES</Text>
+                  <View style={[styles.feesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[styles.feesCaption, { color: colors.mutedForeground }]}>
+                      Delivery & service fees you've paid
+                    </Text>
+                    <View style={styles.feesGrid}>
+                      {([
+                        { label: "This week", value: feesData!.week },
+                        { label: "This month", value: feesData!.month },
+                        { label: "This year", value: feesData!.year },
+                        { label: "All time", value: feesData!.allTime },
+                      ] as const).map((f) => (
+                        <View key={f.label} style={styles.feesCell}>
+                          <Text style={[styles.feesValue, { color: colors.primary }]}>{format(f.value)}</Text>
+                          <Text style={[styles.feesCellLabel, { color: colors.mutedForeground }]}>{f.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    {(feesData?.byStore.length ?? 0) > 0 && (
+                      <View style={[styles.feesStores, { borderTopColor: colors.border }]}>
+                        {feesData!.byStore.slice(0, 5).map((s) => (
+                          <View key={s.storeId} style={styles.feesStoreRow}>
+                            <Text style={[styles.feesStoreName, { color: colors.foreground }]} numberOfLines={1}>
+                              {s.storeName}
+                            </Text>
+                            <Text style={[styles.feesStoreAmount, { color: colors.mutedForeground }]}>
+                              {format(s.allTime)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </>
+              )}
+
               {/* Category spend breakdown */}
               {(categoryData?.categories.length ?? 0) > 0 && (
                 <>
@@ -846,6 +898,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 4,
   },
+  feesCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  feesCaption: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 12 },
+  feesGrid: { flexDirection: "row", flexWrap: "wrap" },
+  feesCell: { width: "50%", marginBottom: 12 },
+  feesValue: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  feesCellLabel: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  feesStores: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 2, gap: 8 },
+  feesStoreRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  feesStoreName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  feesStoreAmount: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
