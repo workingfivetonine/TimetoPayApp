@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import {
   useListStores,
+  useGetCurrentUser,
   useCreateStore,
   useUpdateStore,
   useDeleteStore,
@@ -115,6 +116,10 @@ export default function StoresScreen() {
   };
 
   const { data: stores, isLoading, dataUpdatedAt } = useListStores();
+  const { data: me } = useGetCurrentUser();
+  // Miles for US/UK, kilometres elsewhere (auto by the user's country).
+  const distanceUnit: "mi" | "km" =
+    me?.countryCode === "US" || me?.countryCode === "GB" ? "mi" : "km";
   const createMutation = useCreateStore();
   const updateMutation = useUpdateStore();
   const deleteMutation = useDeleteStore();
@@ -318,6 +323,7 @@ export default function StoresScreen() {
           renderItem={({ item }) => (
             <StoreCard
               store={item}
+              distanceUnit={distanceUnit}
               onPress={() => router.push(`/store/${item.id}`)}
               onEdit={() => openEdit(item)}
             />

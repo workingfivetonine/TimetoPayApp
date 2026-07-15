@@ -4,6 +4,7 @@ import { db, usersTable } from "@workspace/db";
 import { UpdateMyRegionBody, UpdateMyNotificationPreferencesBody } from "@workspace/api-zod";
 import { validateRegion } from "@workspace/geo";
 import { formatCurrentUser } from "../lib/billing/entitlement";
+import { geocodeAddress } from "../lib/geocode";
 import {
   isValidUsernameFormat,
   isUsernameAvailable,
@@ -97,6 +98,46 @@ router.patch("/region", async (req, res): Promise<void> => {
     return;
   }
   res.json(formatCurrentUser(user));
+});
+
+// Set (or clear) the authenticated user's optional home address. When an address
+// is provided it's geocoded (Google) to latitude/longitude so the Stores list
+// can show "distance from" each store. Clearing the address also clears coords.
+router.patch("/address", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const raw = (req.body as { address?: unknown }).address;
+  const address = typeof raw === "string" ? raw.trim() : "";
+
+  if (!address) {
+    const [user] = await db
+      .update(usersTable)
+      .set({ address: null, latitude: null, longitude: null })
+      .where(eq(usersTable.id, userId))
+      .returning();
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    res.json(formatCurrentUser(user));
+    return;
+  }
+
+  if (address.length > 300) {
+    res.status(400).json({ error: "Address is too long." });
+    return;
+  }
+
+  // Geocode synchronously — the user just typed it and expects distances to work.
+  // A geocoding miss still saves the address (coords stay null; no distances).
+  const coords = await geocodeAddress(address);
+  const [user] = await db
+    .update(usersTable)
+    .set({
+      address,
+      latitude: coords ? String(coords.lat) : null,
+      longitude: coords ? String(coords.lng) : null,
+    })
+    .where(eq(usersTable.id, userId))
+    .returning();
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json({ ...formatCurrentUser(user), addressGeocoded: !!coords });
 });
 
 // Returns the authenticated user's email reminder preferences.

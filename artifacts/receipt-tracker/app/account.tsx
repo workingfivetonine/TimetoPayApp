@@ -133,6 +133,49 @@ export default function AccountScreen() {
     })();
   }, [hasProviderSub, isOnline, getToken, queryClient]);
 
+  // Optional home address → geocoded server-side so Stores can show distance.
+  // address/hasLocation are drifted fields not in the generated type (read via cast).
+  const savedAddress = (me as { address?: string | null } | undefined)?.address ?? "";
+  const hasLocation = !!(me as { hasLocation?: boolean } | undefined)?.hasLocation;
+  const [addressDraft, setAddressDraft] = React.useState<string | null>(null);
+  const addressValue = addressDraft ?? savedAddress;
+  const [savingAddress, setSavingAddress] = React.useState(false);
+  const addressDirty = addressDraft !== null && addressDraft.trim() !== savedAddress.trim();
+
+  const handleSaveAddress = async () => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to save your address.");
+      return;
+    }
+    setSavingAddress(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/me/address`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ address: addressValue.trim() }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      const body = (await res.json()) as { addressGeocoded?: boolean };
+      await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+      setAddressDraft(null);
+      if (!addressValue.trim()) {
+        showSuccessToast("Address cleared", "Distances are turned off.");
+      } else if (body.addressGeocoded === false) {
+        notify("Address saved", "We couldn't locate it on the map, so distances may not show. Try adding city and ZIP.");
+      } else {
+        showSuccessToast("Address saved", "You'll now see distance to each store.");
+      }
+    } catch {
+      notify("Couldn't save address", "Please try again.");
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
   const handleStartTrial = () => {
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to start your trial.");
@@ -308,6 +351,44 @@ export default function AccountScreen() {
           </View>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
+
+        {/* Optional home address → store "distance from" */}
+        <View style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.addressHeader}>
+            <Feather name="home" size={18} color={colors.primary} />
+            <Text style={[styles.rowText, { color: colors.foreground }]}>Home address</Text>
+            <Text style={[styles.optionalTag, { color: colors.mutedForeground }]}>optional</Text>
+          </View>
+          <Text style={[styles.rowSub, { color: colors.mutedForeground, marginBottom: 8 }]}>
+            {hasLocation
+              ? "Distance to each store is shown on the Stores tab."
+              : "Add your address to see how far each store is."}
+          </Text>
+          <TextInput
+            style={[styles.addressInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            value={addressValue}
+            onChangeText={setAddressDraft}
+            placeholder="Street, city, ZIP/postcode"
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="words"
+          />
+          {addressDirty ? (
+            <TouchableOpacity
+              onPress={handleSaveAddress}
+              disabled={savingAddress}
+              style={[styles.addressSaveBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.85}
+            >
+              {savingAddress ? (
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+              ) : (
+                <Text style={[styles.addressSaveText, { color: colors.primaryForeground }]}>
+                  {addressValue.trim() ? "Save address" : "Clear address"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
         <TouchableOpacity
           style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -946,6 +1027,19 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   rowSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  addressCard: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16 },
+  addressHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
+  optionalTag: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  addressInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+  },
+  addressSaveBtn: { marginTop: 10, borderRadius: 10, paddingVertical: 11, alignItems: "center" },
+  addressSaveText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   manageBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,

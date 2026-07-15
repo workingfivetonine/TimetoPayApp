@@ -15,6 +15,9 @@ export interface ParsedLineItem {
 export interface ParsedReceiptData {
   storeName: string;
   storeNameUncertain?: boolean;
+  // Store's printed address (captured for geocoding "distance from"); not edited
+  // on the review screen, just carried through to save.
+  storeAddress?: string | null;
   storeCountryCode?: string | null;
   storeStateCode?: string | null;
   purchasedAt: string;

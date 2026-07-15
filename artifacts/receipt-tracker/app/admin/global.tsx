@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -113,11 +112,7 @@ export default function AdminGlobalPricesScreen() {
       ) : null}
 
       {hasData && countries.length > 1 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-        >
+        <View style={styles.chipRow}>
           {[null, ...countries].map((c) => {
             const active = country === c;
             return (
@@ -135,7 +130,7 @@ export default function AdminGlobalPricesScreen() {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       ) : null}
 
       {isLoading ? (
@@ -260,7 +255,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  chipRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   chipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   list: { padding: 16, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },

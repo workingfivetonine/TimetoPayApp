@@ -10,11 +10,23 @@ interface Props {
   store: Store;
   onPress: () => void;
   onEdit?: () => void;
+  // "mi" or "km" — chosen by the viewer's country. Distance itself comes from the
+  // API (store.distanceKm) once both the user's and the store's address are geocoded.
+  distanceUnit?: "mi" | "km";
 }
 
-export function StoreCard({ store, onPress, onEdit }: Props) {
+// Format a kilometre distance into the viewer's preferred unit, e.g. "1.2 mi".
+function formatDistance(km: number, unit: "mi" | "km"): string {
+  const value = unit === "mi" ? km * 0.621371 : km;
+  const rounded = value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
+  return `${rounded} ${unit}`;
+}
+
+export function StoreCard({ store, onPress, onEdit, distanceUnit = "km" }: Props) {
   const colors = useColors();
   const { format } = useCurrency();
+  // distanceKm is a drifted field not in the generated Store type — read via cast.
+  const distanceKm = (store as { distanceKm?: number | null }).distanceKm ?? null;
   // Try the stored logo first, then a name-derived favicon (so a dead stored URL
   // — e.g. an old Clearbit link — falls through to the working favicon instead of
   // jumping straight to the placeholder), then the placeholder icon.
@@ -63,6 +75,14 @@ export function StoreCard({ store, onPress, onEdit }: Props) {
           ) : (
             <Text style={[styles.metaText, { color: colors.mutedForeground }]}>In-store only</Text>
           )}
+          {distanceKm != null ? (
+            <View style={styles.metaRow}>
+              <Feather name="navigation" size={11} color={colors.primary} />
+              <Text style={[styles.deliveryText, { color: colors.primary }]}>
+                {formatDistance(distanceKm, distanceUnit)} away
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 

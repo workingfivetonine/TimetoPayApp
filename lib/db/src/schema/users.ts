@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -27,6 +27,12 @@ export const usersTable = pgTable(
     firstName: text("first_name"),
     lastName: text("last_name"),
     avatar: text("avatar"),
+    // Optional home/mailing address. When set, it's geocoded (Google) to
+    // latitude/longitude so the Stores list can show "distance from" each store.
+    // Private; never shown to other users.
+    address: text("address"),
+    latitude: numeric("latitude", { precision: 9, scale: 6 }),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }),
     // Provider-agnostic subscription state, driven ONLY by verified provider
     // webhooks / provider API reads — never by client-reported success.
     //   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled" | "none" (null = never subscribed)

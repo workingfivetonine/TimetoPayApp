@@ -137,6 +137,7 @@ export default function ReviewReceiptScreen() {
         },
         body: JSON.stringify({
           storeName: receipt.storeName,
+          storeAddress: receipt.storeAddress ?? undefined,
           storeCountryCode: receipt.storeCountryCode ?? undefined,
           storeStateCode: receipt.storeStateCode ?? undefined,
           purchasedAt: toIso(receipt.purchasedAt),

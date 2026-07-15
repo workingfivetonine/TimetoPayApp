@@ -163,6 +163,10 @@ export function formatCurrentUser(user: UserRow) {
     firstName: user.firstName,
     lastName: user.lastName,
     avatar: user.avatar,
+    // Optional home address + whether it was successfully geocoded (has coords),
+    // so the account screen can prefill the field and confirm distance is active.
+    address: user.address ?? null,
+    hasLocation: user.latitude != null && user.longitude != null,
     // Account creation time — used for "spend since [join date]" in analytics.
     createdAt: user.createdAt ? user.createdAt.toISOString() : null,
     // One-time post-signup "Choose your plan" onboarding step completed?

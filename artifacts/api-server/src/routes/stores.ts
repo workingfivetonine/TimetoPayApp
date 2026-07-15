@@ -1,13 +1,37 @@
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { storesTable } from "@workspace/db";
+import { storesTable, usersTable } from "@workspace/db";
 import {
   CreateStoreBody,
   UpdateStoreBody,
 } from "@workspace/api-zod";
 import { isValidCountry, isValidUsState, isStateScoped, normalizeRegionCode } from "@workspace/geo";
 import { resolveStoreLogo } from "../lib/storeLogo";
+import { geocodeAddress, haversineKm, type LatLng } from "../lib/geocode";
+
+// Lazily geocode up to a few of the caller's stores that have an address but no
+// coordinates yet (e.g. addresses backfilled before geocoding existed). Kept
+// small + fire-and-forget so the Stores list stays fast and we respect rate
+// limits; distances appear on a subsequent load.
+async function backfillStoreCoords(
+  stores: { id: number; address: string | null; latitude: string | null }[],
+): Promise<void> {
+  const pending = stores.filter((s) => s.address && s.latitude == null).slice(0, 5);
+  for (const s of pending) {
+    try {
+      const coords = await geocodeAddress(s.address!);
+      if (coords) {
+        await db
+          .update(storesTable)
+          .set({ latitude: String(coords.lat), longitude: String(coords.lng) })
+          .where(eq(storesTable.id, s.id));
+      }
+    } catch {
+      // Non-fatal — try again on a future load.
+    }
+  }
+}
 
 const router = Router();
 
@@ -64,19 +88,41 @@ function resolveStoreRegion(
 
 router.get("/", async (req, res): Promise<void> => {
   const userId = req.userId!;
-  const stores = await db
-    .select()
-    .from(storesTable)
-    .where(eq(storesTable.userId, userId))
-    .orderBy(storesTable.name);
+  const [stores, [user]] = await Promise.all([
+    db.select().from(storesTable).where(eq(storesTable.userId, userId)).orderBy(storesTable.name),
+    db
+      .select({ latitude: usersTable.latitude, longitude: usersTable.longitude })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId)),
+  ]);
+
+  // Where the user is (their geocoded home address), if set. Distances are only
+  // computed when we have both the user's and the store's coordinates.
+  const userLoc: LatLng | null =
+    user?.latitude != null && user?.longitude != null
+      ? { lat: Number(user.latitude), lng: Number(user.longitude) }
+      : null;
+
   res.json(
-    stores.map((s) => ({
-      ...s,
-      deliveryFee: s.deliveryFee ? Number(s.deliveryFee) : null,
-      minimumOrderAmount: s.minimumOrderAmount ? Number(s.minimumOrderAmount) : null,
-      createdAt: s.createdAt.toISOString(),
-    }))
+    stores.map((s) => {
+      const storeLoc: LatLng | null =
+        s.latitude != null && s.longitude != null
+          ? { lat: Number(s.latitude), lng: Number(s.longitude) }
+          : null;
+      const distanceKm =
+        userLoc && storeLoc ? Math.round(haversineKm(userLoc, storeLoc) * 10) / 10 : null;
+      return {
+        ...s,
+        deliveryFee: s.deliveryFee ? Number(s.deliveryFee) : null,
+        minimumOrderAmount: s.minimumOrderAmount ? Number(s.minimumOrderAmount) : null,
+        distanceKm,
+        createdAt: s.createdAt.toISOString(),
+      };
+    }),
   );
+
+  // Kick off lazy geocoding for any address-but-no-coords stores (fire-and-forget).
+  void backfillStoreCoords(stores);
 });
 
 // Re-resolve and persist a logo for every one of the caller's stores. Powers

@@ -20,6 +20,7 @@ import { iconForItemName } from "../lib/itemIcon.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
 import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
 import { requirePremium, allowFreeSingleScan } from "../middlewares/requireEntitlement.js";
+import { geocodeAddress } from "../lib/geocode.js";
 import { getFreeScanUsage, recordFreeScan } from "../lib/billing/freeScan.js";
 import { computeEntitlement } from "../lib/billing/entitlement.js";
 // Use lib directly to skip pdf-parse's test-file read on import
@@ -205,7 +206,7 @@ TYPICAL RECEIPT LAYOUT — use this as a reference map when reading the image:
 
   ┌─────────────────────────────────────┐
   │         STORE NAME / LOGO           │  ← storeName
-  │      123 High Street, City          │  (address — ignore)
+  │      123 High Street, City          │  ← storeAddress
   │      Tel: 01234 567890              │  (phone — ignore)
   │                                     │
   │  Date: 14/03/2024   Time: 11:42     │  ← purchasedAt
@@ -236,6 +237,7 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
 {
   "storeName": "Store Name",
   "storeNameUncertain": false,
+  "storeAddress": "123 High Street, City",
   "storeCountryCode": "GB",
   "storeStateCode": null,
   "purchasedAt": "2024-03-14T11:42:00.000Z",
@@ -257,6 +259,7 @@ Now extract data from the receipt image provided and return ONLY a single valid 
 {
   "storeName": "Name of the store or retailer",
   "storeNameUncertain": <true if store name was blurry/missing/guessed, false if clearly readable>,
+  "storeAddress": "<the store's full street address as printed on the receipt (street, city, and postal/zip if shown), or null if none is printed>",
   "storeCountryCode": "<ISO-3166 alpha-2 country code of the store, or null if you can't tell>",
   "storeStateCode": "<for a US store only: the USPS 2-letter state code, else null>",
   "purchasedAt": "ISO 8601 date-time — read the date on the receipt; if unreadable use today: ${today}",
@@ -280,6 +283,7 @@ Now extract data from the receipt image provided and return ONLY a single valid 
 Rules:
 - storeCountryCode: infer the store's country from the address, currency symbol, phone format, language, or tax labels (e.g. "VAT" → UK/EU, "GST" → AU/CA, "$" with a US state abbreviation → US). Return the uppercase ISO-3166 alpha-2 code (e.g. "US", "GB", "CA", "AU"). If you genuinely cannot tell, return null.
 - storeStateCode: ONLY for a US store, return the USPS 2-letter state code (e.g. "CA", "NY", "TX") read from the address. For any non-US store, or if the US state is unreadable, return null.
+- storeAddress: the store branch's street address printed near the top of the receipt (typically under the store name). Include street, city, and postal/zip code if shown, as a single line. Return null if no address is printed. This is the STORE's location — never the customer's.
 - Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
 - deliveryFee: capture the delivery fee and/or service/handling fee charged for the order (sum them if both appear) as a positive number. This is NOT a line item — never add it to lineItems. If the receipt shows no delivery or service fee (e.g. an in-store purchase), return 0. Do NOT count tips, taxes, or bag fees here.
 - icon must be exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots, 🍗 chicken, 🧻 paper towels). If unsure, use 🛒.
@@ -294,6 +298,7 @@ Rules:
 
 type ParsedReceipt = {
   storeName: string;
+  storeAddress?: string | null;
   storeCountryCode?: string | null;
   storeStateCode?: string | null;
   purchasedAt: string;
@@ -815,6 +820,7 @@ function resolveScanRegion(
 
 async function persistParsedReceipt(userId: string, parsed: {
   storeName: string;
+  storeAddress?: string | null;
   storeCountryCode?: string | null;
   storeStateCode?: string | null;
   purchasedAt: string;
@@ -833,11 +839,13 @@ async function persistParsedReceipt(userId: string, parsed: {
   // transaction so a failure partway through (e.g. a numeric cast error on a
   // later line item) rolls everything back. Otherwise a caller that treats a
   // thrown error as "skip this page/receipt" would leave hidden partial rows.
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     // Guard against a blank/whitespace storeName from the model: a "" value still
     // satisfies the NOT NULL column but creates an unnamed store the user reads as
     // "no store was created". Fall back to a sensible placeholder instead.
     const storeName = parsed.storeName?.trim() || "Unknown Store";
+
+    const storeAddress = parsed.storeAddress?.trim() || null;
 
     // Find or create store (scoped to this user)
     let store = (await tx.select().from(storesTable).where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${storeName})`)))[0];
@@ -848,9 +856,14 @@ async function persistParsedReceipt(userId: string, parsed: {
       );
       [store] = await tx
         .insert(storesTable)
-        .values({ name: storeName, userId, countryCode: region.countryCode, stateCode: region.stateCode })
+        .values({ name: storeName, userId, address: storeAddress, countryCode: region.countryCode, stateCode: region.stateCode })
         .returning();
-    } else if (!store.countryCode) {
+    } else if (storeAddress && !store.address) {
+      // Backfill a missing address on an existing store from this scan.
+      await tx.update(storesTable).set({ address: storeAddress }).where(eq(storesTable.id, store.id));
+      store.address = storeAddress;
+    }
+    if (store && !store.countryCode) {
       // Lazy-backfill region on a pre-existing store that has none yet.
       const region = resolveScanRegion(
         { country: parsed.storeCountryCode, state: parsed.storeStateCode },
@@ -923,6 +936,28 @@ async function persistParsedReceipt(userId: string, parsed: {
 
     return { receipt, store, savedLineItems };
   });
+
+  // Geocode a newly-known store address in the background (best-effort, never
+  // blocks the save). Distances then appear on the Stores list on next load.
+  if (result.store.address && result.store.latitude == null) {
+    void geocodeStoreInBackground(result.store.id, result.store.address);
+  }
+
+  return result;
+}
+
+// Fire-and-forget: geocode a store's address and persist the coordinates.
+async function geocodeStoreInBackground(storeId: number, address: string): Promise<void> {
+  try {
+    const coords = await geocodeAddress(address);
+    if (!coords) return;
+    await db
+      .update(storesTable)
+      .set({ latitude: String(coords.lat), longitude: String(coords.lng) })
+      .where(eq(storesTable.id, storeId));
+  } catch {
+    // Non-fatal — the store simply won't show a distance yet.
+  }
 }
 
 // Parse and save receipt
@@ -1020,7 +1055,7 @@ router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
+  const parsed = req.body as { storeName: string; storeAddress?: string | null; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;

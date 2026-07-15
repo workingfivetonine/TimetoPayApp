@@ -13,6 +13,10 @@ export const storesTable = pgTable("stores", {
   countryCode: text("country_code"),
   stateCode: text("state_code"),
   address: text("address"),
+  // Geocoded coordinates (Google) for the store's address, used to compute the
+  // user's "distance from" this store. Null until an address is known + geocoded.
+  latitude: numeric("latitude", { precision: 9, scale: 6 }),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }),
   phone: text("phone"),
   website: text("website"),
   openTimes: text("open_times"),
