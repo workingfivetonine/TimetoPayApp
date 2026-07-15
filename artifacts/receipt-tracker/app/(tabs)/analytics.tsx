@@ -69,6 +69,16 @@ type CategorySpendItem = {
   percentOfTotal: number;
 };
 
+type BestOfData = {
+  goToStore: { storeName: string; receiptCount: number } | null;
+  bestValueStore: { storeName: string; winCount: number; comparedItems: number } | null;
+  cheapestByCategory: { category: string; storeName: string; avgPrice: number; coverage: number }[];
+  cheapestStaples: { itemName: string; icon: string | null; storeName: string; price: number; purchases: number }[];
+  cheapestDelivery: { storeName: string; avgFee: number } | null;
+  highestFees: { storeName: string; totalFees: number } | null;
+  closestStore: { storeName: string; distanceKm: number } | null;
+};
+
 function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: string }) {
   const colors = useColors();
   const { format } = useCurrency();
@@ -194,6 +204,18 @@ export default function AnalyticsScreen() {
       }>("fees"),
     enabled: activeTab === "items" && !locked,
   });
+
+  const { data: bestOf } = useQuery({
+    queryKey: ["analytics", "best-of"],
+    queryFn: () => analyticsGet<BestOfData>("best-of"),
+    enabled: activeTab === "items" && !locked,
+  });
+  const distanceUnit: "mi" | "km" =
+    me?.countryCode === "US" || me?.countryCode === "GB" ? "mi" : "km";
+  const formatDistance = (km: number) => {
+    const v = distanceUnit === "mi" ? km * 0.621371 : km;
+    return `${v < 10 ? Math.round(v * 10) / 10 : Math.round(v)} ${distanceUnit}`;
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -460,6 +482,95 @@ export default function AnalyticsScreen() {
           )}
           {activeTab === "items" && !locked && (
             <>
+              {/* Best of — where to shop */}
+              {(() => {
+                if (!bestOf) return null;
+                const heroes: { icon: string; label: string; value: string; sub?: string }[] = [];
+                if (bestOf.bestValueStore)
+                  heroes.push({
+                    icon: "💰",
+                    label: "Best value",
+                    value: bestOf.bestValueStore.storeName,
+                    sub: `Cheapest on ${bestOf.bestValueStore.winCount} of ${bestOf.bestValueStore.comparedItems} compared items`,
+                  });
+                if (bestOf.closestStore)
+                  heroes.push({
+                    icon: "📍",
+                    label: "Closest store",
+                    value: bestOf.closestStore.storeName,
+                    sub: `${formatDistance(bestOf.closestStore.distanceKm)} away`,
+                  });
+                if (bestOf.goToStore)
+                  heroes.push({
+                    icon: "⭐",
+                    label: "Your go-to",
+                    value: bestOf.goToStore.storeName,
+                    sub: `${bestOf.goToStore.receiptCount} receipt${bestOf.goToStore.receiptCount === 1 ? "" : "s"}`,
+                  });
+                if (bestOf.cheapestDelivery)
+                  heroes.push({
+                    icon: "🚚",
+                    label: "Cheapest delivery",
+                    value: bestOf.cheapestDelivery.storeName,
+                    sub: `${format(bestOf.cheapestDelivery.avgFee)} avg fee`,
+                  });
+                if (bestOf.highestFees)
+                  heroes.push({
+                    icon: "🧾",
+                    label: "Most fees paid",
+                    value: bestOf.highestFees.storeName,
+                    sub: `${format(bestOf.highestFees.totalFees)} in delivery/service fees`,
+                  });
+                const hasLists =
+                  bestOf.cheapestStaples.length > 0 || bestOf.cheapestByCategory.length > 0;
+                if (heroes.length === 0 && !hasLists) return null;
+                return (
+                  <>
+                    <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>BEST OF — WHERE TO SHOP</Text>
+                    {heroes.map((h) => (
+                      <View key={h.label} style={[styles.bestRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Text style={styles.bestIcon}>{h.icon}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.bestLabel, { color: colors.mutedForeground }]}>{h.label}</Text>
+                          <Text style={[styles.bestValue, { color: colors.foreground }]} numberOfLines={1}>{h.value}</Text>
+                          {h.sub ? <Text style={[styles.bestSub, { color: colors.mutedForeground }]} numberOfLines={1}>{h.sub}</Text> : null}
+                        </View>
+                      </View>
+                    ))}
+
+                    {bestOf.cheapestStaples.length > 0 && (
+                      <View style={[styles.bestListCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Text style={[styles.bestListTitle, { color: colors.foreground }]}>Cheapest for your staples</Text>
+                        {bestOf.cheapestStaples.map((s) => (
+                          <View key={s.itemName} style={styles.bestListRow}>
+                            <Text style={[styles.bestListName, { color: colors.foreground }]} numberOfLines={1}>
+                              {s.icon ? `${s.icon} ` : ""}{s.itemName}
+                            </Text>
+                            <Text style={[styles.bestListVal, { color: colors.mutedForeground }]} numberOfLines={1}>
+                              {s.storeName} · {format(s.price)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {bestOf.cheapestByCategory.length > 0 && (
+                      <View style={[styles.bestListCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Text style={[styles.bestListTitle, { color: colors.foreground }]}>Cheapest by category</Text>
+                        {bestOf.cheapestByCategory.map((c) => (
+                          <View key={c.category} style={styles.bestListRow}>
+                            <Text style={[styles.bestListName, { color: colors.foreground }]} numberOfLines={1}>{c.category}</Text>
+                            <Text style={[styles.bestListVal, { color: colors.mutedForeground }]} numberOfLines={1}>
+                              {c.storeName} · {format(c.avgPrice)} avg
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
+
               {/* Additional fees (delivery / service) */}
               {(feesData?.allTime ?? 0) > 0 && (
                 <>
@@ -898,6 +1009,24 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 4,
   },
+  bestRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  bestIcon: { fontSize: 22 },
+  bestLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.4, textTransform: "uppercase" },
+  bestValue: { fontSize: 16, fontFamily: "Inter_700Bold", marginTop: 1 },
+  bestSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  bestListCard: { borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 4, marginBottom: 12, gap: 8 },
+  bestListTitle: { fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  bestListRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
+  bestListName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  bestListVal: { fontSize: 13, fontFamily: "Inter_600SemiBold", flexShrink: 0, maxWidth: "55%" },
   feesCard: {
     borderWidth: 1,
     borderRadius: 12,

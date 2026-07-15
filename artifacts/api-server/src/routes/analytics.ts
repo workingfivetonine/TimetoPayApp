@@ -5,6 +5,7 @@ import { receiptsTable, storesTable, lineItemsTable, itemsTable, catalogStoresTa
 import { requirePremium } from "../middlewares/requireEntitlement";
 import { groupReceiptsByWeek } from "../lib/analytics/spend";
 import { normalizeName } from "../lib/catalog";
+import { haversineKm, type LatLng } from "../lib/geocode";
 
 const router = Router();
 
@@ -114,6 +115,173 @@ router.get("/fees", async (req, res): Promise<void> => {
     year: round(totals.year),
     allTime: round(totals.allTime),
     byStore,
+  });
+});
+
+// "Best of" — actionable where-to-shop insights derived from the user's own
+// receipts. Each card is only returned when there's enough data to be honest
+// ("cheapest" needs 2+ stores to compare); otherwise the field is null / [] and
+// the client hides that card. Premium-only.
+router.get("/best-of", requirePremium, async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Line-item level rows (for per-item / per-category price comparison).
+  const liRows = await db
+    .select({
+      storeId: receiptsTable.storeId,
+      storeName: storesTable.name,
+      category: itemsTable.category,
+      itemId: lineItemsTable.itemId,
+      itemName: itemsTable.name,
+      icon: itemsTable.icon,
+      price: lineItemsTable.price,
+      quantity: lineItemsTable.quantity,
+    })
+    .from(lineItemsTable)
+    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+    .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
+    .leftJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
+    .where(eq(receiptsTable.userId, userId));
+
+  // Receipt-level rows (for go-to store, delivery fees).
+  const rcptRows = await db
+    .select({
+      storeId: receiptsTable.storeId,
+      storeName: storesTable.name,
+      deliveryFee: receiptsTable.deliveryFee,
+    })
+    .from(receiptsTable)
+    .leftJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
+    .where(eq(receiptsTable.userId, userId));
+
+  // ── Go-to store: most receipts ──────────────────────────────────────────
+  const receiptCounts = new Map<string, number>();
+  const feeSum = new Map<string, number>();
+  const feeCount = new Map<string, number>();
+  for (const r of rcptRows) {
+    const name = r.storeName ?? "Unknown";
+    receiptCounts.set(name, (receiptCounts.get(name) ?? 0) + 1);
+    if (r.deliveryFee != null) {
+      feeSum.set(name, (feeSum.get(name) ?? 0) + Number(r.deliveryFee));
+      feeCount.set(name, (feeCount.get(name) ?? 0) + 1);
+    }
+  }
+  let goToStore: { storeName: string; receiptCount: number } | null = null;
+  for (const [storeName, count] of receiptCounts) {
+    if (!goToStore || count > goToStore.receiptCount) goToStore = { storeName, receiptCount: count };
+  }
+
+  // ── Delivery fees: cheapest avg + highest total ─────────────────────────
+  let cheapestDelivery: { storeName: string; avgFee: number } | null = null;
+  let highestFees: { storeName: string; totalFees: number } | null = null;
+  for (const [storeName, sum] of feeSum) {
+    const n = feeCount.get(storeName) ?? 0;
+    if (n > 0) {
+      const avg = sum / n;
+      if (!cheapestDelivery || avg < cheapestDelivery.avgFee) cheapestDelivery = { storeName, avgFee: round2(avg) };
+      if (!highestFees || sum > highestFees.totalFees) highestFees = { storeName, totalFees: round2(sum) };
+    }
+  }
+
+  // ── Per-(item, store) and per-(category, store) average unit prices ──────
+  const itemStore = new Map<number, Map<string, { sum: number; n: number; itemName: string; icon: string | null }>>();
+  const catStore = new Map<string, Map<string, { sum: number; n: number }>>();
+  for (const r of liRows) {
+    const storeName = r.storeName ?? "Unknown";
+    const unit = Number(r.price); // unit price already
+    if (!Number.isFinite(unit)) continue;
+
+    let byStore = itemStore.get(r.itemId);
+    if (!byStore) { byStore = new Map(); itemStore.set(r.itemId, byStore); }
+    const cell = byStore.get(storeName) ?? { sum: 0, n: 0, itemName: r.itemName, icon: r.icon };
+    cell.sum += unit; cell.n += 1;
+    byStore.set(storeName, cell);
+
+    const cat = r.category ?? "Other";
+    let catByStore = catStore.get(cat);
+    if (!catByStore) { catByStore = new Map(); catStore.set(cat, catByStore); }
+    const ccell = catByStore.get(storeName) ?? { sum: 0, n: 0 };
+    ccell.sum += unit; ccell.n += 1;
+    catByStore.set(storeName, ccell);
+  }
+
+  // Cheapest staple per item (items bought at 2+ stores), ranked by how often
+  // the user buys them (total purchases across stores). Top 6.
+  const cheapestStaples = [...itemStore.entries()]
+    .map(([, byStore]) => {
+      const stores = [...byStore.entries()].map(([storeName, c]) => ({
+        storeName, avg: c.sum / c.n, itemName: c.itemName, icon: c.icon, n: c.n,
+      }));
+      if (stores.length < 2) return null;
+      const total = stores.reduce((a, s) => a + s.n, 0);
+      const cheapest = stores.reduce((a, b) => (b.avg < a.avg ? b : a));
+      return { itemName: cheapest.itemName, icon: cheapest.icon, storeName: cheapest.storeName, price: round2(cheapest.avg), purchases: total };
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .sort((a, b) => b.purchases - a.purchases)
+    .slice(0, 6);
+
+  // Cheapest store per category (categories sold at 2+ stores). Top 6 by coverage.
+  const cheapestByCategory = [...catStore.entries()]
+    .map(([category, byStore]) => {
+      const stores = [...byStore.entries()].map(([storeName, c]) => ({ storeName, avg: c.sum / c.n, n: c.n }));
+      if (stores.length < 2) return null;
+      const coverage = stores.reduce((a, s) => a + s.n, 0);
+      const cheapest = stores.reduce((a, b) => (b.avg < a.avg ? b : a));
+      return { category, storeName: cheapest.storeName, avgPrice: round2(cheapest.avg), coverage };
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .sort((a, b) => b.coverage - a.coverage)
+    .slice(0, 6);
+
+  // Best value store: among items sold at 2+ stores, whoever is cheapest most often.
+  const wins = new Map<string, number>();
+  let comparedItems = 0;
+  for (const [, byStore] of itemStore) {
+    if (byStore.size < 2) continue;
+    comparedItems += 1;
+    let best: { storeName: string; avg: number } | null = null;
+    for (const [storeName, c] of byStore) {
+      const avg = c.sum / c.n;
+      if (!best || avg < best.avg) best = { storeName, avg };
+    }
+    if (best) wins.set(best.storeName, (wins.get(best.storeName) ?? 0) + 1);
+  }
+  let bestValueStore: { storeName: string; winCount: number; comparedItems: number } | null = null;
+  if (comparedItems >= 3) {
+    for (const [storeName, w] of wins) {
+      if (!bestValueStore || w > bestValueStore.winCount) bestValueStore = { storeName, winCount: w, comparedItems };
+    }
+  }
+
+  // Closest store: nearest geocoded store to the user's geocoded address.
+  const [user] = await db
+    .select({ latitude: usersTable.latitude, longitude: usersTable.longitude })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  let closestStore: { storeName: string; distanceKm: number } | null = null;
+  if (user?.latitude != null && user?.longitude != null) {
+    const userLoc: LatLng = { lat: Number(user.latitude), lng: Number(user.longitude) };
+    const geocoded = await db
+      .select({ name: storesTable.name, latitude: storesTable.latitude, longitude: storesTable.longitude })
+      .from(storesTable)
+      .where(eq(storesTable.userId, userId));
+    for (const s of geocoded) {
+      if (s.latitude == null || s.longitude == null) continue;
+      const d = haversineKm(userLoc, { lat: Number(s.latitude), lng: Number(s.longitude) });
+      if (!closestStore || d < closestStore.distanceKm) closestStore = { storeName: s.name, distanceKm: Math.round(d * 10) / 10 };
+    }
+  }
+
+  res.json({
+    goToStore,
+    bestValueStore,
+    cheapestByCategory,
+    cheapestStaples,
+    cheapestDelivery,
+    highestFees,
+    closestStore,
   });
 });
 
