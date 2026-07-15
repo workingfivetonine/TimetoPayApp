@@ -139,6 +139,7 @@ export type GlobalStorePrice = {
   storeName: string;
   latestPrice: number;
   latestDate: string;
+  countryCode: string | null;
 };
 export type GlobalItem = {
   catalogItemId: number;
@@ -148,6 +149,7 @@ export type GlobalItem = {
   overallLatestPrice: number;
   overallLatestStoreId: number;
   overallLatestStoreName: string;
+  overallLatestStoreCountry: string | null;
   overallLatestDate: string;
   stores: GlobalStorePrice[];
 };
@@ -280,6 +282,7 @@ export async function computeGlobalPrices(
       purchasedAt: r.purchasedAt,
       createdAt: r.createdAt,
       userId: r.userId,
+      storeCountryCode: r.storeCountryCode,
     }))
     .sort((a, b) => {
       const t = b.purchasedAt.getTime() - a.purchasedAt.getTime();
@@ -293,6 +296,7 @@ export async function computeGlobalPrices(
     latestPrice: number;
     latestDate: Date;
     latestCreatedAt: Date;
+    countryCode: string | null;
     users: Set<string>;
   };
   type ItemAgg = { stores: Map<number, StoreAgg> };
@@ -316,6 +320,7 @@ export async function computeGlobalPrices(
         latestPrice: r.price,
         latestDate: r.purchasedAt,
         latestCreatedAt: r.createdAt,
+        countryCode: r.storeCountryCode ?? null,
         users: new Set<string>(),
       };
       a.stores.set(r.catalogStoreId, s);
@@ -362,12 +367,14 @@ export async function computeGlobalPrices(
         overallLatestPrice: overall.latestPrice,
         overallLatestStoreId: overall.catalogStoreId,
         overallLatestStoreName: overall.storeName,
+        overallLatestStoreCountry: overall.countryCode,
         overallLatestDate: overall.latestDate.toISOString(),
         stores: stores.map((s) => ({
           catalogStoreId: s.catalogStoreId,
           storeName: s.storeName,
           latestPrice: s.latestPrice,
           latestDate: s.latestDate.toISOString(),
+          countryCode: s.countryCode,
         })),
       };
     })

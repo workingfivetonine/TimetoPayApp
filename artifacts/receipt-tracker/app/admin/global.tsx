@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,6 +17,14 @@ import type { CatalogGlobalItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
+import { formatPrice, countryName } from "@workspace/geo";
+
+// The generated CatalogGlobalItem type is drifted and lacks the new country
+// fields the API now returns; read them through these narrow casts.
+const storeCountry = (s: unknown): string | null =>
+  (s as { countryCode?: string | null }).countryCode ?? null;
+const itemCountry = (it: unknown): string | null =>
+  (it as { overallLatestStoreCountry?: string | null }).overallLatestStoreCountry ?? null;
 
 type GlobalSort = "az" | "price" | "recent";
 const GLOBAL_SORT: SortOption<GlobalSort>[] = [
@@ -32,28 +41,55 @@ export default function AdminGlobalPricesScreen() {
   const [expanded, setExpanded] = React.useState<Record<number, boolean>>({});
   const [query, setQuery] = React.useState("");
   const [sortKey, setSortKey] = React.useState<GlobalSort>("az");
+  const [country, setCountry] = React.useState<string | null>(null); // null = all countries
 
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
 
   const hasData = (data?.length ?? 0) > 0;
+
+  // Countries present in the data, for the filter chips.
+  const countries = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const it of data ?? []) {
+      for (const s of it.stores) {
+        const c = storeCountry(s);
+        if (c) set.add(c);
+      }
+    }
+    return Array.from(set).sort();
+  }, [data]);
+
+  // Augment each item with the price/store/country to DISPLAY. When a country
+  // is selected we keep only that country's stores and headline the lowest of
+  // them (stores arrive sorted ascending by price); otherwise we use the
+  // cross-country "overall latest".
   const visible = React.useMemo(() => {
-    const all = data ?? [];
+    const base = (data ?? []).map((it) => {
+      if (country) {
+        const stores = it.stores.filter((s) => storeCountry(s) === country);
+        if (stores.length === 0) return null;
+        return { ...it, stores, _price: stores[0].latestPrice, _storeName: stores[0].storeName, _country: country };
+      }
+      return {
+        ...it,
+        _price: it.overallLatestPrice,
+        _storeName: it.overallLatestStoreName,
+        _country: itemCountry(it),
+      };
+    });
+    const all = base.filter((x): x is NonNullable<typeof x> => x !== null);
     const q = query.trim().toLowerCase();
     const filtered = q
-      ? all.filter(
-          (it) =>
-            it.name.toLowerCase().includes(q) ||
-            it.overallLatestStoreName.toLowerCase().includes(q),
-        )
-      : [...all];
+      ? all.filter((it) => it.name.toLowerCase().includes(q) || it._storeName.toLowerCase().includes(q))
+      : all;
     filtered.sort((a, b) => {
-      if (sortKey === "price") return a.overallLatestPrice - b.overallLatestPrice;
+      if (sortKey === "price") return a._price - b._price;
       if (sortKey === "recent")
         return new Date(b.overallLatestDate).getTime() - new Date(a.overallLatestDate).getTime();
       return a.name.localeCompare(b.name);
     });
     return filtered;
-  }, [data, query, sortKey]);
+  }, [data, query, sortKey, country]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -74,6 +110,32 @@ export default function AdminGlobalPricesScreen() {
           sortKey={sortKey}
           onSortKeyChange={setSortKey}
         />
+      ) : null}
+
+      {hasData && countries.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRow}
+        >
+          {[null, ...countries].map((c) => {
+            const active = country === c;
+            return (
+              <TouchableOpacity
+                key={c ?? "all"}
+                onPress={() => setCountry(c)}
+                style={[
+                  styles.chip,
+                  { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : "transparent" },
+                ]}
+              >
+                <Text style={[styles.chipText, { color: active ? colors.primaryForeground : colors.mutedForeground }]}>
+                  {c ? countryName(c) ?? c : "All countries"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       ) : null}
 
       {isLoading ? (
@@ -123,7 +185,7 @@ function PriceCard({
   expanded,
   onToggle,
 }: {
-  item: CatalogGlobalItem;
+  item: CatalogGlobalItem & { _price: number; _storeName: string; _country: string | null };
   colors: ReturnType<typeof useColors>;
   expanded: boolean;
   onToggle: () => void;
@@ -141,11 +203,11 @@ function PriceCard({
             {item.name}
           </Text>
           <Text style={[styles.sub, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {item.overallLatestStoreName} · {new Date(item.overallLatestDate).toLocaleDateString()}
+            {item._storeName} · {new Date(item.overallLatestDate).toLocaleDateString()}
           </Text>
         </View>
         <Text style={[styles.price, { color: colors.primary }]}>
-          ${item.overallLatestPrice.toFixed(2)}
+          {formatPrice(item._price, item._country)}
         </Text>
         <Feather
           name={expanded ? "chevron-up" : "chevron-down"}
@@ -161,6 +223,9 @@ function PriceCard({
             <View key={s.catalogStoreId} style={styles.storeRow}>
               <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
                 {s.storeName}
+                {storeCountry(s) ? (
+                  <Text style={{ color: colors.mutedForeground }}> · {storeCountry(s)}</Text>
+                ) : null}
               </Text>
               {idx === 0 ? (
                 <View style={[styles.badge, { backgroundColor: colors.accent }]}>
@@ -173,7 +238,7 @@ function PriceCard({
                   { color: idx === 0 ? colors.priceGood : colors.foreground },
                 ]}
               >
-                ${s.latestPrice.toFixed(2)}
+                {formatPrice(s.latestPrice, storeCountry(s))}
               </Text>
             </View>
           ))}
@@ -195,6 +260,9 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  chipRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  chipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   list: { padding: 16, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
   caption: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 4 },
   card: { borderWidth: 1, borderRadius: 14, padding: 14 },
