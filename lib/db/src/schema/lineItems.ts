@@ -1,4 +1,4 @@
-import { pgTable, serial, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, numeric, integer, timestamp, text } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { receiptsTable } from "./receipts";
@@ -10,6 +10,9 @@ export const lineItemsTable = pgTable("line_items", {
   itemId: integer("item_id").notNull().references(() => itemsTable.id, { onDelete: "cascade" }),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull().default("1"),
+  // Unit of `quantity` (e.g. "each", "lb", "kg", "g", "oz", "L", "ml").
+  // Null/"each" means a plain count. Visual only — no conversion.
+  unit: text("unit"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

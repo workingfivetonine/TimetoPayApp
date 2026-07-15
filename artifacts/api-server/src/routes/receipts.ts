@@ -607,6 +607,69 @@ router.post("/:id/line-items", async (req, res): Promise<void> => {
   });
 });
 
+// PATCH /receipts/line-items/:lineItemId — fix a saved line item's price,
+// quantity (weight/amount), and unit after import. Scoped to the user's receipts.
+router.patch("/line-items/:lineItemId", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const lineItemId = parseInt(req.params.lineItemId);
+  if (isNaN(lineItemId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = (req.body ?? {}) as { price?: unknown; quantity?: unknown; unit?: unknown };
+
+  // Ownership: the line item's receipt must belong to the caller.
+  const [owned] = await db
+    .select({ id: lineItemsTable.id, itemId: lineItemsTable.itemId })
+    .from(lineItemsTable)
+    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+    .where(and(eq(lineItemsTable.id, lineItemId), eq(receiptsTable.userId, userId)));
+  if (!owned) {
+    res.status(404).json({ error: "Line item not found" });
+    return;
+  }
+
+  const updates: { price?: string; quantity?: string; unit?: string | null } = {};
+  if (body.price !== undefined) {
+    const p = Number(body.price);
+    if (!isFinite(p) || p < 0) {
+      res.status(400).json({ error: "Invalid price" });
+      return;
+    }
+    updates.price = String(Math.round(p * 100) / 100);
+  }
+  if (body.quantity !== undefined) {
+    const q = Number(body.quantity);
+    if (!isFinite(q) || q <= 0 || q > 100000) {
+      res.status(400).json({ error: "Invalid quantity" });
+      return;
+    }
+    updates.quantity = String(q);
+  }
+  if (body.unit !== undefined) {
+    updates.unit = typeof body.unit === "string" && body.unit.trim() ? body.unit.trim() : null;
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "Nothing to update" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(lineItemsTable)
+    .set(updates)
+    .where(eq(lineItemsTable.id, lineItemId))
+    .returning();
+  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, owned.itemId));
+  res.json({
+    ...updated,
+    itemName: item?.name ?? "Unknown",
+    icon: item?.icon ?? null,
+    price: Number(updated!.price),
+    quantity: Number(updated!.quantity),
+    createdAt: updated!.createdAt.toISOString(),
+  });
+});
+
 // Detect receipt bounding box in a photo using AI
 router.post("/detect-bounds", requirePremium, imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
