@@ -15,11 +15,18 @@
     },
     "ios": {
       "supportsTablet": false,
+      "bundleIdentifier": "com.fivetonine.timetopay",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
-    "android": {},
+    "android": {
+      "package": "com.fivetonine.timetopay",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
     "web": {
       "favicon": "./assets/images/favicon.png",
       "bundler": "metro",
@@ -34,7 +41,20 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TimetoPay uses the camera so you can snap a photo of a receipt to scan it."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TimetoPay needs access to your photos so you can choose a receipt image to scan."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
