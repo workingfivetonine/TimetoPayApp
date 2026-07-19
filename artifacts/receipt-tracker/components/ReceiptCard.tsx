@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -46,7 +46,7 @@ export function ReceiptCard({ receipt, onPress, onDelete }: Props) {
             <Image
               source={{ uri: logoUri }}
               style={styles.logo}
-              resizeMode="contain"
+              contentFit="contain"
               onError={() => setLogoFailed(true)}
             />
           ) : (

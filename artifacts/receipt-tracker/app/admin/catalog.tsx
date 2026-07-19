@@ -6,7 +6,6 @@ import React from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Modal,
   Platform,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useAdminListCatalogItems,
@@ -729,11 +729,11 @@ function EntryCard({
       <View style={styles.cardTop}>
         {showLogo ? (
           entry.logo ? (
-            <Image source={{ uri: entry.logo }} style={styles.logo} resizeMode="contain" />
+            <Image source={{ uri: entry.logo }} style={styles.logo} contentFit="contain" />
           ) : storeLogoUrl(entry.canonicalName) ? (
             // Auto brand logo (logo.dev) when none is uploaded — always shows
             // something (real logo or an initials monogram).
-            <Image source={{ uri: storeLogoUrl(entry.canonicalName)! }} style={styles.logo} resizeMode="contain" />
+            <Image source={{ uri: storeLogoUrl(entry.canonicalName)! }} style={styles.logo} contentFit="contain" />
           ) : (
             <View style={[styles.logo, styles.logoPlaceholder, { borderColor: colors.border }]}>
               <Feather name="image" size={18} color={colors.mutedForeground} />
