@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   Image,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,33 +17,34 @@ import { useColors } from "@/hooks/useColors";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
-const FREE_FEATURES: string[] = [
-  "Track all your own receipts, stores & items",
-  "Add and edit receipts manually",
-  "Smart shopping list, grouped by store",
-  "Printable shopping list PDF",
-  "Basic spend analytics (calendar + weekly totals)",
-];
+// Optional donation link (Stripe Payment Link). Overridable via env.
+const DONATE_URL =
+  process.env.EXPO_PUBLIC_DONATE_URL ?? "https://donate.stripe.com/9B6eVed6D3DUh19e2TdfG00";
 
-const PREMIUM_FEATURES: string[] = [
+// Everything is free — one list of all features (no free/premium split).
+const FEATURES: string[] = [
   "AI receipt scanning — photos & PDFs",
+  "Track all your receipts, stores & items",
+  "Smart shopping list, grouped by store",
   "Cross-store price catalog — find the cheapest store",
-  "Full per-item price history & deeper analytics",
-  "Automatic item categories & icons",
+  "Full per-item price history & deep analytics",
+  '"Best of" insights — cheapest, closest & go-to stores',
+  "Printable shopping list PDF",
+  "Community board for tips & deals",
 ];
 
 const FAQ: { q: string; a: string }[] = [
   {
-    q: "Is there really a free plan?",
-    a: "Yes. You can track receipts, build your shopping list, and view basic analytics for free, forever — no card required.",
+    q: "Is TimetoPay really free?",
+    a: "Yes — every feature, for everyone, with no subscription and no card required. Scan receipts, compare stores, track prices — all free.",
   },
   {
-    q: "How does the free trial work?",
-    a: "Every new account gets 30 days of full Premium access. After that you can subscribe for $5.99/mo or keep using the free plan.",
+    q: "Then how is it kept running?",
+    a: "Through optional donations from people who find it useful. There's no paywall — if TimetoPay saves you money, you can chip in whatever you like. Completely optional.",
   },
   {
-    q: "Can I cancel anytime?",
-    a: "Absolutely. Manage or cancel your subscription at any time from your account — you keep Premium until the end of the period you paid for.",
+    q: "Any ads or hidden fees?",
+    a: "No ads, no hidden fees, no locked features. What you see is the whole app, free.",
   },
 ];
 
@@ -88,57 +90,29 @@ export default function PricingPage() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.badge}>
-            <Feather name="tag" size={13} color={colors.primary} />
-            <Text style={styles.badgeText}>Simple, honest pricing</Text>
+            <Feather name="gift" size={13} color={colors.primary} />
+            <Text style={styles.badgeText}>Free — every feature</Text>
           </View>
-          <Text style={styles.h1}>Start free. Upgrade when you're ready.</Text>
+          <Text style={styles.h1}>TimetoPay is free. All of it.</Text>
           <Text style={styles.subtitle}>
-            Track your groceries for free, forever. Unlock AI scanning and cross-store price
-            comparisons with Premium — and every new account starts with a 30-day free trial.
+            Every feature — AI receipt scanning, price tracking, store comparisons, the
+            community board — free for everyone. No subscription, no card. If it helps you save,
+            you can support it with an optional donation.
           </Text>
         </View>
 
         {/* Plans */}
         <View style={styles.plansWrap}>
-          {/* Free */}
+          {/* Everything, free */}
           <View style={styles.planCard}>
-            <Text style={styles.planName}>Free</Text>
+            <Text style={styles.planName}>Everything included</Text>
             <View style={styles.priceRow}>
               <Text style={styles.price}>$0</Text>
               <Text style={styles.pricePeriod}>/ forever</Text>
             </View>
-            <Text style={styles.planTagline}>Everything you need to track your own shopping.</Text>
+            <Text style={styles.planTagline}>The whole app, free — no limits, no paywall.</Text>
             <View style={styles.features}>
-              {FREE_FEATURES.map((f) => (
-                <PlanFeature key={f} label={f} icon="check" />
-              ))}
-            </View>
-            <TouchableOpacity
-              style={styles.ctaSecondary}
-              onPress={() => router.push("/(auth)/sign-up")}
-              accessibilityRole="button"
-            >
-              <Text style={styles.ctaSecondaryText}>Get started free</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Premium */}
-          <View style={[styles.planCard, styles.planCardFeatured]}>
-            <View style={styles.popularBadge}>
-              <Feather name="zap" size={12} color={colors.primaryForeground} />
-              <Text style={styles.popularBadgeText}>30-day free trial</Text>
-            </View>
-            <Text style={[styles.planName, styles.planNameFeatured]}>Premium</Text>
-            <View style={styles.priceRow}>
-              <Text style={[styles.price, styles.priceFeatured]}>$5.99</Text>
-              <Text style={[styles.pricePeriod, styles.pricePeriodFeatured]}>/ month</Text>
-            </View>
-            <Text style={[styles.planTagline, styles.planTaglineFeatured]}>
-              Everything in Free, plus the AI superpowers.
-            </Text>
-            <View style={styles.features}>
-              <PlanFeature label="Everything in Free" icon="check" />
-              {PREMIUM_FEATURES.map((f) => (
+              {FEATURES.map((f) => (
                 <PlanFeature key={f} label={f} icon="check" />
               ))}
             </View>
@@ -147,10 +121,35 @@ export default function PricingPage() {
               onPress={() => router.push("/(auth)/sign-up")}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaPrimaryText}>Start free trial</Text>
+              <Text style={styles.ctaPrimaryText}>Get started free</Text>
               <Feather name="arrow-right" size={18} color={colors.primaryForeground} />
             </TouchableOpacity>
-            <Text style={styles.fineprint}>No card required to start. Cancel anytime.</Text>
+          </View>
+
+          {/* Support (optional) */}
+          <View style={[styles.planCard, styles.planCardFeatured]}>
+            <View style={styles.popularBadge}>
+              <Feather name="heart" size={12} color={colors.primaryForeground} />
+              <Text style={styles.popularBadgeText}>Optional</Text>
+            </View>
+            <Text style={[styles.planName, styles.planNameFeatured]}>Support TimetoPay</Text>
+            <Text style={[styles.planTagline, styles.planTaglineFeatured, { marginTop: 10 }]}>
+              Built and run by a small team. If it saves you money, a small donation keeps it
+              free for everyone — give once, any amount you like.
+            </Text>
+            <View style={styles.features}>
+              <PlanFeature label="100% optional — the app is fully free either way" icon="check" />
+              <PlanFeature label="Give once, any amount you choose" icon="check" />
+              <PlanFeature label="Helps cover scanning & hosting costs" icon="check" />
+            </View>
+            <TouchableOpacity
+              style={styles.ctaPrimary}
+              onPress={() => void Linking.openURL(DONATE_URL)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.ctaPrimaryText}>Support us 💛</Text>
+            </TouchableOpacity>
+            <Text style={styles.fineprint}>Opens a secure Stripe donation page.</Text>
           </View>
         </View>
 
