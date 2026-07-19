@@ -174,7 +174,8 @@ export default function ReceiptsScreen() {
             activeOpacity={0.8}
             accessibilityLabel="Account"
           >
-            <Feather name="user" size={18} color={colors.foreground} />
+            <Feather name="user" size={16} color={colors.foreground} />
+            <Text style={[styles.accountBtnText, { color: colors.foreground }]}>Account</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -313,11 +314,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   accountBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+  },
+  accountBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
   },
   scanBtnText: {
     color: "#fff",

@@ -12,8 +12,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+
+// Remember the last email used to sign in, so it's pre-filled next time.
+const LAST_EMAIL_KEY = "lastSignInEmail";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { PasswordRequirements } from "@/components/PasswordRequirements";
 import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
@@ -38,6 +42,13 @@ export default function SignInPage() {
   const [emailAddress, setEmailAddress] = React.useState("");
   const [password, setPassword] = React.useState("");
 
+  // Pre-fill the email field with the last one used on this device.
+  React.useEffect(() => {
+    AsyncStorage.getItem(LAST_EMAIL_KEY)
+      .then((saved) => { if (saved) setEmailAddress((cur) => cur || saved); })
+      .catch(() => {});
+  }, []);
+
   const [resetEmail, setResetEmail] = React.useState("");
   const [resetCode, setResetCode] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
@@ -56,6 +67,7 @@ export default function SignInPage() {
       if (signIn.status === "complete") {
         const { error: finalErr } = await signIn.finalize();
         if (finalErr) { setError(clerkErrMsg(finalErr)); return; }
+        void AsyncStorage.setItem(LAST_EMAIL_KEY, emailAddress).catch(() => {});
         router.replace("/" as Href);
       } else {
         setError("Sign in could not be completed. Please try again.");

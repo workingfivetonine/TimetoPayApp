@@ -486,7 +486,7 @@ export default function ScanScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity
           style={[styles.closeBtn, { backgroundColor: colors.secondary }]}
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Feather name="x" size={20} color={colors.foreground} />
