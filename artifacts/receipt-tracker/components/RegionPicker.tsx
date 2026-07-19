@@ -2,12 +2,14 @@ import React, { useMemo, useState } from "react";
 import {
   FlatList,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import {
   COUNTRIES,
@@ -31,6 +33,7 @@ interface RegionPickerProps {
 // the first-run region gate, account settings, and the store edit modal.
 export function RegionPicker({ countryCode, stateCode, onChange }: RegionPickerProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState<null | "country" | "state">(null);
   const [query, setQuery] = useState("");
 
@@ -97,7 +100,7 @@ export function RegionPicker({ countryCode, stateCode, onChange }: RegionPickerP
 
       <Modal visible={open !== null} animationType="slide" presentationStyle="formSheet">
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>
               {open === "state" ? "Select state" : "Select country"}
             </Text>

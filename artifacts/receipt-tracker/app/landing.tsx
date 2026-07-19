@@ -21,13 +21,20 @@ type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
 // Privacy / Support are standalone server-rendered pages (see server/serve.js),
 // not in-app routes — open them as full web pages.
-function openLegalPage(page: "privacy" | "terms" | "support" | "donate") {
+function openLegalPage(page: "privacy" | "terms" | "support") {
   if (Platform.OS === "web") {
     window.location.href = `/${page}`;
   } else {
     const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
     void Linking.openURL(`https://${domain}/${page}`);
   }
+}
+
+// Donations go straight to the Stripe donation page (overridable via env).
+const DONATE_URL =
+  process.env.EXPO_PUBLIC_DONATE_URL ?? "https://donate.stripe.com/9B6eVed6D3DUh19e2TdfG00";
+function openDonate() {
+  void Linking.openURL(DONATE_URL);
 }
 
 const FEATURES: { icon: FeatherName; title: string; body: string }[] = [
@@ -133,15 +140,15 @@ export default function LandingPage() {
         <View style={styles.hero}>
           <View style={styles.badge}>
             <Feather name="zap" size={13} color={colors.primary} />
-            <Text style={styles.badgeText}>AI-powered grocery tracking</Text>
+            <Text style={styles.badgeText}>Keep the Receipt</Text>
           </View>
           <Text style={styles.h1}>
-            Turn your receipts into real grocery savings
+            Make smarter grocery decisions — from your own receipts
           </Text>
           <Text style={styles.subtitle}>
-            Scan any receipt and TimetoPay reads every item and price,
-            tracks how they change over time, and builds a smart shopping list
-            that always points you to the cheapest store.
+            Scan your receipts and TimetoPay turns them into your own price history —
+            so every shopping decision is based on what you've actually paid, at the
+            stores you actually shop. No guesswork, just your real experience.
           </Text>
           <View style={styles.ctaRow}>
             <TouchableOpacity
@@ -218,7 +225,7 @@ export default function LandingPage() {
             </Text>
             <TouchableOpacity
               style={styles.donateBtn}
-              onPress={() => openLegalPage("donate")}
+              onPress={() => openDonate()}
               accessibilityRole="button"
             >
               <Feather name="heart" size={16} color={colors.primaryForeground} />
@@ -269,7 +276,7 @@ export default function LandingPage() {
             </TouchableOpacity>
             <Text style={styles.footerDot}>·</Text>
             <TouchableOpacity
-              onPress={() => openLegalPage("donate")}
+              onPress={() => openDonate()}
               accessibilityRole="link"
             >
               <Text style={styles.footerLink}>Donate</Text>

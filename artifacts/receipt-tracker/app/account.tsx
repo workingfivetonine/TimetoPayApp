@@ -628,6 +628,10 @@ function NotificationsSection() {
           void queryClient.invalidateQueries({
             queryKey: getGetMyNotificationPreferencesQueryKey(),
           });
+          showSuccessToast(
+            next[key] ? "Reminder turned on" : "Reminder turned off",
+            "Your email preferences were saved.",
+          );
         },
         onError: () => {
           setLocal(current);
@@ -650,6 +654,7 @@ function NotificationsSection() {
         onSuccess: (saved) => {
           setLocal(saved);
           void queryClient.invalidateQueries({ queryKey: getGetMyNotificationPreferencesQueryKey() });
+          showSuccessToast("Frequency updated", `Now sending ${value}.`);
         },
         onError: () => setLocal(current),
       },

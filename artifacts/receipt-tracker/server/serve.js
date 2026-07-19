@@ -288,7 +288,7 @@ function servePrivacy(req, res, appName) {
   res.end(html);
 }
 
-const DONATE_URL = process.env.DONATE_URL || "https://ko-fi.com/timetopay";
+const DONATE_URL = process.env.DONATE_URL || "https://donate.stripe.com/9B6eVed6D3DUh19e2TdfG00";
 
 function serveDonate(req, res, appName) {
   const baseUrl = getBaseUrl(req);
@@ -315,7 +315,7 @@ function serveDonate(req, res, appName) {
         heading: "How to Donate",
         blocks: [
           {
-            p: `We accept one-time and recurring donations via Ko-fi. Any amount is deeply appreciated. <a href="${DONATE_URL}" target="_blank" rel="noopener">Donate on Ko-fi &rarr;</a>`,
+            p: `We accept one-time and recurring donations via Stripe. Any amount is deeply appreciated. <a href="${DONATE_URL}" target="_blank" rel="noopener">Donate on Stripe &rarr;</a>`,
           },
         ],
       },

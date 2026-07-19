@@ -336,7 +336,7 @@ export default function StoresScreen() {
           style={[styles.modalContainer, { backgroundColor: colors.background }]}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
             <TouchableOpacity onPress={() => setShowModal(false)}>
               <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
             </TouchableOpacity>

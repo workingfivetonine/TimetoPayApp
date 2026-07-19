@@ -240,7 +240,7 @@ export default function ShoppingScreen() {
             >
               <Feather name="download" size={16} color={colors.accentForeground} />
               <Text style={[styles.downloadButtonText, { color: colors.accentForeground }]}>
-                Download Shopping List
+                Download
               </Text>
             </TouchableOpacity>
           )}

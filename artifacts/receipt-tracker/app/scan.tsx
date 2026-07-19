@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import { fetch as expoFetch } from "expo/fetch";
 import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
@@ -387,22 +388,32 @@ export default function ScanScreen() {
     if (result.canceled || !result.assets[0]?.uri) return;
 
     // Read the picked file into base64 first, then hand off to parsePdf so a
-    // failed parse can be retried without re-picking the file.
+    // failed parse can be retried without re-picking the file. Native and web
+    // read files differently: native uses expo-file-system (the blob/FileReader
+    // path only works in a browser), which is why PDF upload failed on the phone.
     let base64: string;
     try {
-      const fileResponse = await expoFetch(result.assets[0].uri);
-      const blob = await fileResponse.blob();
-      base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          const b64 = dataUrl.split(",")[1];
-          if (!b64) reject(new Error("Empty file"));
-          else resolve(b64);
-        };
-        reader.onerror = () => reject(new Error("FileReader error"));
-        reader.readAsDataURL(blob);
-      });
+      const uri = result.assets[0].uri;
+      if (Platform.OS === "web") {
+        const fileResponse = await expoFetch(uri);
+        const blob = await fileResponse.blob();
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const b64 = dataUrl.split(",")[1];
+            if (!b64) reject(new Error("Empty file"));
+            else resolve(b64);
+          };
+          reader.onerror = () => reject(new Error("FileReader error"));
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        if (!base64) throw new Error("Empty file");
+      }
     } catch {
       showErrorToast(
         "Couldn't open this file",

@@ -895,7 +895,7 @@ export default function AnalyticsScreen() {
           style={[styles.modalContainer, { backgroundColor: colors.background }]}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
             <TouchableOpacity onPress={() => setEditingItem(null)}>
               <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
             </TouchableOpacity>
@@ -921,7 +921,7 @@ export default function AnalyticsScreen() {
       {/* Merge item modal */}
       <Modal visible={!!mergingItem} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setMergingItem(null)}>
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
             <TouchableOpacity onPress={() => setMergingItem(null)}>
               <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
             </TouchableOpacity>
