@@ -35,7 +35,7 @@ import { BoardNotificationProvider } from "@/contexts/BoardNotification";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { DataProvider } from "@/context/DataContext";
-import { getApiOrigin } from "@/lib/apiBase";
+import { getApiOrigin, getClerkProxyUrl } from "@/lib/apiBase";
 import {
   queryClient,
   asyncStoragePersister,
@@ -366,7 +366,7 @@ export default function RootLayout() {
       {/* ErrorBoundary OUTSIDE Clerk so a Clerk init/render error shows a message
           instead of a white screen. */}
       <ErrorBoundary>
-        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} telemetry={{ disabled: true }}>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} telemetry={{ disabled: true }} proxyUrl={getClerkProxyUrl()}>
           {/* Visible state while Clerk initializes — includes a timer + connection
               test to diagnose the slow ("Starting up…") startup on native. */}
           <ClerkLoading>

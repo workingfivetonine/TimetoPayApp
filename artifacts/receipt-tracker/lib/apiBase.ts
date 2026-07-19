@@ -27,5 +27,11 @@ export function getApiOrigin(): string {
 }
 
 export function getClerkProxyUrl(): string | undefined {
-  return undefined;
+  // Native routes Clerk's Frontend API through our own fast app-server proxy
+  // (/api/__clerk) instead of the custom clerk.* domain, which stalls ~12s on
+  // mobile (unreachable-IPv6 timeout before IPv4 fallback). Web is left on the
+  // direct domain — browsers do Happy-Eyeballs (fast) and rely on same-site
+  // cookies, so a cross-origin proxy would only add risk there.
+  if (Platform.OS === "web") return undefined;
+  return `${getApiOrigin()}/api/__clerk`;
 }
