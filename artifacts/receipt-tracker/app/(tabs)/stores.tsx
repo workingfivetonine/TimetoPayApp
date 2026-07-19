@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
+  Image,
   FlatList,
   Linking,
   TouchableOpacity,
@@ -15,7 +16,6 @@ import {
   KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
-import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -419,7 +419,7 @@ export default function StoresScreen() {
             <View style={styles.logoRow}>
               <View style={[styles.logoPreview, { backgroundColor: colors.accent, borderColor: colors.border }]}>
                 {form.logoUrl ? (
-                  <Image source={{ uri: form.logoUrl }} style={styles.logoPreviewImg} contentFit="contain" />
+                  <Image source={{ uri: form.logoUrl }} style={styles.logoPreviewImg} resizeMode="contain" />
                 ) : (
                   <Feather name="shopping-bag" size={20} color={colors.primary} />
                 )}

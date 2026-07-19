@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Image } from "expo-image";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -48,7 +47,7 @@ export function StoreCard({ store, onPress, onEdit, distanceUnit = "km" }: Props
               key={logoUri}
               source={{ uri: logoUri }}
               style={styles.logo}
-              contentFit="contain"
+              resizeMode="contain"
               onError={() => setSrcIndex((i) => i + 1)}
             />
           ) : (
