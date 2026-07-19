@@ -10,11 +10,11 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
+import { ClerkProvider, ClerkLoaded, ClerkLoading, useAuth } from "@clerk/expo";
 import { tokenCache } from "@/lib/tokenCache";
 import "@/lib/pwaInstall"; // side-effect: registers beforeinstallprompt listener in root bundle
 import {
@@ -289,14 +289,33 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) return null;
 
+  // Guard: if the Clerk publishable key didn't get baked into this build, every
+  // screen (all gated behind <ClerkLoaded>) would render blank. Show a clear
+  // message instead of a white screen so the cause is obvious.
+  if (!publishableKey) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
+        <Text style={{ fontSize: 16, textAlign: "center" }}>
+          Configuration error: the sign-in key is missing from this build.
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <ClerkProvider 
-  publishableKey={publishableKey} 
-  tokenCache={tokenCache}
->
-      <ClerkLoaded>
-        <SafeAreaProvider>
-          <ErrorBoundary>
+    <SafeAreaProvider>
+      {/* ErrorBoundary OUTSIDE Clerk so a Clerk init/render error shows a message
+          instead of a white screen. */}
+      <ErrorBoundary>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+          {/* Visible state while Clerk initializes (was blank → white screen). */}
+          <ClerkLoading>
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
+              <ActivityIndicator />
+              <Text style={{ marginTop: 12, color: "#666" }}>Starting up…</Text>
+            </View>
+          </ClerkLoading>
+          <ClerkLoaded>
             <PersistQueryClientProvider
               client={queryClient}
               persistOptions={{
@@ -317,10 +336,10 @@ export default function RootLayout() {
                 </BoardNotificationProvider>
               </DataProvider>
             </PersistQueryClientProvider>
-          </ErrorBoundary>
-        </SafeAreaProvider>
-      </ClerkLoaded>
-      <Toast config={toastConfig} />
-    </ClerkProvider>
+          </ClerkLoaded>
+          <Toast config={toastConfig} />
+        </ClerkProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
