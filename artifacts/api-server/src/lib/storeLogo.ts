@@ -51,12 +51,15 @@ function inferDomain(name: string): string {
   return `${slug}.com`;
 }
 
+// Logo.dev publishable token (safe to ship client-side).
+const LOGODEV_TOKEN = "pk_N8ZWY_DGQU-5uzLqYBrKMQ";
+
 export function resolveStoreLogo(storeName: string): string | null {
   const domain = inferDomain(storeName);
   if (!domain) return null;
-  // Clearbit's free logo API (logo.clearbit.com) was shut down in late 2025, so
-  // we use Google's favicon service. It returns the retailer's icon for known
-  // domains and a generic globe otherwise; StoreCard falls back to a shopping-bag
-  // icon when the image fails to load. Deterministic (no network call here).
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  // logo.dev returns the retailer's real brand logo for known domains and a
+  // clean initials monogram otherwise — always a valid PNG (no blank favicons).
+  // Deterministic (no network call here). Free tier needs a "Logos by Logo.dev"
+  // attribution, shown on the Stores screen.
+  return `https://img.logo.dev/${encodeURIComponent(domain)}?token=${LOGODEV_TOKEN}&size=128&format=png&retina=true`;
 }

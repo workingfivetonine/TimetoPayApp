@@ -4,6 +4,7 @@ import {
   Text,
   Image,
   FlatList,
+  Linking,
   TouchableOpacity,
   StyleSheet,
   Modal,
@@ -359,6 +360,17 @@ export default function StoresScreen() {
               title={query ? "No matching stores" : "No stores yet"}
               subtitle={query ? "Try a different search." : "Add a store to start tracking where you shop"}
             />
+          }
+          ListFooterComponent={
+            visibleStores.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL("https://logo.dev")}
+                style={{ paddingVertical: 18, alignItems: "center" }}
+                accessibilityRole="link"
+              >
+                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>Logos by Logo.dev</Text>
+              </TouchableOpacity>
+            ) : null
           }
           renderItem={({ item }) => (
             <StoreCard

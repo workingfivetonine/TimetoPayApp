@@ -32,12 +32,16 @@ function inferDomain(name: string): string | null {
   return slug ? `${slug}.com` : null;
 }
 
-// A favicon URL for a store name (Google's favicon service). Returns a real icon
-// for recognizable retailers and a generic globe otherwise; callers should fall
-// back to a placeholder icon when the <Image> fails to load.
+// Logo.dev publishable token (safe to ship client-side). Free tier requires a
+// visible "Logos by Logo.dev" attribution somewhere in the app.
+const LOGODEV_TOKEN = "pk_N8ZWY_DGQU-5uzLqYBrKMQ";
+
+// A brand-logo URL for a store name via logo.dev. Returns the real brand logo
+// for recognizable retailers and a clean initials "monogram" otherwise (always
+// a valid image, so logos never come back blank the way favicons did).
 export function storeLogoUrl(name: string | null | undefined): string | null {
   if (!name) return null;
   const domain = inferDomain(name);
   if (!domain) return null;
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  return `https://img.logo.dev/${encodeURIComponent(domain)}?token=${LOGODEV_TOKEN}&size=128&format=png&retina=true`;
 }
