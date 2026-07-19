@@ -398,6 +398,41 @@ router.post("/stores/merge", async (req, res): Promise<void> => {
   res.json(await buildStoreEntry(targetId));
 });
 
+// ---- Delete ---------------------------------------------------------------
+// Remove a canonical catalog entry and its name aliases. This only affects the
+// cross-user catalog (the global name mapping) — individual users' own stores
+// and items are separate and untouched.
+
+router.delete("/items/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db
+    .select({ id: catalogItemsTable.id })
+    .from(catalogItemsTable)
+    .where(eq(catalogItemsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Catalog item not found" }); return; }
+  await db.transaction(async (tx) => {
+    await tx.delete(catalogItemAliasesTable).where(eq(catalogItemAliasesTable.catalogItemId, id));
+    await tx.delete(catalogItemsTable).where(eq(catalogItemsTable.id, id));
+  });
+  res.json({ success: true });
+});
+
+router.delete("/stores/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db
+    .select({ id: catalogStoresTable.id })
+    .from(catalogStoresTable)
+    .where(eq(catalogStoresTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Catalog store not found" }); return; }
+  await db.transaction(async (tx) => {
+    await tx.delete(catalogStoreAliasesTable).where(eq(catalogStoreAliasesTable.catalogStoreId, id));
+    await tx.delete(catalogStoresTable).where(eq(catalogStoresTable.id, id));
+  });
+  res.json({ success: true });
+});
+
 // ---- Rename ---------------------------------------------------------------
 
 router.patch("/items/:id", async (req, res): Promise<void> => {

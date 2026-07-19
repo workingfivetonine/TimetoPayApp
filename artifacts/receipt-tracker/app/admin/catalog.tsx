@@ -30,9 +30,13 @@ import {
   useAdminSuggestCatalogStoreDuplicates,
 } from "@workspace/api-client-react";
 import type { CatalogEntry, CatalogSuggestion } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
+import { storeLogoUrl } from "@/lib/storeLogo";
+import { getApiOrigin } from "@/lib/apiBase";
+import { confirmDestructive } from "@/lib/confirm";
 
 type Tab = "items" | "stores";
 
@@ -63,6 +67,7 @@ export default function AdminCatalogScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
   const [tab, setTab] = React.useState<Tab>("items");
 
   const itemsQuery = useAdminListCatalogItems();
@@ -276,6 +281,30 @@ export default function AdminCatalogScreen() {
     }
   };
 
+  const deleteEntry = (entry: CatalogEntry) => {
+    confirmDestructive({
+      title: `Delete "${entry.canonicalName}"?`,
+      message:
+        tab === "stores"
+          ? "This removes it from the global catalog. Individual users' own stores are not affected. This can't be undone."
+          : "This removes it from the global catalog. This can't be undone.",
+      confirmLabel: "Delete",
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          const token = await getToken();
+          const res = await fetch(`${getApiOrigin()}/api/admin/catalog/${tab}/${entry.id}`, {
+            method: "DELETE",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (res.ok) refetch();
+        } finally {
+          setBusy(false);
+        }
+      },
+    });
+  };
+
   const onUploadLogo = async (entry: CatalogEntry) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -396,6 +425,7 @@ export default function AdminCatalogScreen() {
                 setRenameText(item.canonicalName);
               }}
               onMerge={() => setMergeSource(item)}
+              onDelete={() => deleteEntry(item)}
               onSplit={(norm) => onSplit(item, norm)}
               onEditCategory={() => setCategoryTarget(item)}
               onUploadLogo={() => onUploadLogo(item)}
@@ -666,6 +696,7 @@ function EntryCard({
   busy,
   onRename,
   onMerge,
+  onDelete,
   onSplit,
   onEditCategory,
   onUploadLogo,
@@ -682,6 +713,7 @@ function EntryCard({
   busy: boolean;
   onRename: () => void;
   onMerge: () => void;
+  onDelete: () => void;
   onSplit: (normalizedName: string) => void;
   onEditCategory: () => void;
   onUploadLogo: () => void;
@@ -698,6 +730,10 @@ function EntryCard({
         {showLogo ? (
           entry.logo ? (
             <Image source={{ uri: entry.logo }} style={styles.logo} resizeMode="contain" />
+          ) : storeLogoUrl(entry.canonicalName) ? (
+            // Auto brand logo (logo.dev) when none is uploaded — always shows
+            // something (real logo or an initials monogram).
+            <Image source={{ uri: storeLogoUrl(entry.canonicalName)! }} style={styles.logo} resizeMode="contain" />
           ) : (
             <View style={[styles.logo, styles.logoPlaceholder, { borderColor: colors.border }]}>
               <Feather name="image" size={18} color={colors.mutedForeground} />
@@ -720,6 +756,9 @@ function EntryCard({
         </TouchableOpacity>
         <TouchableOpacity onPress={onMerge} hitSlop={8} style={styles.iconBtn}>
           <Feather name="git-merge" size={16} color={colors.mutedForeground} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={8} style={styles.iconBtn} disabled={busy}>
+          <Feather name="trash-2" size={16} color={colors.destructive} />
         </TouchableOpacity>
       </View>
 
