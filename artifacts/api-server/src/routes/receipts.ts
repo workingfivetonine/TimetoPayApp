@@ -350,10 +350,16 @@ router.get("/scan-usage", async (req, res): Promise<void> => {
   res.json({ entitled: false, unlimited: false, ...usage });
 });
 
-function formatReceipt(r: typeof receiptsTable.$inferSelect, storeName: string) {
+function formatReceipt(
+  r: typeof receiptsTable.$inferSelect,
+  storeName: string,
+  logoUrl: string | null = null,
+) {
   return {
     ...r,
     storeName,
+    // Store logo so the receipts list can show it (matches the Stores screen).
+    logoUrl,
     total: Number(r.total),
     totalBeforeTax: r.totalBeforeTax != null ? Number(r.totalBeforeTax) : null,
     deliveryFee: r.deliveryFee != null ? Number(r.deliveryFee) : null,
@@ -368,6 +374,7 @@ router.get("/", async (req, res): Promise<void> => {
     .select({
       receipt: receiptsTable,
       storeName: storesTable.name,
+      logoUrl: storesTable.logoUrl,
     })
     .from(receiptsTable)
     .leftJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
@@ -375,7 +382,7 @@ router.get("/", async (req, res): Promise<void> => {
     .orderBy(sql`${receiptsTable.purchasedAt} DESC`);
 
   res.json(
-    rows.map((r) => formatReceipt(r.receipt, r.storeName ?? "Unknown"))
+    rows.map((r) => formatReceipt(r.receipt, r.storeName ?? "Unknown", r.logoUrl))
   );
 });
 

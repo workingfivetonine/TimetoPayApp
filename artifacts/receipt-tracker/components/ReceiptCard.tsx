@@ -1,13 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
+import { storeLogoUrl } from "@/lib/storeLogo";
 import type { Receipt } from "@workspace/api-client-react";
 
 interface Props {
@@ -19,6 +21,11 @@ interface Props {
 export function ReceiptCard({ receipt, onPress, onDelete }: Props) {
   const colors = useColors();
   const { format } = useCurrency();
+  // Prefer the store's saved logo (incl. an uploaded one); else the brand logo
+  // by name. logoUrl is a drifted field not in the generated type — read via cast.
+  const logoUri =
+    (receipt as { logoUrl?: string | null }).logoUrl || storeLogoUrl(receipt.storeName);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const date = new Date(receipt.purchasedAt);
   const dateStr = date.toLocaleDateString("en-US", {
@@ -35,7 +42,16 @@ export function ReceiptCard({ receipt, onPress, onDelete }: Props) {
     >
       <View style={styles.left}>
         <View style={[styles.iconContainer, { backgroundColor: colors.accent }]}>
-          <Feather name="file-text" size={18} color={colors.primary} />
+          {logoUri && !logoFailed ? (
+            <Image
+              source={{ uri: logoUri }}
+              style={styles.logo}
+              resizeMode="contain"
+              onError={() => setLogoFailed(true)}
+            />
+          ) : (
+            <Feather name="file-text" size={18} color={colors.primary} />
+          )}
         </View>
         <View style={styles.info}>
           <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
@@ -82,6 +98,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  logo: {
+    width: 28,
+    height: 28,
   },
   info: {
     flex: 1,
