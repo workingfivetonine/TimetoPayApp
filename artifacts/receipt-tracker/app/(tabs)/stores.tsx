@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
+  Image,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -17,6 +18,8 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import {
   useListStores,
   useGetCurrentUser,
@@ -56,6 +59,9 @@ interface StoreFormData {
   deliveryFee: string;
   minimumOrderAmount: string;
   notes: string;
+  // Store logo: either an auto-resolved favicon URL or a user-uploaded image
+  // stored inline as a data: URL (so no separate image hosting is needed).
+  logoUrl: string;
 }
 
 const defaultForm: StoreFormData = {
@@ -70,6 +76,7 @@ const defaultForm: StoreFormData = {
   deliveryFee: "",
   minimumOrderAmount: "",
   notes: "",
+  logoUrl: "",
 };
 
 type StoreSort = "az" | "delivery";
@@ -176,8 +183,38 @@ export default function StoresScreen() {
       deliveryFee: store.deliveryFee != null ? String(store.deliveryFee) : "",
       minimumOrderAmount: store.minimumOrderAmount != null ? String(store.minimumOrderAmount) : "",
       notes: store.notes ?? "",
+      logoUrl: store.logoUrl ?? "",
     });
     setShowModal(true);
+  };
+
+  // Pick an image from the library, shrink it to a small square, and store it
+  // inline as a data: URL on the form so it saves with the store (no image host
+  // needed). This is the reliable way to set a logo when the auto favicon fails.
+  const handlePickLogo = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      notify("Permission needed", "Allow photo access to choose a logo image.");
+      return;
+    }
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+    if (picked.canceled || !picked.assets[0]?.uri) return;
+    try {
+      const out = await ImageManipulator.manipulateAsync(
+        picked.assets[0].uri,
+        [{ resize: { width: 128, height: 128 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true },
+      );
+      if (out.base64) {
+        setForm((f) => ({ ...f, logoUrl: `data:image/png;base64,${out.base64}` }));
+      }
+    } catch {
+      notify("Couldn't use that image", "Please try a different one.");
+    }
   };
 
   const handleSave = async () => {
@@ -195,6 +232,9 @@ export default function StoresScreen() {
       deliveryFee: form.deliveryFee ? Number(form.deliveryFee) : null,
       minimumOrderAmount: form.minimumOrderAmount ? Number(form.minimumOrderAmount) : null,
       notes: form.notes.trim() || null,
+      // Send the chosen logo (data URL) so the server keeps it instead of
+      // overwriting with an auto favicon. Empty string = let the server auto-resolve.
+      logoUrl: form.logoUrl || null,
     };
 
     if (editingStore) {
@@ -362,6 +402,40 @@ export default function StoresScreen() {
               autoFocus
               returnKeyType="next"
             />
+
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>STORE LOGO</Text>
+            <View style={styles.logoRow}>
+              <View style={[styles.logoPreview, { backgroundColor: colors.accent, borderColor: colors.border }]}>
+                {form.logoUrl ? (
+                  <Image source={{ uri: form.logoUrl }} style={styles.logoPreviewImg} resizeMode="contain" />
+                ) : (
+                  <Feather name="shopping-bag" size={20} color={colors.primary} />
+                )}
+              </View>
+              <TouchableOpacity
+                style={[styles.logoBtn, { backgroundColor: colors.secondary }]}
+                onPress={handlePickLogo}
+                activeOpacity={0.8}
+              >
+                <Feather name="upload" size={15} color={colors.foreground} />
+                <Text style={[styles.logoBtnText, { color: colors.foreground }]}>
+                  {form.logoUrl ? "Change" : "Upload"}
+                </Text>
+              </TouchableOpacity>
+              {form.logoUrl ? (
+                <TouchableOpacity
+                  style={[styles.logoBtn, { backgroundColor: colors.secondary }]}
+                  onPress={() => setForm((f) => ({ ...f, logoUrl: "" }))}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="trash-2" size={15} color={colors.mutedForeground} />
+                  <Text style={[styles.logoBtnText, { color: colors.mutedForeground }]}>Remove</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <Text style={[styles.logoHint, { color: colors.mutedForeground }]}>
+              We try to find a logo automatically — upload your own if it's missing or wrong.
+            </Text>
 
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>REGION</Text>
             <RegionPicker
@@ -554,6 +628,27 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 14,
   },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logoPreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  logoPreviewImg: { width: 40, height: 40 },
+  logoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  logoBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  logoHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 8 },
   input: {
     borderWidth: 1,
     borderRadius: 10,

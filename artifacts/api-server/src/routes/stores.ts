@@ -131,11 +131,13 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/refresh-logos", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const stores = await db
-    .select({ id: storesTable.id, name: storesTable.name })
+    .select({ id: storesTable.id, name: storesTable.name, logoUrl: storesTable.logoUrl })
     .from(storesTable)
     .where(eq(storesTable.userId, userId));
   let updated = 0;
   for (const s of stores) {
+    // Never overwrite a user-uploaded logo (stored inline as a data: URL).
+    if (s.logoUrl?.startsWith("data:")) continue;
     const logoUrl = await resolveStoreLogo(s.name);
     if (!logoUrl) continue;
     await db
@@ -163,7 +165,12 @@ router.post("/", async (req, res): Promise<void> => {
   // `website` isn't in the (generated, drifted) CreateStoreBody schema, so read
   // it straight off the raw body and normalize.
   const website = normalizeWebsite((req.body as { website?: unknown }).website);
-  const logoUrl = await resolveStoreLogo(parsed.data.name);
+  // A user-supplied logo (uploaded as a data: URL) wins; otherwise auto-resolve.
+  const bodyLogo = (req.body as { logoUrl?: unknown }).logoUrl;
+  const logoUrl =
+    typeof bodyLogo === "string" && bodyLogo.trim()
+      ? bodyLogo.trim()
+      : await resolveStoreLogo(parsed.data.name);
   const [store] = await db.insert(storesTable).values({
     ...rest,
     ...region.fields,
@@ -217,7 +224,15 @@ router.patch("/:id", async (req, res): Promise<void> => {
   // Only update `website` when the key is present in the raw body (drifted schema).
   const hasWebsite = Object.prototype.hasOwnProperty.call(req.body ?? {}, "website");
   const website = hasWebsite ? normalizeWebsite((req.body as { website?: unknown }).website) : undefined;
-  const logoUrl = parsed.data.name ? await resolveStoreLogo(parsed.data.name) : undefined;
+  // When the client sends a logoUrl (the form always does), it's authoritative:
+  // a non-empty value (uploaded data: URL or kept favicon) is used as-is; empty
+  // clears it (the app then falls back to an auto favicon). Only when logoUrl is
+  // absent from the body do we auto-resolve from a changed name.
+  const hasLogo = Object.prototype.hasOwnProperty.call(req.body ?? {}, "logoUrl");
+  const bodyLogo = (req.body as { logoUrl?: unknown }).logoUrl;
+  const logoUrl = hasLogo
+    ? (typeof bodyLogo === "string" && bodyLogo.trim() ? bodyLogo.trim() : null)
+    : (parsed.data.name ? await resolveStoreLogo(parsed.data.name) : undefined);
   const [store] = await db
     .update(storesTable)
     .set({
