@@ -14,7 +14,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+// SDK 54 / expo-file-system v19 moved readAsStringAsync + EncodingType to the
+// legacy entry point. Use it so the PDF base64 read keeps working.
+import * as FileSystem from "expo-file-system/legacy";
 import { fetch as expoFetch } from "expo/fetch";
 import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
