@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -288,6 +288,50 @@ function InitialLayout() {
   );
 }
 
+// Shown while Clerk is initializing. Adds a live elapsed timer and, after a few
+// seconds, times a reachability check to the login server (Clerk) and the app
+// server — so a slow "Starting up…" tells us WHERE the delay is instead of
+// leaving us guessing. Purely diagnostic; safe to simplify once startup is fast.
+function StartupProbe() {
+  const [elapsed, setElapsed] = useState(0);
+  const [lines, setLines] = useState<string[]>([]);
+  useEffect(() => {
+    const started = Date.now();
+    const tick = setInterval(() => {
+      setElapsed(Math.round((Date.now() - started) / 1000));
+    }, 1000);
+    let cancelled = false;
+    const time = async (label: string, url: string) => {
+      const t0 = Date.now();
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 20000);
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(to);
+        return `${label}: ${Math.round(Date.now() - t0)}ms (HTTP ${res.status})`;
+      } catch (e) {
+        return `${label}: FAILED after ${Math.round(Date.now() - t0)}ms (${(e as Error)?.name ?? "error"})`;
+      }
+    };
+    const run = async () => {
+      const a = await time("Login server", "https://clerk.5to9shopping.com/v1/environment?_clerk_js_version=5");
+      const b = await time("App server", "https://api.5to9shopping.com/");
+      if (!cancelled) setLines([a, b]);
+    };
+    const kick = setTimeout(run, 3000);
+    return () => { cancelled = true; clearInterval(tick); clearTimeout(kick); };
+  }, []);
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
+      <ActivityIndicator />
+      <Text style={{ marginTop: 12, color: "#666" }}>Starting up… {elapsed}s</Text>
+      {lines.map((l) => (
+        <Text key={l} selectable style={{ marginTop: 6, fontSize: 12, color: "#888", textAlign: "center" }}>{l}</Text>
+      ))}
+    </View>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -322,13 +366,11 @@ export default function RootLayout() {
       {/* ErrorBoundary OUTSIDE Clerk so a Clerk init/render error shows a message
           instead of a white screen. */}
       <ErrorBoundary>
-        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-          {/* Visible state while Clerk initializes (was blank → white screen). */}
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} telemetry={{ disabled: true }}>
+          {/* Visible state while Clerk initializes — includes a timer + connection
+              test to diagnose the slow ("Starting up…") startup on native. */}
           <ClerkLoading>
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
-              <ActivityIndicator />
-              <Text style={{ marginTop: 12, color: "#666" }}>Starting up…</Text>
-            </View>
+            <StartupProbe />
           </ClerkLoading>
           <ClerkLoaded>
             <PersistQueryClientProvider
