@@ -99,7 +99,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          title: "Analytics",
+          title: "Stats",
           tabBarIcon: ({ color }) => (
             <View>
               <Feather name="bar-chart-2" size={22} color={color} />
@@ -118,7 +118,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="board"
         options={{
-          title: "Community",
+          title: "Board",
           tabBarIcon: ({ color }) => (
             <View>
               <Feather name="message-square" size={22} color={color} />
