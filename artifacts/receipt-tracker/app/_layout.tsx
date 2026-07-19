@@ -309,7 +309,7 @@ export default function RootLayout() {
               <CacheInvalidator />
               <DataProvider>
                 <BoardNotificationProvider>
-                  <GestureHandlerRootView>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
                     <KeyboardProvider>
                       <InitialLayout />
                     </KeyboardProvider>
