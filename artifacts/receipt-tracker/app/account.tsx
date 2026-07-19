@@ -40,9 +40,11 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify, confirmAction } from "@/lib/confirm";
 import { showSuccessToast } from "@/lib/toast";
 
-// Optional donation link (a Stripe Payment Link). Set EXPO_PUBLIC_DONATE_URL in
-// Vercel (web) and eas.json (native); when unset, the Support button is hidden.
-const DONATE_URL = process.env.EXPO_PUBLIC_DONATE_URL;
+// Optional donation link (a Stripe Payment Link) for the "Support us" button.
+// Defaults to the live donation page; override with EXPO_PUBLIC_DONATE_URL if it
+// ever changes. Works on web and native (opens in the browser).
+const DONATE_URL =
+  process.env.EXPO_PUBLIC_DONATE_URL ?? "https://donate.stripe.com/9B6eVed6D3DUh19e2TdfG00";
 
 type EntitlementStatus =
   | "trialing"
