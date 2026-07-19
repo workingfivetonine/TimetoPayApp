@@ -56,7 +56,29 @@ function providerOf(user: UserRow): SubscriptionProvider | null {
     : null;
 }
 
-export function computeEntitlement(
+// ── TimetoPay is FREE for everyone ──────────────────────────────────────────
+// Every feature gate (client usePremiumLock + server requirePremium /
+// allowFreeSingleScan) reads `entitled`, so this single override unlocks the
+// whole product — unlimited scans, community, deep analytics — on web AND native.
+// Support is now an OPTIONAL donation, not a subscription. Fully reversible:
+// delete this and rename computeBillingEntitlement back to computeEntitlement to
+// restore paid tiers. `provider` is preserved so a legacy subscriber can still
+// open the billing portal to cancel.
+export function computeEntitlement(user: UserRow): Entitlement {
+  return {
+    entitled: true,
+    status: "comped",
+    provider: providerOf(user),
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    canStartTrial: false,
+    showAnnualOffer: false,
+  };
+}
+
+// Original paid-tier entitlement logic — kept intact for reversibility (currently
+// unused; the free override above is what the app calls).
+export function computeBillingEntitlement(
   user: UserRow,
   now: Date = new Date(),
 ): Entitlement {

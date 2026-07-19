@@ -40,6 +40,10 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify, confirmAction } from "@/lib/confirm";
 import { showSuccessToast } from "@/lib/toast";
 
+// Optional donation link (a Stripe Payment Link). Set EXPO_PUBLIC_DONATE_URL in
+// Vercel (web) and eas.json (native); when unset, the Support button is hidden.
+const DONATE_URL = process.env.EXPO_PUBLIC_DONATE_URL;
+
 type EntitlementStatus =
   | "trialing"
   | "active"
@@ -400,83 +404,47 @@ export default function AccountScreen() {
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
 
-        {isWeb && entitlement ? (
-          <View style={[styles.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.subHeader}>
-              <Feather name="credit-card" size={18} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowText, { color: colors.foreground }]}>Subscription</Text>
-                <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-                  {subscriptionLabel(
-                    entitlement.status as EntitlementStatus,
-                    entitlement.currentPeriodEnd,
-                    (entitlement as { cancelAtPeriodEnd?: boolean }).cancelAtPeriodEnd,
-                  )}
-                </Text>
-              </View>
-              {hasProviderSub ? (
-                <TouchableOpacity
-                  onPress={handleManage}
-                  disabled={manage.isPending}
-                  style={[styles.manageBtn, { backgroundColor: colors.accent }]}
-                  activeOpacity={0.8}
-                >
-                  {manage.isPending ? (
-                    <ActivityIndicator size="small" color={colors.accentForeground} />
-                  ) : (
-                    <Text style={[styles.manageBtnText, { color: colors.accentForeground }]}>
-                      Manage
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ) : null}
+        {/* Support TimetoPay — optional donation. Replaces the old subscription
+            paywall now that every feature is free (see computeEntitlement). */}
+        <View style={[styles.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.subHeader}>
+            <Feather name="heart" size={18} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Support TimetoPay</Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+                TimetoPay is free — every feature, no subscription. If it helps you save, a small
+                donation keeps it running. Totally optional.
+              </Text>
             </View>
-
-            {showSubActions ? (
-              <View style={styles.subActions}>
-                {entitlement.canStartTrial ? (
-                  <TouchableOpacity
-                    onPress={handleStartTrial}
-                    disabled={startTrial.isPending}
-                    style={[styles.subActionBtn, { backgroundColor: colors.primary }]}
-                    activeOpacity={0.85}
-                  >
-                    {startTrial.isPending ? (
-                      <ActivityIndicator size="small" color={colors.primaryForeground} />
-                    ) : (
-                      <Text style={[styles.subActionText, { color: colors.primaryForeground }]}>
-                        Start free trial
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                ) : null}
-                <TouchableOpacity
-                  onPress={handleSubscribe}
-                  style={[
-                    styles.subActionBtn,
-                    entitlement.canStartTrial
-                      ? { borderWidth: 1.5, borderColor: colors.primary }
-                      : { backgroundColor: colors.primary },
-                  ]}
-                  activeOpacity={0.85}
-                >
-                  <Text
-                    style={[
-                      styles.subActionText,
-                      { color: entitlement.canStartTrial ? colors.primary : colors.primaryForeground },
-                    ]}
-                  >
-                    {entitlement.status === "trialing" ? "Subscribe now" : "Subscribe"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {trialError ? (
-              <Text style={[styles.subError, { color: colors.destructive }]}>{trialError}</Text>
-            ) : null}
           </View>
-        ) : null}
+
+          {DONATE_URL ? (
+            <TouchableOpacity
+              onPress={() => void Linking.openURL(DONATE_URL)}
+              style={[styles.subActionBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.subActionText, { color: colors.primaryForeground }]}>Support us 💛</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {isWeb && hasProviderSub ? (
+            <TouchableOpacity
+              onPress={handleManage}
+              disabled={manage.isPending}
+              style={[styles.manageBtn, { backgroundColor: colors.accent, alignSelf: "flex-start", marginTop: 12 }]}
+              activeOpacity={0.8}
+            >
+              {manage.isPending ? (
+                <ActivityIndicator size="small" color={colors.accentForeground} />
+              ) : (
+                <Text style={[styles.manageBtnText, { color: colors.accentForeground }]}>
+                  Manage / cancel old subscription
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
         {showNotifications ? <NotificationsSection /> : null}
 

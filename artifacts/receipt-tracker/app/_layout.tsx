@@ -214,12 +214,9 @@ function InitialLayout() {
   // free). planSelected flips permanently after any choice on /choose-plan.
   // Web-only: native is never paywalled, so mobile onboarding must NOT be routed
   // through the plan picker (the choice is meaningless there).
-  const needsPlan =
-    Platform.OS === "web" &&
-    isSignedIn &&
-    me != null &&
-    !!me.countryCode &&
-    !me.planSelected;
+  // TimetoPay is free — there is no plan to pick, so the plan-picker onboarding
+  // step is disabled. (The /choose-plan screen is kept but no longer routed to.)
+  const needsPlan = false;
 
   // Every signed-in user sets a username + avatar once, right after signup —
   // before region/plan. (username lives on the server CurrentUser response.)

@@ -16,7 +16,7 @@ import {
   itemsTable,
   lineItemsTable,
 } from "@workspace/db";
-import { computeEntitlement, TRIAL_DAYS } from "../billing/entitlement";
+import { computeBillingEntitlement, TRIAL_DAYS } from "../billing/entitlement";
 import { loopsSendEvent } from "../email/loops";
 import {
   comparePeriods,
@@ -73,7 +73,9 @@ export async function runReminderSweep(
     if (!u.email) return false;
     // Signup grace: never email anyone in their first couple of days.
     if (daysBetween(now, new Date(u.createdAt)) < SIGNUP_GRACE_DAYS) return false;
-    const ent = computeEntitlement(u, now);
+    // Email scheduling keys off REAL billing status (not the free-app override),
+    // so legacy subscribers still get payment reminders as before.
+    const ent = computeBillingEntitlement(u, now);
     const isPastDue = u.subscriptionStatus === "past_due";
     return ent.entitled || isPastDue;
   });
@@ -120,7 +122,7 @@ export async function runReminderSweep(
   }
 
   for (const user of eligible) {
-    const ent = computeEntitlement(user, now);
+    const ent = computeBillingEntitlement(user, now);
     const updates: Partial<UserRow> = {};
 
     // ── Payment reminders ─────────────────────────────────────────────────
