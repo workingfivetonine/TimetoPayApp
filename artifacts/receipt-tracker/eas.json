@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com"
+        "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuNXRvOXNob3BwaW5nLmNvbSQ"
       }
     },
     "preview": {
@@ -17,13 +18,15 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com"
+        "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuNXRvOXNob3BwaW5nLmNvbSQ"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com"
+        "EXPO_PUBLIC_API_URL": "https://api.5to9shopping.com",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuNXRvOXNob3BwaW5nLmNvbSQ"
       }
     }
   },
