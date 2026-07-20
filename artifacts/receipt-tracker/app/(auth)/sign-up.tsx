@@ -217,7 +217,9 @@ export default function SignUpPage() {
                 </Text>.
               </Text>
 
-              <GoogleAuthButton label="Sign up with Google" />
+              {/* Google sign-up is web-only: on iOS, offering a third-party social
+                  login without Sign in with Apple violates App Review Guideline 4.8. */}
+              {Platform.OS === "web" ? <GoogleAuthButton label="Sign up with Google" /> : null}
 
               <View style={styles.linkRow}>
                 <Text style={{ color: colors.mutedForeground }}>Already have an account? </Text>
