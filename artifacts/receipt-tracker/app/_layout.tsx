@@ -34,6 +34,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BoardNotificationProvider } from "@/contexts/BoardNotification";
 import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
+import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { DataProvider } from "@/context/DataContext";
 import { getApiOrigin } from "@/lib/apiBase";
 import {
@@ -363,6 +364,9 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      {/* Vercel Web Analytics (web only; no-op on native). Kept outside the Clerk
+          tree so page views are counted even before/if auth init is slow. */}
+      <VercelAnalytics />
       {/* ErrorBoundary OUTSIDE Clerk so a Clerk init/render error shows a message
           instead of a white screen. */}
       <ErrorBoundary>

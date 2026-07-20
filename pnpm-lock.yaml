@@ -426,6 +426,9 @@ importers:
       '@react-native-community/netinfo':
         specifier: 11.4.1
         version: 11.4.1(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@19.1.0)
       expo-asset:
         specifier: ~12.0.13
         version: 12.0.13(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
@@ -4308,6 +4311,35 @@ packages:
     resolution: {integrity: sha512-Yy19y6O2GJq8f7CHf7L0nxL8bf4PZCPaVOCgJrusOeFHY1LvHgYXnmnXg6N5iwAnbgbZCDjo60SiM6IPJi9C5g==}
     peerDependencies:
       react: '>= 16.8.0'
+
+  '@vercel/analytics@2.0.1':
+    resolution: {integrity: sha512-MTQG6V9qQrt1tsDeF+2Uoo5aPjqbVPys1xvnIftXSJYG2SrwXRHnqEvVoYID7BTruDz4lCd2Z7rM1BdkUehk2g==}
+    peerDependencies:
+      '@remix-run/react': ^2
+      '@sveltejs/kit': ^1 || ^2
+      next: '>= 13'
+      nuxt: '>= 3'
+      react: ^18 || ^19 || ^19.0.0-rc
+      svelte: '>= 4'
+      vue: ^3
+      vue-router: ^4
+    peerDependenciesMeta:
+      '@remix-run/react':
+        optional: true
+      '@sveltejs/kit':
+        optional: true
+      next:
+        optional: true
+      nuxt:
+        optional: true
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+      vue-router:
+        optional: true
 
   '@vitejs/plugin-react@5.2.0':
     resolution: {integrity: sha512-YmKkfhOAi3wsB1PhJq5Scj3GXMn3WvtQ/JC0xoopuHoXSdmtdStOpFrYaT1kie2YgFBcIe64ROzMYRjCrYOdYw==}
@@ -12395,6 +12427,10 @@ snapshots:
   '@use-gesture/react@10.3.1(react@19.1.0)':
     dependencies:
       '@use-gesture/core': 10.3.1
+      react: 19.1.0
+
+  '@vercel/analytics@2.0.1(react@19.1.0)':
+    optionalDependencies:
       react: 19.1.0
 
   '@vitejs/plugin-react@5.2.0(vite@7.3.5(@types/node@25.9.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))':
