@@ -249,7 +249,7 @@ export default function AnalyticsScreen() {
       } else {
         const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string;
         // Dynamic imports keep these native-only modules out of the web bundle
-        const FileSystem = await import("expo-file-system");
+        const FileSystem = await import("expo-file-system/legacy");
         const Sharing = await import("expo-sharing");
         const fileUri = `${FileSystem.cacheDirectory}TimetoPay_Export.xlsx`;
         await FileSystem.writeAsStringAsync(fileUri, base64, {
