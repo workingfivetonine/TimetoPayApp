@@ -185,9 +185,10 @@ export default function SignInPage() {
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
               </TouchableOpacity>
 
-              {/* Google sign-in is web-only: on iOS, offering a third-party social
-                  login without Sign in with Apple violates App Review Guideline 4.8. */}
-              {Platform.OS === "web" ? <GoogleAuthButton label="Sign in with Google" /> : null}
+              {/* Hidden on iOS only: offering a third-party social login there
+                  without Sign in with Apple violates App Review Guideline 4.8.
+                  Google stays available on Android and web. */}
+              {Platform.OS !== "ios" ? <GoogleAuthButton label="Sign in with Google" /> : null}
 
               <View style={styles.linkRow}>
                 <Text style={{ color: colors.mutedForeground }}>Don't have an account? </Text>
