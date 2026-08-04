@@ -30,9 +30,9 @@ function verifySignature(secret: string, headers: Request["headers"], rawBody: B
 }
 
 // Public, Svix-signed Clerk webhook. The raw body (Buffer) is provided by the
-// express.raw parser registered in app.ts. We act on `user.deleted`: cancel the
-// user's subscription so a dashboard-deleted user stops being billed, email a
-// confirmation, and remove their data. Idempotent — if our app already deleted
+// express.raw parser registered in app.ts. We act on `user.deleted`: email the
+// dashboard-deleted user a confirmation and remove their data. Idempotent — if
+// our app already deleted
 // the row (it deletes the Clerk user too, which re-fires this event), the lookup
 // finds nothing and we no-op.
 export async function clerkWebhookHandler(req: Request, res: Response): Promise<void> {
@@ -63,7 +63,7 @@ export async function clerkWebhookHandler(req: Request, res: Response): Promise<
       if (user) {
         await db.delete(usersTable).where(eq(usersTable.id, userId));
         if (user.email) void sendAccountDeletedEmail(user.email);
-        logger.info({ userId }, "Clerk user.deleted: cancelled subscription + removed user data");
+        logger.info({ userId }, "Clerk user.deleted: removed user data");
       }
     } catch (err) {
       logger.error({ err, userId }, "Clerk user.deleted handling failed");

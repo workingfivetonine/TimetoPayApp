@@ -19,8 +19,6 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "@clerk/expo";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
-import { usePremiumLock } from "@/hooks/usePremiumLock";
-import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { useDesktop } from "@/hooks/useDesktop";
 import { getApiOrigin } from "@/lib/apiBase";
 import { EmptyState } from "@/components/EmptyState";
@@ -78,7 +76,6 @@ interface BoardData {
 }
 
 function missingLabel(req: string): string {
-  if (req === "subscription") return "An active subscription";
   if (req === "account_age") return "At least 2 weeks of using TimetoPay";
   if (req === "upload_count") return "At least 2 receipt uploads";
   return req;
@@ -104,7 +101,6 @@ export default function BoardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isDesktop = useDesktop();
-  const locked = usePremiumLock();
   const { getToken, userId } = useAuth();
   const queryClient = useQueryClient();
   const { setNewCount, clearNew } = useBoardNotification();
@@ -140,7 +136,6 @@ export default function BoardScreen() {
       if (!res.ok) throw new Error("Failed to load board");
       return res.json() as Promise<BoardData>;
     },
-    enabled: !locked,
     refetchInterval: 60_000, // Auto-refresh every minute
   });
 
@@ -440,20 +435,6 @@ export default function BoardScreen() {
     setWelcomeVisible(false);
     if (userId) AsyncStorage.setItem(`boardWelcomeSeen:v1:${userId}`, "1").catch(() => {});
   };
-
-  if (locked) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { paddingTop }]}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Community</Text>
-        </View>
-        <PremiumUpsell
-          title="Community is a premium feature"
-          subtitle="Upgrade to share tips, feedback, and ideas with other shoppers."
-        />
-      </View>
-    );
-  }
 
   if (isLoading) {
     return (

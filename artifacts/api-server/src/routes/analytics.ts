@@ -120,7 +120,7 @@ router.get("/fees", async (req, res): Promise<void> => {
 // "Best of" — actionable where-to-shop insights derived from the user's own
 // receipts. Each card is only returned when there's enough data to be honest
 // ("cheapest" needs 2+ stores to compare); otherwise the field is null / [] and
-// the client hides that card. Premium-only.
+// the client hides that card.
 router.get("/best-of", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -284,7 +284,7 @@ router.get("/best-of", async (req, res): Promise<void> => {
   });
 });
 
-// Item price history — the deeper analytics insight, gated as premium on web.
+// Item price history — the deeper analytics insight.
 router.get("/items/:id/price-history", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const itemId = parseInt(String(req.params.id));
@@ -703,9 +703,6 @@ router.get("/export", async (req, res): Promise<void> => {
           countryCode: profile.countryCode ?? null,
           stateCode: profile.stateCode ?? null,
           role: profile.role,
-          subscriptionStatus: profile.subscriptionStatus ?? null,
-          subscriptionProvider: profile.subscriptionProvider ?? null,
-          notifyPaymentReminders: profile.notifyPaymentReminders,
           notifyListExport: profile.notifyListExport,
           notifyReceiptReminders: profile.notifyReceiptReminders,
           notifySpendSummary: profile.notifySpendSummary,

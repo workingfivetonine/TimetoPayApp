@@ -3,29 +3,20 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import { useColors } from "@/hooks/useColors";
-import { usePremiumStatus } from "@/hooks/usePremiumLock";
 import { useBoardNotification } from "@/contexts/BoardNotification";
 
 const NAV = [
-  { label: "Receipts", icon: "file-text", href: "/", match: (p: string) => p === "/" || p === "", premium: false },
-  { label: "Stores", icon: "shopping-bag", href: "/stores", match: (p: string) => p.startsWith("/stores"), premium: false },
-  { label: "Shopping List", icon: "check-square", href: "/shopping", match: (p: string) => p.startsWith("/shopping"), premium: false },
-  { label: "Analytics", icon: "bar-chart-2", href: "/analytics", match: (p: string) => p.startsWith("/analytics"), premium: true },
-  { label: "Community", icon: "message-square", href: "/board", match: (p: string) => p.startsWith("/board"), premium: true },
+  { label: "Receipts", icon: "file-text", href: "/", match: (p: string) => p === "/" || p === "" },
+  { label: "Stores", icon: "shopping-bag", href: "/stores", match: (p: string) => p.startsWith("/stores") },
+  { label: "Shopping List", icon: "check-square", href: "/shopping", match: (p: string) => p.startsWith("/shopping") },
+  { label: "Analytics", icon: "bar-chart-2", href: "/analytics", match: (p: string) => p.startsWith("/analytics") },
+  { label: "Community", icon: "message-square", href: "/board", match: (p: string) => p.startsWith("/board") },
 ] as const;
 
 export function DesktopSidebar() {
   const colors = useColors();
   const router = useRouter();
   const pathname = usePathname();
-  const premium = usePremiumStatus();
-  const showStar = premium === "locked" || premium === "trial";
-  const starColor = premium === "trial" ? colors.primary : "#F59E0B";
-  const starBg = premium === "trial" ? colors.accent : "#FEF3C7";
-  const starTip =
-    premium === "trial"
-      ? "Premium — free during your trial"
-      : "Premium — sign up for full access";
   const { newCount } = useBoardNotification();
 
   return (
@@ -66,15 +57,7 @@ export function DesktopSidebar() {
               >
                 {item.label}
               </Text>
-              {showStar && item.premium && (
-                <View
-                  style={[styles.premiumStar, { backgroundColor: starBg }]}
-                  {...({ title: starTip } as object)}
-                >
-                  <Feather name="star" size={9} color={starColor} />
-                </View>
-              )}
-              {!showStar && item.href === "/board" && newCount > 0 && (
+              {item.href === "/board" && newCount > 0 && (
                 <View style={styles.notifBadge} />
               )}
             </TouchableOpacity>
@@ -186,15 +169,6 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     fontFamily: "Inter_600SemiBold",
-  },
-  premiumStar: {
-    marginLeft: "auto",
-    backgroundColor: "#FEF3C7",
-    borderRadius: 999,
-    width: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
   },
   notifBadge: {
     marginLeft: "auto",

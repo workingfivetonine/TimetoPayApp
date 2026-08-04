@@ -50,9 +50,8 @@ async function checkBoardEligibility(userId: string, isAdmin: boolean): Promise<
 
   const missing: string[] = [];
 
-  // A subscription used to be required here too. The app is free, so the upload
-  // count is now the only bar: contributing to the board still means having
-  // actually used the app, which is what the gate was for.
+  // Upload count is the only bar: contributing to the board means having
+  // actually used the app, which is what this gate is for.
   const [countRow] = await db
     .select({ count: sql<number>`cast(count(*) as int)` })
     .from(receiptsTable)

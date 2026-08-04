@@ -30,7 +30,8 @@ function openLegalPage(page: "privacy" | "terms" | "support") {
   }
 }
 
-// Donations go straight to the Stripe donation page (overridable via env).
+// Optional donation page (overridable via env). Nothing in the app is paid —
+// this is a voluntary "buy us a coffee" link, not a plan or upgrade.
 const DONATE_URL =
   process.env.EXPO_PUBLIC_DONATE_URL ?? "https://donate.stripe.com/9B6eVed6D3DUh19e2TdfG00";
 function openDonate() {
@@ -121,12 +122,6 @@ export default function LandingPage() {
             <Text style={styles.brandName}>TimetoPay</Text>
           </View>
           <View style={styles.navRight}>
-            <TouchableOpacity
-              onPress={() => router.push("/pricing")}
-              accessibilityRole="button"
-            >
-              <Text style={styles.navLink}>Pricing</Text>
-            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push("/(auth)/sign-in")}
               accessibilityRole="button"
@@ -317,11 +312,6 @@ function makeStyles(colors: ReturnType<typeof useColors>, isWide: boolean) {
       color: colors.text,
     },
     navRight: { flexDirection: "row", alignItems: "center", gap: 22 },
-    navLink: {
-      fontFamily: "Inter_600SemiBold",
-      fontSize: 15,
-      color: colors.text,
-    },
     navSignIn: {
       fontFamily: "Inter_600SemiBold",
       fontSize: 15,

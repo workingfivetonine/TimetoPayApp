@@ -90,7 +90,7 @@ export default function AdminScreen() {
                     {item.username ? `${item.email ?? "(no email)"} · ` : ""}
                     Joined {formatJoined(item.createdAt)}
                     {item.countryCode ? ` · ${item.countryCode}` : ""}
-                    {item.planSelectedAt ? "" : " · setup incomplete"}
+                    {item.username ? "" : " · profile setup incomplete"}
                   </Text>
                 </View>
                 <View style={[styles.badge, { backgroundColor: colors.accent }]}>

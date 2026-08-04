@@ -33,73 +33,26 @@ export const usersTable = pgTable(
     address: text("address"),
     latitude: numeric("latitude", { precision: 9, scale: 6 }),
     longitude: numeric("longitude", { precision: 9, scale: 6 }),
-    // Provider-agnostic subscription state, driven ONLY by verified provider
-    // webhooks / provider API reads — never by client-reported success.
-    //   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled" | "none" (null = never subscribed)
-    //   subscriptionProvider: "stripe" | "paypal" (null = never subscribed)
-    // There is NO automatic trial: a brand-new account starts with no
-    // subscription (entitlement status "none"). The free trial is OPT-IN — the
-    // user explicitly starts it from the account/paywall screen, which stamps
-    // `trialStartedAt`. Entitlement derives the "trialing" window from that
-    // timestamp (see lib/billing/entitlement.ts).
-    subscriptionStatus: text("subscription_status"),
-    subscriptionProvider: text("subscription_provider"),
-    subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end", {
-      withTimezone: true,
-    }),
-    // True when the subscription is set to cancel at the end of the current paid
-    // period (Stripe `cancel_at_period_end`). The user keeps access until
-    // subscriptionCurrentPeriodEnd, then it lapses. Drives the
-    // "Premium access ends [date]" copy instead of "renews on [date]".
-    subscriptionCancelAtPeriodEnd: boolean("subscription_cancel_at_period_end")
-      .notNull()
-      .default(false),
-    // When the user opted into the one-time free trial. Null = trial never
-    // started (the free-trial offer is still available). Set once and never
-    // cleared, so a trial can't be re-claimed after it elapses.
-    trialStartedAt: timestamp("trial_started_at", { withTimezone: true }),
-    // When the user made their one-time post-signup plan choice (subscribe /
-    // start trial / continue free). Null = the "Choose your plan" onboarding
-    // step has not been completed yet. Set once; gates the onboarding redirect.
-    planSelectedAt: timestamp("plan_selected_at", { withTimezone: true }),
-    // When the user dismissed the one-time "20% off annual" offer shown to free
-    // users after their trial ends. Null = offer not yet dismissed. Set once so
-    // the offer popup is not shown again.
-    annualOfferDismissedAt: timestamp("annual_offer_dismissed_at", { withTimezone: true }),
-    // Provider-side identifiers used to reconcile webhook events back to a user.
-    stripeCustomerId: text("stripe_customer_id"),
-    stripeSubscriptionId: text("stripe_subscription_id"),
-    paypalSubscriptionId: text("paypal_subscription_id"),
-    // Complimentary access flag set when a user redeems a valid promo code
-    // (the "secret override"). When true the user is entitled regardless of
-    // subscription state. A deployer-controlled email allowlist
-    // (COMP_ACCESS_EMAILS) is a second, env-driven comp mechanism.
-    compAccess: boolean("comp_access").notNull().default(false),
-    // ── Email reminder notification preferences (opt-out toggles) ──────────
-    // Four independent on/off switches for the reminder emails. Default OFF
-    // (opt-in): new users receive no reminder emails until they enable them from
-    // the account screen. Only ever consulted for users with a subscription
-    // relationship (entitlement gating happens in the scheduler).
-    //   notifyPaymentReminders: trial-ending + payment-past-due emails
+    // ── Email reminder notification preferences (opt-in toggles) ───────────
+    // Independent on/off switches for the reminder emails. Default OFF (opt-in):
+    // new users receive no reminder emails until they enable them from the
+    // account screen. TimetoPay is free, so these are the only emails that need
+    // a preference — there is no billing to notify anyone about.
     //   notifyListExport:       weekly grocery-list export nudge
     //   notifyReceiptReminders: "upload a receipt" inactivity nudge
     //   notifySpendSummary:     end-of-week / end-of-month spend recaps
-notifyPaymentReminders: boolean("notify_payment_reminders").notNull().default(false),
-notifyListExport: boolean("notify_list_export").notNull().default(false),
-notifyReceiptReminders: boolean("notify_receipt_reminders").notNull().default(false),
-notifySpendSummary: boolean("notify_spend_summary").notNull().default(false),
+    notifyListExport: boolean("notify_list_export").notNull().default(false),
+    notifyReceiptReminders: boolean("notify_receipt_reminders").notNull().default(false),
+    notifySpendSummary: boolean("notify_spend_summary").notNull().default(false),
     // ── Per-type notification frequency (weekly | monthly) ─────────────────
-    // Payment reminders are excluded — they fire on billing events, not schedules.
-notifyListExportFrequency: text("notify_list_export_frequency").default("weekly"),
-notifyReceiptRemindersFrequency: text("notify_receipt_reminders_frequency").default("weekly"),
-notifySpendSummaryFrequency: text("notify_spend_summary_frequency").default("weekly"),
+    notifyListExportFrequency: text("notify_list_export_frequency").default("weekly"),
+    notifyReceiptRemindersFrequency: text("notify_receipt_reminders_frequency").default("weekly"),
+    notifySpendSummaryFrequency: text("notify_spend_summary_frequency").default("weekly"),
     // ── Per-email-type "last sent" cursors (dedupe / once-per-period) ──────
     // The scheduler records when each email type was last sent to this user so a
     // reminder fires at most once per relevant period across repeated runs.
-    lastTrialEndingSentAt: timestamp("last_trial_ending_sent_at", { withTimezone: true }),
     lastWeeklySummarySentAt: timestamp("last_weekly_summary_sent_at", { withTimezone: false }),
     lastMonthlySummarySentAt: timestamp("last_monthly_summary_sent_at", { withTimezone: false }),
-    lastPastDueSentAt: timestamp("last_past_due_sent_at", { withTimezone: true }),
     lastListExportSentAt: timestamp("last_list_export_sent_at", { withTimezone: true }),
     lastReceiptInactivitySentAt: timestamp("last_receipt_inactivity_sent_at", { withTimezone: true }),
     // Debounce for the "email preferences updated" confirmation — coalesces a

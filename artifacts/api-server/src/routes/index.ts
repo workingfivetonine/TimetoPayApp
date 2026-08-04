@@ -10,7 +10,6 @@ import catalogRouter from "./catalog";
 import adminRouter from "./admin";
 import adminCatalogRouter from "./adminCatalog";
 import meRouter from "./me";
-import donateRouter from "./donate";
 import boardRouter from "./board";
 import supportRouter from "./support";
 import emailPrefsRouter from "./emailPrefs";
@@ -28,13 +27,8 @@ router.use("/email", emailPrefsRouter);
 router.use(requireAuth);
 
 router.use("/me", meRouter);
-// Voluntary one-off donations. The app is free, so nothing here gates anything —
-// see routes/donate.ts.
-router.use("/donate", donateRouter);
-
-// Every data route below is available to any signed-in user. There is no premium
-// tier: the paywall, entitlement checks and per-route `requirePremium` guards
-// were removed when the app became free.
+// Every data route below is available to any signed-in user. TimetoPay is free:
+// there is no paid tier, no entitlement check, and nothing to unlock.
 router.use("/stores", storesRouter);
 router.use("/items", itemsRouter);
 router.use("/receipts", receiptsRouter);

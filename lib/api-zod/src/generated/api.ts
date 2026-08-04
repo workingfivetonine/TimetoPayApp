@@ -948,16 +948,7 @@ export const GetCurrentUserResponse = zod.object({
   "isAdmin": zod.boolean(),
   "role": zod.enum(['master_admin', 'family', 'general']),
   "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"')
 })
 
 
@@ -975,16 +966,7 @@ export const UpdateMyRegionResponse = zod.object({
   "isAdmin": zod.boolean(),
   "role": zod.enum(['master_admin', 'family', 'general']),
   "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"')
 })
 
 
@@ -992,7 +974,6 @@ export const UpdateMyRegionResponse = zod.object({
  * @summary Get the authenticated user's email reminder preferences
  */
 export const GetMyNotificationPreferencesResponse = zod.object({
-  "notifyPaymentReminders": zod.boolean().describe('Trial-ending and payment-past-due reminder emails'),
   "notifyListExport": zod.boolean().describe('Grocery-list export nudge'),
   "notifyReceiptReminders": zod.boolean().describe('Receipt-upload inactivity nudge'),
   "notifySpendSummary": zod.boolean().describe('Spend summary emails'),
@@ -1006,7 +987,6 @@ export const GetMyNotificationPreferencesResponse = zod.object({
  * @summary Update the authenticated user's email reminder preferences
  */
 export const UpdateMyNotificationPreferencesBody = zod.object({
-  "notifyPaymentReminders": zod.boolean().optional(),
   "notifyListExport": zod.boolean().optional(),
   "notifyReceiptReminders": zod.boolean().optional(),
   "notifySpendSummary": zod.boolean().optional(),
@@ -1016,156 +996,12 @@ export const UpdateMyNotificationPreferencesBody = zod.object({
 }).describe('Partial update — only the provided fields are changed.')
 
 export const UpdateMyNotificationPreferencesResponse = zod.object({
-  "notifyPaymentReminders": zod.boolean().describe('Trial-ending and payment-past-due reminder emails'),
   "notifyListExport": zod.boolean().describe('Grocery-list export nudge'),
   "notifyReceiptReminders": zod.boolean().describe('Receipt-upload inactivity nudge'),
   "notifySpendSummary": zod.boolean().describe('Spend summary emails'),
   "notifyListExportFrequency": zod.enum(['weekly', 'monthly']).describe('How often a scheduled notification type fires'),
   "notifyReceiptRemindersFrequency": zod.enum(['weekly', 'monthly']).describe('How often a scheduled notification type fires'),
   "notifySpendSummaryFrequency": zod.enum(['weekly', 'monthly']).describe('How often a scheduled notification type fires')
-})
-
-
-/**
- * @summary Start a subscription checkout with the chosen provider
- */
-export const CreateBillingCheckoutBody = zod.object({
-  "provider": zod.enum(['stripe', 'paypal']),
-  "plan": zod.enum(['monthly', 'annual']).optional().describe('Billing cadence. Defaults to monthly. \"annual\" (Stripe only) uses the annual price and applies the 20%-off coupon for the post-trial offer.')
-})
-
-export const CreateBillingCheckoutResponse = zod.object({
-  "url": zod.string().describe('Provider redirect URL to complete checkout\/approval'),
-  "provider": zod.enum(['stripe', 'paypal'])
-})
-
-
-/**
- * @summary Get a provider URL to manage or cancel the current subscription
- */
-export const ManageBillingSubscriptionResponse = zod.object({
-  "url": zod.string().describe('Provider management\/portal URL')
-})
-
-
-/**
- * @summary Finalize a PayPal subscription after approval (server reads it from PayPal)
- */
-export const FinalizePaypalSubscriptionBody = zod.object({
-  "subscriptionId": zod.string()
-})
-
-export const FinalizePaypalSubscriptionResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullish(),
-  "isAdmin": zod.boolean(),
-  "role": zod.enum(['master_admin', 'family', 'general']),
-  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
-})
-
-
-/**
- * @summary Start the one-time, no-payment free trial
- */
-export const StartFreeTrialResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullish(),
-  "isAdmin": zod.boolean(),
-  "role": zod.enum(['master_admin', 'family', 'general']),
-  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
-})
-
-
-/**
- * @summary Mark the one-time post-signup "Choose your plan" onboarding step done
- */
-export const MarkPlanSelectedResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullish(),
-  "isAdmin": zod.boolean(),
-  "role": zod.enum(['master_admin', 'family', 'general']),
-  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
-})
-
-
-/**
- * @summary Dismiss the one-time 20%-off annual upsell so it isn't shown again
- */
-export const DismissAnnualOfferResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullish(),
-  "isAdmin": zod.boolean(),
-  "role": zod.enum(['master_admin', 'family', 'general']),
-  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
-})
-
-
-/**
- * @summary Redeem a promo code for complimentary full access
- */
-
-
-
-export const RedeemPromoCodeBody = zod.object({
-  "code": zod.string().min(1).describe('A promo code granting complimentary full access')
-})
-
-export const RedeemPromoCodeResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullish(),
-  "isAdmin": zod.boolean(),
-  "role": zod.enum(['master_admin', 'family', 'general']),
-  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code; null until the user picks a region'),
-  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
-  "planSelected": zod.boolean().describe('Whether the one-time post-signup \"Choose your plan\" step is done'),
-  "entitlement": zod.object({
-  "entitled": zod.boolean().describe('Whether the user currently has access to gated features'),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullable().describe('Which provider backs the subscription, if any'),
-  "currentPeriodEnd": zod.string().nullable().describe('ISO timestamp the current paid\/trial period ends, if known'),
-  "canStartTrial": zod.boolean().describe('Whether the one-time free trial offer is still available'),
-  "showAnnualOffer": zod.boolean().describe('Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed)')
-})
 })
 
 
@@ -1181,7 +1017,6 @@ export const AdminListUsersResponseItem = zod.object({
   "createdAt": zod.string(),
   "countryCode": zod.string().nullish(),
   "stateCode": zod.string().nullish(),
-  "planSelectedAt": zod.string().nullish().describe('Null when the user never finished the onboarding plan step'),
   "boardAutoApprove": zod.boolean().optional(),
   "storeCount": zod.number(),
   "itemCount": zod.number(),
@@ -1189,22 +1024,6 @@ export const AdminListUsersResponseItem = zod.object({
   "totalSpend": zod.number()
 })
 export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
-
-
-/**
- * @summary List all users with their subscription/entitlement status (admin only)
- */
-export const AdminListSubscribersResponseItem = zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullish(),
-  "role": zod.enum(['master_admin', 'family', 'general']),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'canceled', 'comped', 'none']),
-  "provider": zod.union([zod.literal('stripe'),zod.literal('paypal'),zod.literal(null)]).nullish(),
-  "entitled": zod.boolean(),
-  "currentPeriodEnd": zod.string().nullable(),
-  "createdAt": zod.string()
-})
-export const AdminListSubscribersResponse = zod.array(AdminListSubscribersResponseItem)
 
 
 /**
@@ -1227,7 +1046,6 @@ export const AdminSetUserRoleResponse = zod.object({
   "createdAt": zod.string(),
   "countryCode": zod.string().nullish(),
   "stateCode": zod.string().nullish(),
-  "planSelectedAt": zod.string().nullish().describe('Null when the user never finished the onboarding plan step'),
   "boardAutoApprove": zod.boolean().optional(),
   "storeCount": zod.number(),
   "itemCount": zod.number(),

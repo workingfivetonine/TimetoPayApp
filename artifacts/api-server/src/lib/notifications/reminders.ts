@@ -67,12 +67,11 @@ export async function runReminderSweep(
 
   const allUsers = await db.select().from(usersTable);
 
-  // Anyone with an email is a candidate. This used to require real billing status
-  // (entitled or past_due), which silently killed every engagement reminder once
-  // the app became free — almost no one has a subscription now, so almost no one
-  // was reaching the checks below. Opt-in is still enforced per type via the
-  // notify* toggles, which all default to false, so widening this doesn't email
-  // anyone who hasn't asked to be emailed.
+  // Anyone with an email is a candidate. This used to require a paid billing
+  // status, which silently killed every engagement reminder once the app became
+  // free — almost nobody reached the checks below. Opt-in is still enforced per
+  // type via the notify* toggles, which all default to false, so widening this
+  // doesn't email anyone who hasn't asked to be emailed.
   const eligible = allUsers.filter((u) => {
     if (!u.email) return false;
     // Signup grace: never email anyone in their first couple of days.

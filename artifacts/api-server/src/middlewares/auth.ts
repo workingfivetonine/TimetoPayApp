@@ -42,7 +42,6 @@ async function ensureUser(userId: string): Promise<User> {
       isAdmin: false,
       // Notifications are opt-IN: new users start with every reminder type OFF,
       // independent of any drifted DB column default.
-      notifyPaymentReminders: false,
       notifyListExport: false,
       notifyReceiptReminders: false,
       notifySpendSummary: false,

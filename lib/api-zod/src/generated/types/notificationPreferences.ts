@@ -8,8 +8,6 @@
 import type { NotificationFrequency } from './notificationFrequency';
 
 export interface NotificationPreferences {
-  /** Trial-ending and payment-past-due reminder emails */
-  notifyPaymentReminders: boolean;
   /** Grocery-list export nudge */
   notifyListExport: boolean;
   /** Receipt-upload inactivity nudge */

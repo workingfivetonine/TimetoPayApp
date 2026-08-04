@@ -56,8 +56,6 @@ router.delete("/", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Admin accounts can't be deleted from here." });
     return;
   }
-  // Cancel any active subscription FIRST so a deleted account stops billing.
-
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   try {
     await clerkClient.users.deleteUser(userId);

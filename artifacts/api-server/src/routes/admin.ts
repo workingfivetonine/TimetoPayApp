@@ -367,8 +367,6 @@ router.delete("/users/:userId", async (req, res): Promise<void> => {
     return;
   }
 
-  // Cancel any active subscription so the deleted user stops being billed.
-
   await deleteClerkUser(userId, req.log);
   if (target.email) void sendAccountDeletedEmail(target.email);
 

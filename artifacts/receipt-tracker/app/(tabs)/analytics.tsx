@@ -39,9 +39,7 @@ import { getApiOrigin } from "@/lib/apiBase";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useDesktop } from "@/hooks/useDesktop";
-import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { WeeklySpendBar } from "@/components/WeeklySpendBar";
 import { EmptyState } from "@/components/EmptyState";
 import { SpendCalendar } from "@/components/SpendCalendar";
@@ -140,7 +138,6 @@ export default function AnalyticsScreen() {
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
   const isDesktop = useDesktop();
-  const locked = usePremiumLock();
 
   const { data: analytics, isLoading: analyticsLoading, dataUpdatedAt } = useGetSpendAnalytics();
   const { data: dailySpend, isLoading: calendarLoading } = useGetDailySpend();
@@ -182,14 +179,14 @@ export default function AnalyticsScreen() {
     queryKey: ["analytics", "items", "inactive"],
     queryFn: () =>
       analyticsGet<{ inactive30to60: InactiveItem[]; inactive60plus: InactiveItem[] }>("items/inactive"),
-    enabled: activeTab === "items" && !locked,
+    enabled: activeTab === "items",
   });
 
   const { data: categoryData } = useQuery({
     queryKey: ["analytics", "category-spend"],
     queryFn: () =>
       analyticsGet<{ categories: CategorySpendItem[]; totalSpend: number }>("category-spend"),
-    enabled: activeTab === "items" && !locked,
+    enabled: activeTab === "items",
   });
 
   const { data: feesData } = useQuery({
@@ -202,13 +199,13 @@ export default function AnalyticsScreen() {
         allTime: number;
         byStore: { storeId: number; storeName: string; allTime: number }[];
       }>("fees"),
-    enabled: activeTab === "items" && !locked,
+    enabled: activeTab === "items",
   });
 
   const { data: bestOf } = useQuery({
     queryKey: ["analytics", "best-of"],
     queryFn: () => analyticsGet<BestOfData>("best-of"),
-    enabled: activeTab === "items" && !locked,
+    enabled: activeTab === "items",
   });
   const distanceUnit: "mi" | "km" =
     me?.countryCode === "US" || me?.countryCode === "GB" ? "mi" : "km";
@@ -472,15 +469,7 @@ export default function AnalyticsScreen() {
           )}
 
           {/* Items tab */}
-          {activeTab === "items" && locked && (
-            <PremiumUpsell
-              icon="trending-up"
-              title="Per-item price history"
-              subtitle="Track how each item's price changes over time — lowest, average, and highest across your receipts. Subscribe to unlock deep price insights."
-              compact
-            />
-          )}
-          {activeTab === "items" && !locked && (
+          {activeTab === "items" && (
             <>
               {/* Best of — where to shop */}
               {(() => {

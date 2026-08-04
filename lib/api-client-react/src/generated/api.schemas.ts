@@ -114,50 +114,6 @@ export const UserRole = {
   general: 'general',
 } as const;
 
-export type UserEntitlementStatus = typeof UserEntitlementStatus[keyof typeof UserEntitlementStatus];
-
-
-export const UserEntitlementStatus = {
-  trialing: 'trialing',
-  active: 'active',
-  past_due: 'past_due',
-  canceled: 'canceled',
-  comped: 'comped',
-  none: 'none',
-} as const;
-
-/**
- * Which provider backs the subscription, if any
- * @nullable
- */
-export type UserEntitlementProvider = typeof UserEntitlementProvider[keyof typeof UserEntitlementProvider] | null;
-
-
-export const UserEntitlementProvider = {
-  stripe: 'stripe',
-  paypal: 'paypal',
-} as const;
-
-export interface UserEntitlement {
-  /** Whether the user currently has access to gated features */
-  entitled: boolean;
-  status: UserEntitlementStatus;
-  /**
-     * Which provider backs the subscription, if any
-     * @nullable
-     */
-  provider: UserEntitlementProvider;
-  /**
-     * ISO timestamp the current paid/trial period ends, if known
-     * @nullable
-     */
-  currentPeriodEnd: string | null;
-  /** Whether the one-time free trial offer is still available */
-  canStartTrial: boolean;
-  /** Whether to show the one-time 20%-off annual upsell (free user, trial ended, not dismissed) */
-  showAnnualOffer: boolean;
-}
-
 export interface CurrentUser {
   id: string;
   /** @nullable */
@@ -174,9 +130,6 @@ export interface CurrentUser {
      * @nullable
      */
   stateCode?: string | null;
-  /** Whether the one-time post-signup "Choose your plan" step is done */
-  planSelected: boolean;
-  entitlement: UserEntitlement;
 }
 
 /**
@@ -191,8 +144,6 @@ export const NotificationFrequency = {
 } as const;
 
 export interface NotificationPreferences {
-  /** Trial-ending and payment-past-due reminder emails */
-  notifyPaymentReminders: boolean;
   /** Grocery-list export nudge */
   notifyListExport: boolean;
   /** Receipt-upload inactivity nudge */
@@ -208,69 +159,12 @@ export interface NotificationPreferences {
  * Partial update — only the provided fields are changed.
  */
 export interface NotificationPreferencesInput {
-  notifyPaymentReminders?: boolean;
   notifyListExport?: boolean;
   notifyReceiptReminders?: boolean;
   notifySpendSummary?: boolean;
   notifyListExportFrequency?: NotificationFrequency;
   notifyReceiptRemindersFrequency?: NotificationFrequency;
   notifySpendSummaryFrequency?: NotificationFrequency;
-}
-
-export type BillingCheckoutInputProvider = typeof BillingCheckoutInputProvider[keyof typeof BillingCheckoutInputProvider];
-
-
-export const BillingCheckoutInputProvider = {
-  stripe: 'stripe',
-  paypal: 'paypal',
-} as const;
-
-/**
- * Billing cadence. Defaults to monthly. "annual" (Stripe only) uses the annual price and applies the 20%-off coupon for the post-trial offer.
- */
-export type BillingCheckoutInputPlan = typeof BillingCheckoutInputPlan[keyof typeof BillingCheckoutInputPlan];
-
-
-export const BillingCheckoutInputPlan = {
-  monthly: 'monthly',
-  annual: 'annual',
-} as const;
-
-export interface BillingCheckoutInput {
-  provider: BillingCheckoutInputProvider;
-  /** Billing cadence. Defaults to monthly. "annual" (Stripe only) uses the annual price and applies the 20%-off coupon for the post-trial offer. */
-  plan?: BillingCheckoutInputPlan;
-}
-
-export type BillingCheckoutResponseProvider = typeof BillingCheckoutResponseProvider[keyof typeof BillingCheckoutResponseProvider];
-
-
-export const BillingCheckoutResponseProvider = {
-  stripe: 'stripe',
-  paypal: 'paypal',
-} as const;
-
-export interface BillingCheckoutResponse {
-  /** Provider redirect URL to complete checkout/approval */
-  url: string;
-  provider: BillingCheckoutResponseProvider;
-}
-
-export interface BillingManageResponse {
-  /** Provider management/portal URL */
-  url: string;
-}
-
-export interface PaypalFinalizeInput {
-  subscriptionId: string;
-}
-
-export interface RedeemPromoCodeInput {
-  /**
-     * A promo code granting complimentary full access
-     * @minLength 1
-     */
-  code: string;
 }
 
 export interface RegionInput {
@@ -299,53 +193,11 @@ export interface AdminUser {
   countryCode?: string | null;
   /** @nullable */
   stateCode?: string | null;
-  /**
-     * Null when the user never finished the onboarding plan step
-     * @nullable
-     */
-  planSelectedAt?: string | null;
   boardAutoApprove?: boolean;
   storeCount: number;
   itemCount: number;
   receiptCount: number;
   totalSpend: number;
-}
-
-export type AdminSubscriberStatus = typeof AdminSubscriberStatus[keyof typeof AdminSubscriberStatus];
-
-
-export const AdminSubscriberStatus = {
-  trialing: 'trialing',
-  active: 'active',
-  past_due: 'past_due',
-  canceled: 'canceled',
-  comped: 'comped',
-  none: 'none',
-} as const;
-
-/**
- * @nullable
- */
-export type AdminSubscriberProvider = typeof AdminSubscriberProvider[keyof typeof AdminSubscriberProvider] | null;
-
-
-export const AdminSubscriberProvider = {
-  stripe: 'stripe',
-  paypal: 'paypal',
-} as const;
-
-export interface AdminSubscriber {
-  id: string;
-  /** @nullable */
-  email?: string | null;
-  role: UserRole;
-  status: AdminSubscriberStatus;
-  /** @nullable */
-  provider?: AdminSubscriberProvider;
-  entitled: boolean;
-  /** @nullable */
-  currentPeriodEnd: string | null;
-  createdAt: string;
 }
 
 export interface AdminSetRoleInput {

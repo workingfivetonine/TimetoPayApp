@@ -1,5 +1,5 @@
-// Transactional lifecycle emails (signup welcome, subscription thank-you,
-// account-deleted). These are sent as Loops EVENTS — the email content and any
+// Transactional lifecycle emails (signup welcome, account-deleted, admin-forced
+// password reset). These are sent as Loops EVENTS — the email content and any
 // follow-up automation are built in the Loops dashboard, keyed to the event
 // name. Each call also keeps the Loops contact's properties fresh. No Resend.
 import { loopsSendEvent, loopsUpsertContact } from "./loops";

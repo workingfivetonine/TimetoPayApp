@@ -23,11 +23,6 @@ export interface AdminUser {
   countryCode?: string | null;
   /** @nullable */
   stateCode?: string | null;
-  /**
-     * Null when the user never finished the onboarding plan step
-     * @nullable
-     */
-  planSelectedAt?: string | null;
   boardAutoApprove?: boolean;
   storeCount: number;
   itemCount: number;

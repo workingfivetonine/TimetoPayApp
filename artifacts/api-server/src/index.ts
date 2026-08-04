@@ -33,8 +33,8 @@ app.listen(port, (err) => {
   // timers; no-op if Gmail isn't connected or no admin email is on file.
   startAdminDigestScheduler();
 
-  // Periodic opt-in email reminders (payment / list-export / receipt-inactivity
-  // / spend summaries) for subscription-related users. Unref'd timer; graceful
-  // no-op when Resend isn't connected.
+  // Periodic opt-in email reminders (list-export / receipt-inactivity / spend
+  // summaries / shopping-trip receipt nudges). Unref'd timer; graceful no-op
+  // when Loops isn't configured.
   startReminderScheduler();
 });

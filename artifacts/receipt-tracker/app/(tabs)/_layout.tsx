@@ -6,7 +6,6 @@ import React from "react";
 import { ActivityIndicator, Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useDesktop } from "@/hooks/useDesktop";
-import { usePremiumStatus } from "@/hooks/usePremiumLock";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { useBoardNotification } from "@/contexts/BoardNotification";
 
@@ -17,14 +16,6 @@ export default function TabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const isDesktop = useDesktop();
-  const premium = usePremiumStatus();
-  const showStar = premium === "locked" || premium === "trial";
-  const starColor = premium === "trial" ? colors.primary : "#F59E0B";
-  const starBg = premium === "trial" ? colors.accent : "#FEF3C7";
-  const starTip =
-    premium === "trial"
-      ? "Premium — free during your trial"
-      : "Premium — sign up for full access";
   const { isLoaded, isSignedIn } = useAuth();
   const { newCount } = useBoardNotification();
 
@@ -103,14 +94,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <View>
               <Feather name="bar-chart-2" size={22} color={color} />
-              {showStar && (
-                <View
-                  style={[tabStyles.premiumStar, { backgroundColor: starBg }]}
-                  {...(isWeb ? ({ title: starTip } as object) : {})}
-                >
-                  <Feather name="star" size={8} color={starColor} />
-                </View>
-              )}
             </View>
           ),
         }}
@@ -122,15 +105,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <View>
               <Feather name="message-square" size={22} color={color} />
-              {showStar && (
-                <View
-                  style={[tabStyles.premiumStar, { backgroundColor: starBg }]}
-                  {...(isWeb ? ({ title: starTip } as object) : {})}
-                >
-                  <Feather name="star" size={8} color={starColor} />
-                </View>
-              )}
-              {!showStar && newCount > 0 && <View style={tabStyles.notifBadge} />}
+              {newCount > 0 && <View style={tabStyles.notifBadge} />}
             </View>
           ),
         }}
@@ -153,17 +128,6 @@ export default function TabLayout() {
 }
 
 const tabStyles = StyleSheet.create({
-  premiumStar: {
-    position: "absolute",
-    top: -3,
-    right: -5,
-    backgroundColor: "#FEF3C7",
-    borderRadius: 999,
-    width: 13,
-    height: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   notifBadge: {
     position: "absolute",
     top: -3,

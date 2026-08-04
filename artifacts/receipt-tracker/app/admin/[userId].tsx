@@ -237,8 +237,8 @@ export default function AdminUserDetailScreen() {
               colors={colors}
             />
             <DetailRow
-              label="Onboarding"
-              value={current.planSelectedAt ? "Completed" : "Never finished plan step"}
+              label="Profile setup"
+              value={current.username ? "Completed" : "No username chosen yet"}
               colors={colors}
             />
             <DetailRow

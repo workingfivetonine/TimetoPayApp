@@ -26,8 +26,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { EmptyState } from "@/components/EmptyState";
-import { usePremiumLock } from "@/hooks/usePremiumLock";
-import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify } from "@/lib/confirm";
@@ -62,10 +60,9 @@ export default function CatalogBrowseScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const locked = usePremiumLock();
   const isOnline = useOnlineStatus();
   const { data, isLoading, error, dataUpdatedAt } = useBrowseCatalog({
-    query: { queryKey: getBrowseCatalogQueryKey(), enabled: !locked },
+    query: { queryKey: getBrowseCatalogQueryKey(), enabled: true },
   });
   const { data: me } = useGetCurrentUser();
   const regionLabel = (() => {
@@ -164,13 +161,7 @@ export default function CatalogBrowseScreen() {
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
 
-      {locked ? (
-        <PremiumUpsell
-          icon="grid"
-          title="Global price catalog"
-          subtitle="See what items cost across stores, aggregated from shoppers near you. Subscribe to browse the catalog and add items to your list."
-        />
-      ) : !me ? (
+      {!me ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
         </View>

@@ -12,9 +12,8 @@
 //   LOOPS_API_KEY — from app.loops.so → Settings → API
 //
 // Event names fired (build a matching email/automation in Loops for each):
-//   welcome, subscription_started, account_deleted, trial_ending,
-//   payment_past_due, list_export_ready, receipt_inactivity,
-//   weekly_summary, monthly_summary
+//   welcome, account_deleted, password_reset_required, list_export_ready,
+//   receipt_inactivity, trip_receipt_missing, weekly_summary, monthly_summary
 import { logger } from "../logger";
 
 export interface SendResult {

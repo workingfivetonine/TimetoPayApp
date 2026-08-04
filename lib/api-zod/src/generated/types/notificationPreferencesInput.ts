@@ -11,7 +11,6 @@ import type { NotificationFrequency } from './notificationFrequency';
  * Partial update — only the provided fields are changed.
  */
 export interface NotificationPreferencesInput {
-  notifyPaymentReminders?: boolean;
   notifyListExport?: boolean;
   notifyReceiptReminders?: boolean;
   notifySpendSummary?: boolean;

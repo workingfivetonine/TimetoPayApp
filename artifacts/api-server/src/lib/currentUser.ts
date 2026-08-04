@@ -6,7 +6,7 @@ type UserRow = typeof usersTable.$inferSelect;
 // so the payload is always identical.
 //
 // Previously lived in lib/billing/entitlement.ts alongside the paid-tier logic and
-// carried an `entitlement` object. The app is free, so there is nothing to be
+// carried an `entitlement` object. TimetoPay is free, so there is nothing to be
 // entitled to and no plan to choose — both fields are gone rather than reported
 // as permanently unlocked.
 export function formatCurrentUser(user: UserRow) {
