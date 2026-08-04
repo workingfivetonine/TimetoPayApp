@@ -59,7 +59,16 @@ export function useLineItemEditor() {
   // Deletes are deferred so an accidental tap can be undone; the timer commits
   // it. The row is hidden meanwhile, which is why callers must filter on
   // `pendingDeleteLiId`.
-  const [pendingDeleteLiId, setPendingDeleteLiId] = useState<number | null>(null);
+  //
+  // The pending delete carries its OWN receiptId. Batch review shares one editor
+  // instance across every receipt card, so the receipt a pending delete belongs
+  // to is not necessarily the one a later delete comes from — pre-empting with
+  // the newer receiptId invalidated the wrong cache and left the deleted row
+  // visible on the first receipt.
+  const [pendingDelete, setPendingDelete] = useState<
+    { liId: number; receiptId: number } | null
+  >(null);
+  const pendingDeleteLiId = pendingDelete?.liId ?? null;
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateItemMutation = useUpdateItem();
@@ -146,14 +155,15 @@ export function useLineItemEditor() {
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
-      if (pendingDeleteLiId !== null && pendingDeleteLiId !== liId) {
-        commitDelete(pendingDeleteLiId, receiptId);
+      // Commit against the PENDING item's own receipt, not this call's.
+      if (pendingDelete && pendingDelete.liId !== liId) {
+        commitDelete(pendingDelete.liId, pendingDelete.receiptId);
       }
     }
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setPendingDeleteLiId(liId);
+    setPendingDelete({ liId, receiptId });
     undoTimerRef.current = setTimeout(() => {
-      setPendingDeleteLiId(null);
+      setPendingDelete(null);
       undoTimerRef.current = null;
       commitDelete(liId, receiptId);
     }, UNDO_WINDOW_MS);
@@ -164,7 +174,7 @@ export function useLineItemEditor() {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
     }
-    setPendingDeleteLiId(null);
+    setPendingDelete(null);
   };
 
   return {

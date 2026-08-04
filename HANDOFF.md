@@ -29,17 +29,19 @@ Share-to-app: `expo-share-intent` wired in — **not verified**, see Blocked bel
 
 ### Three things need doing before this is fully live
 
-1. **DB migration required**, and it is no longer purely additive:
+1. **DB migration — now optional, and only for the destructive half.** The additive changes
+   (`receipts.tax`, `receipts.discount`, `shopping_trips`) are applied automatically at server boot by
+   `ensureSchemaColumns` in `bootstrap.ts`, per the repo's established convention, so a deploy landing
+   before any manual step degrades gracefully instead of 500ing. Running
    ```
    pnpm --filter @workspace/db run push
    ```
-   Adds `receipts.tax`, `receipts.discount` and the `shopping_trips` table — without these, saving a
-   scan and closing a trip both fail. It will ALSO offer to **drop** the retired billing columns
+   is therefore only needed if you also want to **drop** the retired billing columns
    (`subscription_*`, `trial_started_at`, `plan_selected_at`, `annual_offer_dismissed_at`,
    `stripe_*`, `paypal_subscription_id`, `comp_access`, `notify_payment_reminders`,
    `last_trial_ending_sent_at`, `last_past_due_sent_at`). Read the prompts — dropping them is
-   intended and the data is dead, but it is destructive, so decide deliberately rather than
-   accepting blind. Leaving them in place is harmless; nothing reads them.
+   intended and the data is dead, but it is destructive, so decide deliberately rather than accepting
+   blind. Leaving them in place is harmless; nothing reads them.
    (Couldn't run here — no `DATABASE_URL` in the cloud container. A local session with the real
    `.env` can just run it.)
 2. **Share-to-app is unverified.** The share target comes from `Info.plist`/`AndroidManifest`

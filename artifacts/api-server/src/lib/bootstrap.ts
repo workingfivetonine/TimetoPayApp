@@ -197,6 +197,29 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "line_items" ADD COLUMN IF NOT EXISTS "unit" text`);
   // Delivery / service fee captured from a receipt (feeds "additional fees" analytics).
   await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "delivery_fee" numeric(10, 2)`);
+  // Receipt-level tax / discount magnitudes, captured by the scan prompt as fields
+  // rather than line items. Drizzle emits an explicit column list on SELECT, so a
+  // deploy landing before these exist would 500 the whole Receipts list, not just
+  // the save path — hence self-healing here like every other additive column.
+  await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "tax" numeric(10, 2)`);
+  await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "discount" numeric(10, 2)`);
+  // Finished Shopping Mode trips — written by POST /shopping-list/trips and read
+  // by the trip_receipt_missing reminder sweep. Both are live the moment the new
+  // server code deploys, so the table has to exist without waiting for a manual
+  // drizzle-kit push.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "shopping_trips" (
+    "id" serial PRIMARY KEY,
+    "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "closed_at" timestamptz NOT NULL DEFAULT now(),
+    "items_picked" integer NOT NULL DEFAULT 0,
+    "items_planned" integer NOT NULL DEFAULT 0,
+    "receipt_logged_at" timestamptz,
+    "reminder_sent_at" timestamptz,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "shopping_trips_user_closed_idx" ON "shopping_trips" ("user_id", "closed_at")`,
+  );
   // Optional user home address + geocoded coordinates for store "distance from".
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "address" text`);
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "latitude" numeric(9, 6)`);

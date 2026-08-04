@@ -371,29 +371,37 @@ export function ShoppingListPdfModal({
     setMergePairs((prev) => prev.map((p) => (p.id === id ? { ...p, dismissed: true } : p)));
   };
 
+  // Accepting a merge always discards itemB and keeps itemA's slot; the two
+  // branches differ only in which NAME is displayed on that slot.
+  //
+  // The discarded id has to land in BOTH sets, and they are not redundant:
+  // `mergedOut` hides the row outright in here and in the PDF/Share output, while
+  // `excluded` is what the parent screen reads to build the Shopping Mode list.
+  // Adding to `mergedOut` alone made the duplicate vanish from Create list but
+  // reappear as its own tickable row in Shopping, double-counting in the basket
+  // total. `mergedOut` is local (nothing outside needs "hide entirely"), so the
+  // sync has to happen here.
+  const acceptMerge = (pair: MergePair, displayName?: string) => {
+    setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
+    if (displayName !== undefined) {
+      setNameOverrides((prev) => new Map([...prev, [pair.itemA.itemId, displayName]]));
+    }
+    setExcluded((prev) => {
+      const n = new Set(prev);
+      n.delete(pair.itemA.itemId);
+      n.add(pair.itemB.itemId);
+      return n;
+    });
+    dismissPair(pair.id);
+  };
+
   const handleMerge = (pair: MergePair) => {
     Alert.alert(
       "Merge Similar Items",
       `"${pair.itemA.itemName}" and "${pair.itemB.itemName}" look similar.\n\nWhich name should be kept?`,
       [
-        {
-          text: pair.itemA.itemName,
-          onPress: () => {
-            setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
-            setExcluded((prev) => { const n = new Set(prev); n.delete(pair.itemA.itemId); return n; });
-            dismissPair(pair.id);
-          },
-        },
-        {
-          text: pair.itemB.itemName,
-          onPress: () => {
-            // Keep itemA's slot but display with itemB's name
-            setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
-            setNameOverrides((prev) => new Map([...prev, [pair.itemA.itemId, pair.itemB.itemName]]));
-            setExcluded((prev) => { const n = new Set(prev); n.delete(pair.itemA.itemId); return n; });
-            dismissPair(pair.id);
-          },
-        },
+        { text: pair.itemA.itemName, onPress: () => acceptMerge(pair) },
+        { text: pair.itemB.itemName, onPress: () => acceptMerge(pair, pair.itemB.itemName) },
         { text: "Cancel", style: "cancel" },
       ],
     );
