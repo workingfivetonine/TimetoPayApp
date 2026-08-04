@@ -103,6 +103,9 @@ export default function ShoppingScreen() {
   // row displays. Held here for the same reason as the rest.
   const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
   const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
+  // Merge suggestions the user rejected. Held here so a rejection survives both a
+  // tab switch and the suggestion list being recomputed after any unrelated edit.
+  const [dismissedPairs, setDismissedPairs] = useState<Set<string>>(new Set());
   // What's already in the basket this trip. Owned here for the same reason: the
   // Shopping view unmounts on a tab switch, and losing this would throw away the
   // shopper's progress mid-trip while the trip is still open. Still not persisted
@@ -387,6 +390,8 @@ export default function ShoppingScreen() {
           onMergedOutChange={setMergedOut}
           nameOverrides={nameOverrides}
           onNameOverridesChange={setNameOverrides}
+          dismissedPairs={dismissedPairs}
+          onDismissedPairsChange={setDismissedPairs}
         />
       ) : view === "shop" ? (
         <ShoppingModeView

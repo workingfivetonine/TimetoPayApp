@@ -218,6 +218,8 @@ export interface AdminMergeResult {
 
 export interface AdminActionResult {
   success: boolean;
+  /** Only returned by force-password-reset: whether the user had an email address to notify. Not a delivery confirmation — the Loops event is fire-and-forget and no-ops if the Loop isn't built yet. */
+  emailSent?: boolean;
 }
 
 export interface AdminReviewDigestResult {

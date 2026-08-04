@@ -969,7 +969,13 @@ async function persistParsedReceipt(userId: string, parsed: {
     // for fuzzy-matching scanned names, loaded once for the whole receipt rather
     // than per line item. Scoped to the store on purpose: "Bread" at one shop
     // shouldn't absorb a differently-branded "Bread" only ever bought elsewhere.
-    const storeHistory = await tx
+    //
+    // Mutable: the loop below appends each item it creates or resolves, so two
+    // fuzzy-but-not-identical renderings of the same product ON ONE RECEIPT
+    // ("Sourdough Bread" and "Sourdoug Bred") collapse to one item. The
+    // exact-name lookup already got this for free by re-querying each iteration;
+    // without the append the fuzzy path was the only one blind to its own work.
+    const storeHistory: { id: number; name: string }[] = await tx
       .selectDistinct({ id: itemsTable.id, name: itemsTable.name })
       .from(lineItemsTable)
       .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
@@ -995,6 +1001,7 @@ async function persistParsedReceipt(userId: string, parsed: {
         }
       }
       const liCategory = isValidCategory(li.category) ? li.category : categoryForItemName(li.name);
+      const isNewItem = !item;
       if (!item) {
         const icon = li.icon || iconForItemName(li.name);
         [item] = await tx.insert(itemsTable).values({ name: li.name, icon, category: liCategory, purchaseCount: 1, userId }).returning();
@@ -1012,6 +1019,13 @@ async function persistParsedReceipt(userId: string, parsed: {
         item.purchaseCount += 1;
         if (backfillIcon) item.icon = backfillIcon;
         if (backfillCategory) item.category = backfillCategory;
+      }
+
+      // Make this item visible to later line items on the same receipt. Only for
+      // ones not already in the candidate set — an exact-name hit on a product
+      // bought here before is already present, and selectDistinct means no dupes.
+      if (isNewItem || !storeHistory.some((c) => c.id === item.id)) {
+        storeHistory.push({ id: item.id, name: item.name });
       }
 
       const [lineItem] = await tx
