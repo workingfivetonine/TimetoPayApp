@@ -35,6 +35,14 @@ interface Props {
   recurring: ShoppingListItem[];
   oneOff: ShoppingListItem[];
   preparedFor: string;
+  // Rendered as a sub-tab of the shopping screen rather than a modal: no
+  // overlay, no sheet chrome, no close button (switching tabs is the way out).
+  inline?: boolean;
+  // Selection is owned by the parent when inline, so it survives switching
+  // sub-tabs and so Shopping Mode can read the ticked set. `excluded` holds the
+  // DEselected item ids — empty means everything is included.
+  excluded?: Set<number>;
+  onExcludedChange?: (next: Set<number>) => void;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -115,12 +123,23 @@ export function ShoppingListPdfModal({
   recurring,
   oneOff,
   preparedFor,
+  inline = false,
+  excluded: excludedProp,
+  onExcludedChange,
 }: Props) {
   const colors = useColors();
   const { symbol } = useCurrency();
 
-  // Core selection state
-  const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  // Core selection state. Controlled by the parent when it passes `excluded`
+  // (the inline/sub-tab case); otherwise owned locally, as the modal always did.
+  const [excludedLocal, setExcludedLocal] = useState<Set<number>>(new Set());
+  const controlled = excludedProp !== undefined;
+  const excluded = controlled ? excludedProp : excludedLocal;
+  const setExcluded = (updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+    const next = typeof updater === "function" ? updater(excluded) : updater;
+    if (controlled) onExcludedChange?.(next);
+    else setExcludedLocal(next);
+  };
   const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
   const [customItems, setCustomItems] = useState<string[]>([]);
   const [customInput, setCustomInput] = useState("");
@@ -138,8 +157,11 @@ export function ShoppingListPdfModal({
   const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
   const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
 
-  // Reset all state each time the modal opens
+  // Reset state each time the modal opens. Skipped entirely when inline: as a
+  // sub-tab there is no "open" moment, and wiping the selection on every tab
+  // switch would defeat the point of the parent owning it.
   useEffect(() => {
+    if (inline) return;
     if (visible) {
       setExcluded(new Set());
       setQuantities(new Map());
@@ -155,7 +177,15 @@ export function ShoppingListPdfModal({
       setMergePairs(findSimilarPairs([...recurring, ...oneOff]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, inline]);
+
+  // Inline has no open event, so merge suggestions are computed from the list
+  // itself and refresh when the list changes.
+  useEffect(() => {
+    if (!inline) return;
+    setMergePairs(findSimilarPairs([...recurring, ...oneOff]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inline, recurring, oneOff]);
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
@@ -529,22 +559,36 @@ export function ShoppingListPdfModal({
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+  // Inline drops the overlay/sheet framing and the close button so the content
+  // sits directly in the sub-tab; the modal path is unchanged.
+  const Frame = ({ children }: { children: React.ReactNode }) =>
+    inline ? (
+      <View style={[styles.inlineRoot, { backgroundColor: colors.background }]}>{children}</View>
+    ) : (
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={[styles.sheet, { backgroundColor: colors.background }]}>{children}</View>
+        </View>
+      </Modal>
+    );
 
+  return (
+    <Frame>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.title, { color: colors.foreground }]}>Review & Export</Text>
+              <Text style={[styles.title, { color: colors.foreground }]}>
+                {inline ? "Build your list" : "Review & Export"}
+              </Text>
               <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
                 {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close">
-              <Feather name="x" size={22} color={colors.mutedForeground} />
-            </TouchableOpacity>
+            {inline ? null : (
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close">
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Filter bar */}
@@ -788,13 +832,16 @@ export function ShoppingListPdfModal({
               { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? 28 : 16 },
             ]}
           >
-            <TouchableOpacity
-              style={[styles.cancelBtn, { borderColor: colors.border }]}
-              onPress={onClose}
-              disabled={generating}
-            >
-              <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
-            </TouchableOpacity>
+            {/* No Cancel inline — switching sub-tabs is how you leave. */}
+            {inline ? null : (
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={onClose}
+                disabled={generating}
+              >
+                <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.shareBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
               onPress={handleShareText}
@@ -819,14 +866,12 @@ export function ShoppingListPdfModal({
               )}
             </TouchableOpacity>
           </View>
-
-        </View>
-      </View>
-    </Modal>
+    </Frame>
   );
 }
 
 const styles = StyleSheet.create({
+  inlineRoot: { flex: 1 },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
