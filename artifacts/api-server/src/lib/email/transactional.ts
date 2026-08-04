@@ -30,7 +30,11 @@ export async function sendAccountDeletedEmail(email: string): Promise<void> {
 // password" flow on the sign-in screen.
 export async function sendPasswordResetRequiredEmail(email: string): Promise<void> {
   try {
-    await loopsSendEvent(email, "password_reset_required");
+    await loopsSendEvent(email, "password_reset_required", {
+      // Sent so the template can greet by name without depending on the contact
+      // already having been created by the welcome event.
+      contactProperties: { firstName: displayNameFromEmail(email) },
+    });
   } catch (err) {
     logger.error({ err }, "Password-reset-required event failed");
   }

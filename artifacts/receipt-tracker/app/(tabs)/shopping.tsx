@@ -103,6 +103,12 @@ export default function ShoppingScreen() {
   // row displays. Held here for the same reason as the rest.
   const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
   const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
+  // What's already in the basket this trip. Owned here for the same reason: the
+  // Shopping view unmounts on a tab switch, and losing this would throw away the
+  // shopper's progress mid-trip while the trip is still open. Still not persisted
+  // beyond the screen — a stale half-ticked list on the next trip is worse than
+  // starting clean — so it's cleared on "Done shopping".
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -236,6 +242,9 @@ export default function ShoppingScreen() {
   // tab switch or backgrounding, both of which happen constantly mid-shop.
   const handleDoneShopping = async ({ picked }: { picked: number; total: number }) => {
     setView("items");
+    // The trip is over, so the basket resets. This is the ONLY thing that clears
+    // it — a tab switch must not.
+    setPicked(new Set());
     notify(
       picked > 0 ? "Trip finished" : "Trip closed",
       picked > 0
@@ -383,6 +392,8 @@ export default function ShoppingScreen() {
         <ShoppingModeView
           items={selectedItems}
           customItems={customItems}
+          picked={picked}
+          onPickedChange={setPicked}
           onDoneShopping={handleDoneShopping}
         />
       ) : matchCount === 0 ? (

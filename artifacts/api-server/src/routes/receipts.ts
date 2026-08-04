@@ -1256,9 +1256,14 @@ router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
       totalPages = dims.pages;
     } else {
       try {
-        // No `max` here — this call only counts pages (rendering still happens
-        // per-page via pdftoppm below), so we want the real, uncapped total.
-        const { numpages } = await pdfParse(buffer);
+        // `max: 1` bounds the EXTRACTION loop, not the reported count: pdf-parse
+        // sets `numpages` from the document's page-count metadata before that loop
+        // runs, so the true uncapped total comes back either way. Without a bound
+        // this walks and extracts text from every page of a document that pdfinfo
+        // already failed to parse — CPU spent before the AI budget or the render
+        // cap apply, and there's no wall-clock timeout on this call. We only want
+        // the count here; rendering happens per-page via pdftoppm below.
+        const { numpages } = await pdfParse(buffer, { max: 1 });
         totalPages = numpages;
       } catch {
         totalPages = 1;

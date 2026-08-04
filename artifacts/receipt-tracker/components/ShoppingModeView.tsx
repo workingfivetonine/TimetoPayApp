@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -13,6 +13,12 @@ interface Props {
   // Free-text extras added in Create list; they have no item id, so they're
   // tracked separately by name.
   customItems: string[];
+  // Ticked-off state is owned by the parent. It has to be: this view lives in a
+  // ternary on the active sub-tab, so tapping over to Items to check a price
+  // unmounts it, and anything held locally would take the shopper's progress with
+  // it — mid-trip, with the trip still open. Cleared on "Done shopping" only.
+  picked: Set<string>;
+  onPickedChange: React.Dispatch<React.SetStateAction<Set<string>>>;
   onDoneShopping: (summary: { picked: number; total: number }) => void | Promise<void>;
 }
 
@@ -20,14 +26,15 @@ interface Props {
 // it goes in the basket. Deliberately not the same list rows as the Items tab —
 // nothing here navigates away or offers Ran Out / Buy More, because the one job
 // while standing in a shop is "have I got this yet".
-export function ShoppingModeView({ items, customItems, onDoneShopping }: Props) {
+export function ShoppingModeView({
+  items,
+  customItems,
+  picked,
+  onPickedChange: setPicked,
+  onDoneShopping,
+}: Props) {
   const colors = useColors();
   const { format } = useCurrency();
-
-  // Ticked-off-in-basket state, local to the trip and intentionally not
-  // persisted — a trip is a single sitting, and a stale half-ticked list on the
-  // next trip would be worse than starting clean.
-  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   // Item ids and custom names share one key space so both can be ticked.
   const rows = useMemo(
