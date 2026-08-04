@@ -6,34 +6,28 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
   Platform,
-  KeyboardAvoidingView,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@clerk/expo";
 import * as Haptics from "expo-haptics";
 import {
   useGetReceipt,
   useDeleteReceipt,
-  getGetReceiptQueryKey,
   getListReceiptsQueryKey,
   getGetShoppingListQueryKey,
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
   getListItemsQueryKey,
-  getListStoresQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify, confirmDestructive } from "@/lib/confirm";
-import { getApiOrigin } from "@/lib/apiBase";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { StoreNameField } from "@/components/StoreNameField";
+import { useStoreEditor, StoreEditModal } from "@/components/StoreEditModal";
 import {
   useLineItemEditor,
   LineItemEditModal,
@@ -49,12 +43,9 @@ export default function ReceiptDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { getToken } = useAuth();
   const editor = useLineItemEditor();
   const { pendingDeleteLiId } = editor;
-  const [editingStore, setEditingStore] = useState(false);
-  const [editStoreName, setEditStoreName] = useState("");
-  const [savingStore, setSavingStore] = useState(false);
+  const storeEditor = useStoreEditor();
 
   const receiptId = parseInt(id ?? "0");
   const { data: receipt, isLoading, dataUpdatedAt } = useGetReceipt(receiptId);
@@ -92,41 +83,6 @@ export default function ReceiptDetailScreen() {
     });
   };
 
-  const handleSaveStoreEdit = async () => {
-    const name = editStoreName.trim();
-    if (!name) {
-      notify("Store name required", "Enter a store name.");
-      return;
-    }
-    if (!isOnline) {
-      notify("You're offline", "Connect to the internet to change the store.");
-      return;
-    }
-    setSavingStore(true);
-    try {
-      const token = await getToken();
-      const res = await fetch(`${getApiOrigin()}/api/receipts/${receiptId}/store`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-client-platform": Platform.OS,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ storeName: name }),
-      });
-      if (!res.ok) throw new Error(`store update ${res.status}`);
-      queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
-      queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
-      setEditingStore(false);
-    } catch {
-      notify("Couldn't save", "Please try again.");
-    } finally {
-      setSavingStore(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -161,10 +117,7 @@ export default function ReceiptDetailScreen() {
         <View style={styles.headerInfo}>
           <TouchableOpacity
             style={styles.storeNameRow}
-            onPress={() => {
-              setEditStoreName(receipt.storeName);
-              setEditingStore(true);
-            }}
+            onPress={() => storeEditor.open(receiptId, receipt.storeName)}
             accessibilityLabel="Edit store name"
           >
             <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
@@ -288,33 +241,7 @@ export default function ReceiptDetailScreen() {
 
       <LineItemUndoBanner editor={editor} />
 
-      {/* Edit Store Modal — moves THIS receipt to another store (creating it if
-          new); it never renames the store other receipts still point at. */}
-      <Modal visible={editingStore} animationType="slide" presentationStyle="formSheet">
-        <KeyboardAvoidingView
-          style={[styles.modalContainer, { backgroundColor: colors.background }]}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
-            <TouchableOpacity onPress={() => setEditingStore(false)}>
-              <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Store</Text>
-            <TouchableOpacity onPress={handleSaveStoreEdit} disabled={savingStore}>
-              <Text style={[styles.modalSave, { color: colors.primary, opacity: savingStore ? 0.5 : 1 }]}>
-                {savingStore ? "Saving…" : "Save"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>STORE</Text>
-            <StoreNameField value={editStoreName} onChangeText={setEditStoreName} autoFocus />
-            <Text style={[styles.modalHint, { color: colors.mutedForeground }]}>
-              Only this receipt moves. Other receipts keep their current store.
-            </Text>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+      <StoreEditModal editor={storeEditor} />
 
       <LineItemEditModal editor={editor} />
     </View>
@@ -377,26 +304,6 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   totalAmount: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  modalContainer: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  modalCancel: { fontSize: 16, fontFamily: "Inter_400Regular" },
-  modalSave: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  modalContent: { padding: 20 },
-  modalHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 12 },
-  fieldLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 0.6,
-    marginBottom: 8,
-    marginTop: 16,
-  },
   deleteBtn: {
     flexDirection: "row",
     alignItems: "center",
