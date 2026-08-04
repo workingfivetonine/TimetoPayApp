@@ -881,8 +881,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   priceToggleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  chipScroll: { flexGrow: 0 },
-  chipRow: { gap: 6, paddingHorizontal: 2 },
+  // Same guard as the board's filter row: a horizontal ScrollView has no
+  // intrinsic height, so give it one it can't be squeezed below.
+  chipScroll: { flexGrow: 0, flexShrink: 0, minHeight: 30 },
+  chipRow: { gap: 6, paddingHorizontal: 2, alignItems: "center", minHeight: 30 },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 4,
