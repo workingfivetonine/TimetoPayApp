@@ -15,6 +15,14 @@ export const receiptsTable = pgTable("receipts", {
   // it's kept off the line items). Null = none detected. Feeds the "additional
   // fees" analytics. Visual-only currency, like `total`.
   deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }),
+  // Sales tax / VAT / GST charged on the receipt. Like deliveryFee, it qualifies
+  // the total rather than being something purchased, so it stays off the line
+  // items. Null = none detected.
+  tax: numeric("tax", { precision: 10, scale: 2 }),
+  // Total discounts / coupons / loyalty savings, stored as a POSITIVE magnitude
+  // (the amount subtracted) so display and summing stay consistent with the
+  // other adjustment columns. Null = none detected.
+  discount: numeric("discount", { precision: 10, scale: 2 }),
   imageUri: text("image_uri"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

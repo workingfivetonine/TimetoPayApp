@@ -6,14 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface LineItem {
-  id: number;
-  receiptId: number;
+export interface InactiveItem {
   itemId: number;
   itemName: string;
   /** @nullable */
   icon?: string | null;
-  price: number;
-  quantity: number;
-  createdAt: string;
+  /** @nullable */
+  lastPurchasedAt?: string | null;
+  daysSinceLastPurchase: number;
 }

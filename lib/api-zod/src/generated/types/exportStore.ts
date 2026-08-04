@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ItemUpdate {
-  name?: string;
+export interface ExportStore {
+  storeId: number;
+  name: string;
   /** @nullable */
-  icon?: string | null;
+  address?: string | null;
   /** @nullable */
-  notes?: string | null;
+  phone?: string | null;
 }

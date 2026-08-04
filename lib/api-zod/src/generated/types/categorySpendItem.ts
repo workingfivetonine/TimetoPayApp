@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MergeItemInput {
-  /** The id of the item to merge this item into */
-  targetId: number;
+export interface CategorySpendItem {
+  category: string;
+  totalSpend: number;
+  percentOfTotal: number;
 }

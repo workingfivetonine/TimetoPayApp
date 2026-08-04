@@ -149,6 +149,8 @@ export default function ReviewReceiptScreen() {
           purchasedAt: toIso(receipt.purchasedAt),
           total: receipt.total,
           deliveryFee: receipt.deliveryFee ?? undefined,
+          tax: receipt.tax ?? undefined,
+          discount: receipt.discount ?? undefined,
           lineItems: receipt.lineItems.map((li) => ({
             name: li.name,
             price: li.price,
@@ -185,15 +187,20 @@ export default function ReviewReceiptScreen() {
     const n = parseFloat(v);
     setReceipt((r) => r && { ...r, total: isNaN(n) ? r.total : n, totalUncertain: false });
   };
-  const setDeliveryFee = (v: string) => {
+  // Delivery fee, tax and discount share one shape: optional positive amounts
+  // that qualify the total. Blank clears the field rather than forcing a 0.
+  const setAdjustment = (key: "deliveryFee" | "tax" | "discount") => (v: string) => {
     const trimmed = v.trim();
     if (trimmed === "") {
-      setReceipt((r) => r && { ...r, deliveryFee: null });
+      setReceipt((r) => r && { ...r, [key]: null });
       return;
     }
     const n = parseFloat(trimmed);
-    setReceipt((r) => r && { ...r, deliveryFee: isNaN(n) ? r.deliveryFee ?? null : n });
+    setReceipt((r) => r && { ...r, [key]: isNaN(n) ? r[key] ?? null : n });
   };
+  const setDeliveryFee = setAdjustment("deliveryFee");
+  const setTax = setAdjustment("tax");
+  const setDiscount = setAdjustment("discount");
   const setItemField = (
     idx: number,
     field: "name" | "price" | "quantity",
@@ -382,6 +389,39 @@ export default function ReviewReceiptScreen() {
               placeholderTextColor={colors.mutedForeground}
               returnKeyType="done"
             />
+          </View>
+
+          {/* Tax + discount — like the fee above, these qualify the total and
+              are never line items. Discount is entered as a positive amount. */}
+          <View style={styles.twoColRow}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Tax (optional)
+              </Text>
+              <TextInput
+                style={[styles.fieldInput, fieldStyle(false)]}
+                value={numVal("tax", receipt.tax ?? 0)}
+                onChangeText={(v) => setNum("tax", v, () => setTax(v))}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Discount (optional)
+              </Text>
+              <TextInput
+                style={[styles.fieldInput, fieldStyle(false)]}
+                value={numVal("discount", receipt.discount ?? 0)}
+                onChangeText={(v) => setNum("discount", v, () => setDiscount(v))}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+              />
+            </View>
           </View>
         </View>
 

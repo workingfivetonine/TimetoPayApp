@@ -221,8 +221,8 @@ TYPICAL RECEIPT LAYOUT — use this as a reference map when reading the image:
   │  CHKN BRST 500G          1   3.75   │  ← expand abbrev → "Chicken Breast 500g"
   │─────────────────────────────────────│
   │  Subtotal:                   9.73   │  ← IGNORE (not a line item)
-  │  Loyalty discount:          -0.50   │  ← IGNORE
-  │  VAT (20%):                  1.62   │  ← IGNORE
+  │  Loyalty discount:          -0.50   │  ← discount (NOT a line item)
+  │  VAT (20%):                  1.62   │  ← tax (NOT a line item)
   │  Delivery fee:               1.99   │  ← deliveryFee (NOT a line item)
   │  Tip:                        1.00   │  ← IGNORE
   │─────────────────────────────────────│
@@ -245,6 +245,8 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
   "total": 10.23,
   "totalUncertain": false,
   "deliveryFee": 1.99,
+  "tax": 1.62,
+  "discount": 0.50,
   "lineItems": [
     { "name": "Whole Milk 2L",       "icon": "🥛", "category": "Dairy & Eggs",    "price": 1.35, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
     { "name": "Free Range Eggs",     "icon": "🥚", "category": "Dairy & Eggs",    "price": 2.49, "quantity": 2, "nameUncertain": false, "priceUncertain": false },
@@ -267,6 +269,8 @@ Now extract data from the receipt image provided and return ONLY a single valid 
   "total": <final total paid as a number>,
   "totalUncertain": <true if total was blurry/missing/guessed, false if clearly readable>,
   "deliveryFee": <the delivery and/or service fee charged, as a number; 0 if the receipt shows none>,
+  "tax": <total sales tax / VAT / GST charged, as a positive number; 0 if the receipt shows none>,
+  "discount": <total discounts / coupons / loyalty savings, as a POSITIVE number; 0 if the receipt shows none>,
   "lineItems": [
     {
       "name": "Clean Title Case name",
@@ -284,8 +288,10 @@ Rules:
 - storeCountryCode: infer the store's country from the address, currency symbol, phone format, language, or tax labels (e.g. "VAT" → UK/EU, "GST" → AU/CA, "$" with a US state abbreviation → US). Return the uppercase ISO-3166 alpha-2 code (e.g. "US", "GB", "CA", "AU"). If you genuinely cannot tell, return null.
 - storeStateCode: ONLY for a US store, return the USPS 2-letter state code (e.g. "CA", "NY", "TX") read from the address. For any non-US store, or if the US state is unreadable, return null.
 - storeAddress: the store branch's street address printed near the top of the receipt (typically under the store name). Include street, city, and postal/zip code if shown, as a single line. Return null if no address is printed. This is the STORE's location — never the customer's.
-- Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
+- lineItems must contain ONLY purchased product lines — never subtotals, taxes, discounts, delivery fees, tips, or loyalty points. Tax, discounts and delivery fees are captured in their own top-level fields below instead.
 - deliveryFee: capture the delivery fee and/or service/handling fee charged for the order (sum them if both appear) as a positive number. This is NOT a line item — never add it to lineItems. If the receipt shows no delivery or service fee (e.g. an in-store purchase), return 0. Do NOT count tips, taxes, or bag fees here.
+- tax: sum every sales-tax line (VAT, GST, state/local tax, etc.) as a positive number. This is NOT a line item. Return 0 if no tax is shown or it's already included with no separate line.
+- discount: sum every discount, coupon, promotion, or loyalty-saving line as a POSITIVE number (0.50, not -0.50), even though the receipt prints it as a deduction. This is NOT a line item. Return 0 if none are shown.
 - icon must be exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots, 🍗 chicken, 🧻 paper towels). If unsure, use 🛒.
 - category MUST be EXACTLY one of these fixed values (copy verbatim): "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". Pick the single best fit; use "Other" only if nothing else fits.
 - price is always the per-unit price; if only a line total is shown for qty > 1, divide to get the unit price.
@@ -304,6 +310,8 @@ type ParsedReceipt = {
   purchasedAt: string;
   total: number;
   deliveryFee?: number | null;
+  tax?: number | null;
+  discount?: number | null;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
 };
 
@@ -363,6 +371,8 @@ function formatReceipt(
     total: Number(r.total),
     totalBeforeTax: r.totalBeforeTax != null ? Number(r.totalBeforeTax) : null,
     deliveryFee: r.deliveryFee != null ? Number(r.deliveryFee) : null,
+    tax: r.tax != null ? Number(r.tax) : null,
+    discount: r.discount != null ? Number(r.discount) : null,
     purchasedAt: r.purchasedAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
   };
@@ -448,9 +458,23 @@ router.post("/merge", async (req, res): Promise<void> => {
       const combinedBeforeTax = allHaveBeforeTax
         ? String(rows.reduce((sum, r) => sum + Number(r.receipt.totalBeforeTax), 0))
         : null;
+      // Tax / discount / delivery fee sum across every merged receipt, treating
+      // a missing value as 0. Unlike totalBeforeTax there's no all-or-nothing
+      // rule: one page of a multi-page receipt carrying the tax line while the
+      // others don't is normal, and that shouldn't discard it.
+      const sumAdjustment = (pick: (r: (typeof rows)[number]) => string | null) => {
+        const total = rows.reduce((sum, r) => sum + Number(pick(r) ?? 0), 0);
+        return total > 0 ? String(total) : null;
+      };
       await tx
         .update(receiptsTable)
-        .set({ total: String(combinedTotal), totalBeforeTax: combinedBeforeTax })
+        .set({
+          total: String(combinedTotal),
+          totalBeforeTax: combinedBeforeTax,
+          tax: sumAdjustment((r) => r.receipt.tax),
+          discount: sumAdjustment((r) => r.receipt.discount),
+          deliveryFee: sumAdjustment((r) => r.receipt.deliveryFee),
+        })
         .where(eq(receiptsTable.id, target.id));
 
       // Delete the now-empty source receipts (line items already moved).
@@ -895,6 +919,8 @@ async function persistParsedReceipt(userId: string, parsed: {
   purchasedAt: string;
   total: number;
   deliveryFee?: number | null;
+  tax?: number | null;
+  discount?: number | null;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[];
 }) {
   // Uploading user's own region, used as the fallback for new/unstamped stores.
@@ -956,11 +982,16 @@ async function persistParsedReceipt(userId: string, parsed: {
         storeId: store.id,
         purchasedAt: new Date(parsed.purchasedAt),
         total: String(parsed.total),
-        // Only persist a delivery fee when one was actually detected (> 0).
+        // Only persist these adjustments when one was actually detected (> 0),
+        // so a receipt with no tax/discount/fee stays null rather than showing
+        // a meaningless 0.00 row.
         deliveryFee:
           parsed.deliveryFee != null && parsed.deliveryFee > 0
             ? String(parsed.deliveryFee)
             : null,
+        tax: parsed.tax != null && parsed.tax > 0 ? String(parsed.tax) : null,
+        discount:
+          parsed.discount != null && parsed.discount > 0 ? String(parsed.discount) : null,
       })
       .returning();
 
@@ -1124,7 +1155,7 @@ router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; storeAddress?: string | null; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
+  const parsed = req.body as { storeName: string; storeAddress?: string | null; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; tax?: number | null; discount?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;

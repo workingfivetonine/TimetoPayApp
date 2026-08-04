@@ -1831,6 +1831,8 @@ components:
           type: ["number", "null"]
         notes:
           type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
 
@@ -1942,6 +1944,13 @@ components:
           type: number
         totalBeforeTax:
           type: ["number", "null"]
+        deliveryFee:
+          type: ["number", "null"]
+        tax:
+          type: ["number", "null"]
+        discount:
+          type: ["number", "null"]
+          description: Total discounts as a positive magnitude (the amount subtracted)
         imageUri:
           type: ["string", "null"]
         notes:
@@ -2020,6 +2029,13 @@ components:
           type: number
         totalBeforeTax:
           type: ["number", "null"]
+        deliveryFee:
+          type: ["number", "null"]
+        tax:
+          type: ["number", "null"]
+        discount:
+          type: ["number", "null"]
+          description: Total discounts as a positive magnitude (the amount subtracted)
         imageUri:
           type: ["string", "null"]
         notes:

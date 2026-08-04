@@ -360,18 +360,25 @@ export default function ReceiptDetailScreen() {
         {/* Total summary */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {(() => {
-            // deliveryFee is a drifted field not in the generated type — read via cast.
-            const deliveryFee = (receipt as { deliveryFee?: number | null }).deliveryFee;
-            return deliveryFee != null && deliveryFee > 0 ? (
-              <View style={[styles.totalRow, { marginBottom: 8 }]}>
+            // These qualify the total rather than being purchased items, so they
+            // sit above it here instead of in the item list.
+            const adj = receipt;
+            const rows: { label: string; amount: number; negative?: boolean }[] = [];
+            if (adj.deliveryFee != null && adj.deliveryFee > 0)
+              rows.push({ label: "Delivery / service fee", amount: Number(adj.deliveryFee) });
+            if (adj.tax != null && adj.tax > 0) rows.push({ label: "Tax", amount: Number(adj.tax) });
+            // Stored as a positive magnitude; shown with a minus so it reads the
+            // way it appeared on the receipt.
+            if (adj.discount != null && adj.discount > 0)
+              rows.push({ label: "Discount", amount: Number(adj.discount), negative: true });
+            return rows.map((row) => (
+              <View key={row.label} style={[styles.totalRow, { marginBottom: 8 }]}>
+                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
                 <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>
-                  Delivery / service fee
-                </Text>
-                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>
-                  {format(Number(deliveryFee))}
+                  {row.negative ? `−${format(row.amount)}` : format(row.amount)}
                 </Text>
               </View>
-            ) : null;
+            ));
           })()}
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
