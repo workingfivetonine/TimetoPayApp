@@ -25,6 +25,7 @@ import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { ShoppingListPdfModal } from "@/components/ShoppingListPdfModal";
+import { ShoppingModeView } from "@/components/ShoppingModeView";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { notify } from "@/lib/confirm";
 import { getApiOrigin } from "@/lib/apiBase";
@@ -32,6 +33,13 @@ import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useUser, useAuth } from "@clerk/expo";
+
+type ShoppingView = "items" | "create" | "shop";
+const SHOPPING_VIEWS: { key: ShoppingView; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { key: "items", label: "Items", icon: "list" },
+  { key: "create", label: "Create list", icon: "check-square" },
+  { key: "shop", label: "Shopping", icon: "shopping-cart" },
+];
 
 type ShoppingSort = "az" | "price" | "category";
 const SHOPPING_SORT: SortOption<ShoppingSort>[] = [
@@ -77,9 +85,17 @@ export default function ShoppingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
   const [dismissingItemId, setDismissingItemId] = useState<number | null>(null);
-  const [pdfModalVisible, setPdfModalVisible] = useState(false);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ShoppingSort>("az");
+
+  // Which sub-tab is showing. The three views share the screen rather than the
+  // list-builder being a modal, so building a list and shopping it are one flow.
+  const [view, setView] = useState<ShoppingView>("items");
+  // Selection lives here, not in the builder, so it survives switching sub-tabs
+  // and so Shopping Mode can read what was ticked. Holds DEselected ids —
+  // empty means everything is included, matching the builder's own convention.
+  const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  const [customItems, setCustomItems] = useState<string[]>([]);
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -190,8 +206,27 @@ export default function ShoppingScreen() {
     user?.primaryEmailAddress?.emailAddress ||
     "";
 
-  const handleOpenPdfModal = () => {
-    setPdfModalVisible(true);
+  // What Shopping Mode shows: everything on the list that wasn't unticked in
+  // Create list. Reads the unfiltered list on purpose — the Items tab's search
+  // and sort are a browsing aid and shouldn't silently shorten a shopping trip.
+  const selectedItems = useMemo(
+    () =>
+      [...(list?.recurring ?? []), ...(list?.oneOff ?? [])].filter(
+        (it) => !excluded.has(it.itemId),
+      ),
+    [list?.recurring, list?.oneOff, excluded],
+  );
+
+  // Ending a trip is deliberate — only this fires the upload reminder, never a
+  // tab switch or backgrounding, both of which happen constantly mid-shop.
+  const handleDoneShopping = ({ picked }: { picked: number; total: number }) => {
+    setView("items");
+    notify(
+      picked > 0 ? "Trip finished" : "Trip closed",
+      picked > 0
+        ? `${picked} item${picked === 1 ? "" : "s"} picked up. Scan your receipt to log what you spent.`
+        : "Scan your receipt when you have it to log what you spent.",
+    );
   };
 
   const recurring = useMemo(
@@ -232,24 +267,46 @@ export default function ShoppingScreen() {
             <Feather name="grid" size={16} color={colors.accentForeground} />
             <Text style={[styles.browseButtonText, { color: colors.accentForeground }]}>Browse</Text>
           </TouchableOpacity>
-          {hasItems && (
-            <TouchableOpacity
-              style={[styles.downloadButton, { backgroundColor: colors.accent }]}
-              onPress={handleOpenPdfModal}
-              accessibilityLabel="create a shopping list"
-            >
-              <Feather name="check-square" size={16} color={colors.accentForeground} />
-              <Text style={[styles.downloadButtonText, { color: colors.accentForeground }]}>
-                Create List
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
 
+      {/* Sub-tab switcher. Only meaningful once there's something to work with,
+          so it stays hidden on an empty list rather than offering two dead tabs. */}
       {hasItems ? (
+        <View style={[styles.viewTabs, { borderBottomColor: colors.border }]}>
+          {SHOPPING_VIEWS.map((v) => {
+            const active = view === v.key;
+            return (
+              <TouchableOpacity
+                key={v.key}
+                style={[styles.viewTab, active && { borderBottomColor: colors.primary }]}
+                onPress={() => setView(v.key)}
+                activeOpacity={0.7}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+              >
+                <Feather
+                  name={v.icon}
+                  size={15}
+                  color={active ? colors.primary : colors.mutedForeground}
+                />
+                <Text
+                  style={[
+                    styles.viewTabText,
+                    { color: active ? colors.primary : colors.mutedForeground },
+                  ]}
+                >
+                  {v.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {hasItems && view === "items" ? (
         <ListControls
           query={query}
           onQueryChange={setQuery}
@@ -269,6 +326,24 @@ export default function ShoppingScreen() {
           icon="check-square"
           title="No items yet"
           subtitle="Scan receipts to auto-build your shopping list with prices"
+        />
+      ) : view === "create" ? (
+        <ShoppingListPdfModal
+          inline
+          visible
+          onClose={() => setView("items")}
+          recurring={list?.recurring ?? []}
+          oneOff={list?.oneOff ?? []}
+          preparedFor={preparedFor}
+          excluded={excluded}
+          onExcludedChange={setExcluded}
+          onCustomItemsChange={setCustomItems}
+        />
+      ) : view === "shop" ? (
+        <ShoppingModeView
+          items={selectedItems}
+          customItems={customItems}
+          onDoneShopping={handleDoneShopping}
         />
       ) : matchCount === 0 ? (
         <EmptyState
@@ -310,14 +385,6 @@ export default function ShoppingScreen() {
         />
       )}
 
-      <ShoppingListPdfModal
-        visible={pdfModalVisible}
-        onClose={() => setPdfModalVisible(false)}
-        recurring={list?.recurring ?? []}
-        oneOff={list?.oneOff ?? []}
-        preparedFor={preparedFor}
-      />
-
       {undo ? (
         <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
           <Text style={[styles.undoText, { color: colors.background }]} numberOfLines={1}>
@@ -358,15 +425,23 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
-  downloadButton: {
+  viewTabs: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  viewTab: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    height: 40,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingVertical: 12,
+    // Transparent by default so the active tab's coloured border doesn't shift
+    // the row's height when it appears.
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
-  downloadButtonText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  viewTabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   browseButton: {
     flexDirection: "row",
     alignItems: "center",

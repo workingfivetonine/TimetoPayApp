@@ -43,6 +43,9 @@ interface Props {
   // DEselected item ids — empty means everything is included.
   excluded?: Set<number>;
   onExcludedChange?: (next: Set<number>) => void;
+  // Free-text extras, reported up so Shopping Mode can show them alongside the
+  // real items. They have no item id, so they travel as names.
+  onCustomItemsChange?: (next: string[]) => void;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -126,6 +129,7 @@ export function ShoppingListPdfModal({
   inline = false,
   excluded: excludedProp,
   onExcludedChange,
+  onCustomItemsChange,
 }: Props) {
   const colors = useColors();
   const { symbol } = useCurrency();
@@ -142,6 +146,13 @@ export function ShoppingListPdfModal({
   };
   const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
   const [customItems, setCustomItems] = useState<string[]>([]);
+  // Mirror custom items up to the parent (inline/sub-tab case) so Shopping Mode
+  // can list them. Effect rather than wrapping the setter, so every path that
+  // mutates them — add, remove, reset — reports without needing to remember to.
+  useEffect(() => {
+    onCustomItemsChange?.(customItems);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customItems]);
   const [customInput, setCustomInput] = useState("");
   const [generating, setGenerating] = useState(false);
 
@@ -559,21 +570,12 @@ export function ShoppingListPdfModal({
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  // Inline drops the overlay/sheet framing and the close button so the content
-  // sits directly in the sub-tab; the modal path is unchanged.
-  const Frame = ({ children }: { children: React.ReactNode }) =>
-    inline ? (
-      <View style={[styles.inlineRoot, { backgroundColor: colors.background }]}>{children}</View>
-    ) : (
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-        <View style={styles.overlay}>
-          <View style={[styles.sheet, { backgroundColor: colors.background }]}>{children}</View>
-        </View>
-      </Modal>
-    );
-
-  return (
-    <Frame>
+  // Built as an element, not a wrapper component: a component defined inside
+  // render gets a new identity every pass, so React would unmount and remount
+  // this whole subtree on each keystroke and the custom-item input would lose
+  // focus. Inline drops the overlay/sheet framing; the modal path is unchanged.
+  const content = (
+    <>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={{ flex: 1 }}>
@@ -866,7 +868,21 @@ export function ShoppingListPdfModal({
               )}
             </TouchableOpacity>
           </View>
-    </Frame>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <View style={[styles.inlineRoot, { backgroundColor: colors.background }]}>{content}</View>
+    );
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={[styles.sheet, { backgroundColor: colors.background }]}>{content}</View>
+      </View>
+    </Modal>
   );
 }
 
