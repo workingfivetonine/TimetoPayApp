@@ -1078,12 +1078,13 @@ export const AdminDeleteUserParams = zod.object({
 })
 
 export const AdminDeleteUserResponse = zod.object({
-  "success": zod.boolean()
+  "success": zod.boolean(),
+  "emailSent": zod.boolean().optional().describe('Only returned by force-password-reset: whether the user had an email address to notify. Not a delivery confirmation — the Loops event is fire-and-forget and no-ops if the Loop isn\'t built yet.\n')
 })
 
 
 /**
- * Flags the user's current password as compromised in Clerk and revokes their sessions, so Clerk requires a reset before they can sign in again. Clerk exposes no admin "send a reset email" API, so no email is sent — tell the user out of band. No-op for users who sign in with Google and have no password.
+ * Flags the user's current password as compromised in Clerk and revokes their sessions, so Clerk requires a reset before they can sign in again. Clerk exposes no admin "send a reset email" API, so the app sends its own `password_reset_required` Loops event afterwards, pointing the user at the self-service "Forgot password" flow — it carries no credential and no magic link. The send is fire-and-forget after Clerk succeeds, so a mail failure never turns a completed reset into an error, and it is a silent no-op until the Loop exists in the Loops dashboard. `emailSent` reflects only whether an address was on file, not delivery. No-op for users who sign in with Google and have no password.
  * @summary Require a user to set a new password at next sign-in (admin only)
  */
 export const AdminForcePasswordResetParams = zod.object({
@@ -1091,7 +1092,8 @@ export const AdminForcePasswordResetParams = zod.object({
 })
 
 export const AdminForcePasswordResetResponse = zod.object({
-  "success": zod.boolean()
+  "success": zod.boolean(),
+  "emailSent": zod.boolean().optional().describe('Only returned by force-password-reset: whether the user had an email address to notify. Not a delivery confirmation — the Loops event is fire-and-forget and no-ops if the Loop isn\'t built yet.\n')
 })
 
 

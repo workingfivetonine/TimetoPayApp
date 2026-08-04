@@ -26,7 +26,6 @@ interface MergePair {
   id: string;
   itemA: ShoppingListItem;
   itemB: ShoppingListItem;
-  dismissed: boolean;
 }
 
 interface Props {
@@ -69,6 +68,12 @@ interface Props {
   onMergedOutChange?: React.Dispatch<React.SetStateAction<Set<number>>>;
   nameOverrides?: Map<number, string>;
   onNameOverridesChange?: React.Dispatch<React.SetStateAction<Map<number, string>>>;
+  // Merge suggestions the user has REJECTED, by pair id. Kept out of the
+  // MergePair objects on purpose: those are recomputed from the list whenever it
+  // changes, so a flag on them is wiped by any unrelated list edit (adding from
+  // Browse, a scan updating a price) and the rejected suggestion pops back up.
+  dismissedPairs?: Set<string>;
+  onDismissedPairsChange?: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -108,7 +113,7 @@ function findSimilarPairs(items: ShoppingListItem[]): MergePair[] {
         const key = `${Math.min(items[i].itemId, items[j].itemId)}-${Math.max(items[i].itemId, items[j].itemId)}`;
         if (!seen.has(key)) {
           seen.add(key);
-          pairs.push({ id: key, itemA: items[i], itemB: items[j], dismissed: false });
+          pairs.push({ id: key, itemA: items[i], itemB: items[j] });
         }
       }
     }
@@ -160,6 +165,8 @@ export function ShoppingListPdfModal({
   onMergedOutChange,
   nameOverrides: nameOverridesProp,
   onNameOverridesChange,
+  dismissedPairs: dismissedPairsProp,
+  onDismissedPairsChange,
 }: Props) {
   const colors = useColors();
   const { symbol } = useCurrency();
@@ -196,7 +203,8 @@ export function ShoppingListPdfModal({
   const [groupMode, setGroupMode] = useState<GroupMode>("category");
 
   // Merge state. `mergePairs` is recomputed from the list itself so it needn't be
-  // lifted, but the accepted DECISIONS must be — see the prop comments.
+  // lifted, but every DECISION about it must be — accepted (mergedOut /
+  // nameOverrides) and rejected (dismissedPairs) alike. See the prop comments.
   const [mergePairs, setMergePairs] = useState<MergePair[]>([]);
 
   const [mergedOutLocal, setMergedOutLocal] = useState<Set<number>>(new Set());
@@ -210,6 +218,13 @@ export function ShoppingListPdfModal({
     nameOverridesProp !== undefined && onNameOverridesChange
       ? onNameOverridesChange
       : setNameOverridesLocal;
+
+  const [dismissedPairsLocal, setDismissedPairsLocal] = useState<Set<string>>(new Set());
+  const dismissedPairs = dismissedPairsProp ?? dismissedPairsLocal;
+  const setDismissedPairs =
+    dismissedPairsProp !== undefined && onDismissedPairsChange
+      ? onDismissedPairsChange
+      : setDismissedPairsLocal;
 
   // Reset state each time the modal opens. Skipped entirely when inline: as a
   // sub-tab there is no "open" moment, and wiping the selection on every tab
@@ -228,6 +243,7 @@ export function ShoppingListPdfModal({
       setPriceMode("lowest");
       setMergedOut(new Set());
       setNameOverrides(new Map());
+      setDismissedPairs(new Set());
       setMergePairs(findSimilarPairs([...recurring, ...oneOff]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -244,8 +260,14 @@ export function ShoppingListPdfModal({
   // ─── Derived data ──────────────────────────────────────────────────────────
 
   const activePairs = useMemo(
-    () => mergePairs.filter((p) => !p.dismissed && !mergedOut.has(p.itemA.itemId) && !mergedOut.has(p.itemB.itemId)),
-    [mergePairs, mergedOut],
+    () =>
+      mergePairs.filter(
+        (p) =>
+          !dismissedPairs.has(p.id) &&
+          !mergedOut.has(p.itemA.itemId) &&
+          !mergedOut.has(p.itemB.itemId),
+      ),
+    [mergePairs, mergedOut, dismissedPairs],
   );
 
   const sectionFiltered = useMemo(() => {
@@ -390,8 +412,10 @@ export function ShoppingListPdfModal({
     setCustomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Pair ids are derived from the two item ids, so they're stable across a
+  // recompute — which is what makes remembering them by id work.
   const dismissPair = (id: string) => {
-    setMergePairs((prev) => prev.map((p) => (p.id === id ? { ...p, dismissed: true } : p)));
+    setDismissedPairs((prev) => new Set(prev).add(id));
   };
 
   // Accepting a merge always discards itemB and keeps itemA's slot; the two
