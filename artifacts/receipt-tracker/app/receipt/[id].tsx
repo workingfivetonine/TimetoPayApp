@@ -27,6 +27,7 @@ import {
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
   getListItemsQueryKey,
+  getListStoresQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
@@ -36,6 +37,7 @@ import { notify, confirmDestructive } from "@/lib/confirm";
 import { getApiOrigin } from "@/lib/apiBase";
 import { UNIT_GROUPS } from "@/lib/units";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { StoreNameField } from "@/components/StoreNameField";
 import type { LineItem } from "@workspace/api-client-react";
 
 // The generated LineItem type is drifted and lacks `unit`; read it via a cast.
@@ -57,6 +59,9 @@ export default function ReceiptDetailScreen() {
   const [editQty, setEditQty] = useState("");
   const [editUnit, setEditUnit] = useState("each");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editingStore, setEditingStore] = useState(false);
+  const [editStoreName, setEditStoreName] = useState("");
+  const [savingStore, setSavingStore] = useState(false);
   const [pendingDeleteLiId, setPendingDeleteLiId] = useState<number | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -96,6 +101,41 @@ export default function ReceiptDetailScreen() {
         );
       },
     });
+  };
+
+  const handleSaveStoreEdit = async () => {
+    const name = editStoreName.trim();
+    if (!name) {
+      notify("Store name required", "Enter a store name.");
+      return;
+    }
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to change the store.");
+      return;
+    }
+    setSavingStore(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/receipts/${receiptId}/store`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-platform": Platform.OS,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ storeName: name }),
+      });
+      if (!res.ok) throw new Error(`store update ${res.status}`);
+      queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
+      queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+      setEditingStore(false);
+    } catch {
+      notify("Couldn't save", "Please try again.");
+    } finally {
+      setSavingStore(false);
+    }
   };
 
   const openEdit = (li: LineItem) => {
@@ -233,7 +273,19 @@ export default function ReceiptDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={[styles.storeName, { color: colors.foreground }]}>{receipt.storeName}</Text>
+          <TouchableOpacity
+            style={styles.storeNameRow}
+            onPress={() => {
+              setEditStoreName(receipt.storeName);
+              setEditingStore(true);
+            }}
+            accessibilityLabel="Edit store name"
+          >
+            <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
+              {receipt.storeName}
+            </Text>
+            <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+          </TouchableOpacity>
           <Text style={[styles.date, { color: colors.mutedForeground }]}>{dateStr}</Text>
         </View>
         <View style={[styles.totalBadge, { backgroundColor: colors.accent }]}>
@@ -351,6 +403,34 @@ export default function ReceiptDetailScreen() {
         </View>
       )}
 
+      {/* Edit Store Modal — moves THIS receipt to another store (creating it if
+          new); it never renames the store other receipts still point at. */}
+      <Modal visible={editingStore} animationType="slide" presentationStyle="formSheet">
+        <KeyboardAvoidingView
+          style={[styles.modalContainer, { backgroundColor: colors.background }]}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
+            <TouchableOpacity onPress={() => setEditingStore(false)}>
+              <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Store</Text>
+            <TouchableOpacity onPress={handleSaveStoreEdit} disabled={savingStore}>
+              <Text style={[styles.modalSave, { color: colors.primary, opacity: savingStore ? 0.5 : 1 }]}>
+                {savingStore ? "Saving…" : "Save"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>STORE</Text>
+            <StoreNameField value={editStoreName} onChangeText={setEditStoreName} autoFocus />
+            <Text style={[styles.modalHint, { color: colors.mutedForeground }]}>
+              Only this receipt moves. Other receipts keep their current store.
+            </Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Edit Item Modal */}
       <Modal visible={!!editingItem} animationType="slide" presentationStyle="formSheet">
         <KeyboardAvoidingView
@@ -459,7 +539,8 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerInfo: { flex: 1 },
-  storeName: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  storeNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  storeName: { flexShrink: 1, fontSize: 20, fontFamily: "Inter_700Bold" },
   date: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   totalBadge: {
     borderRadius: 10,
@@ -514,6 +595,7 @@ const styles = StyleSheet.create({
   modalCancel: { fontSize: 16, fontFamily: "Inter_400Regular" },
   modalSave: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   modalContent: { padding: 20 },
+  modalHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 12 },
   fieldLabel: {
     fontSize: 11,
     fontFamily: "Inter_700Bold",

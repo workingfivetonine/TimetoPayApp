@@ -23,6 +23,7 @@ import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { StoreNameField } from "@/components/StoreNameField";
 import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
@@ -309,13 +310,10 @@ export default function ReviewReceiptScreen() {
                 <Text style={{ color: WARN }}> ⚠</Text>
               )}
             </Text>
-            <TextInput
-              style={[styles.fieldInput, fieldStyle(receipt.storeNameUncertain)]}
+            <StoreNameField
               value={receipt.storeName}
               onChangeText={setStoreName}
-              placeholder="Store name"
-              placeholderTextColor={colors.mutedForeground}
-              returnKeyType="done"
+              uncertain={receipt.storeNameUncertain}
             />
           </View>
 

@@ -562,6 +562,68 @@ router.get("/:id", async (req, res): Promise<void> => {
   });
 });
 
+// Repoint ONE receipt at a different store, creating the store if the user has
+// no store by that name yet. Deliberately not a rename: PATCH /api/stores/:id
+// edits the shared store row, which would retitle every other receipt linked to
+// it. Here the old store row is left untouched — only this receipt moves.
+router.patch("/:id/store", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = parseInt(req.params.id);
+  const storeName = (req.body as { storeName?: unknown }).storeName;
+  if (typeof storeName !== "string" || !storeName.trim()) {
+    res.status(400).json({ error: "storeName is required" });
+    return;
+  }
+  const name = storeName.trim();
+
+  try {
+    const updated = await db.transaction(async (tx) => {
+      const [receipt] = await tx
+        .select()
+        .from(receiptsTable)
+        .where(and(eq(receiptsTable.id, id), eq(receiptsTable.userId, userId)))
+        .for("update");
+      if (!receipt) return null;
+
+      let store = (
+        await tx
+          .select()
+          .from(storesTable)
+          .where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${name})`))
+      )[0];
+      if (!store) {
+        const [u] = await tx
+          .select({ countryCode: usersTable.countryCode, stateCode: usersTable.stateCode })
+          .from(usersTable)
+          .where(eq(usersTable.id, userId));
+        [store] = await tx
+          .insert(storesTable)
+          .values({
+            name,
+            userId,
+            countryCode: u?.countryCode ?? null,
+            stateCode: u?.stateCode ?? null,
+          })
+          .returning();
+      }
+
+      if (store.id !== receipt.storeId) {
+        await tx.update(receiptsTable).set({ storeId: store.id }).where(eq(receiptsTable.id, receipt.id));
+      }
+      return { receipt, storeName: store.name };
+    });
+
+    if (!updated) {
+      res.status(404).json({ error: "Receipt not found" });
+      return;
+    }
+    res.json(formatReceipt(updated.receipt, updated.storeName));
+  } catch (err) {
+    req.log.error({ err }, "Failed to update receipt store");
+    res.status(500).json({ error: "Failed to update receipt store" });
+  }
+});
+
 router.delete("/:id", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const id = parseInt(req.params.id);
