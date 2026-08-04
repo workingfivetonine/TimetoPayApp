@@ -24,6 +24,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import { StoreNameField } from "@/components/StoreNameField";
+import { ZoomableImageModal } from "@/components/ZoomableImageModal";
 import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
@@ -78,6 +79,7 @@ export default function ReviewReceiptScreen() {
     initialReceipt ? { ...initialReceipt } : null
   );
   const [saving, setSaving] = useState(false);
+  const [viewingImage, setViewingImage] = useState(false);
 
   // Raw text buffers for the numeric inputs (price / qty / total). Keeping the
   // typed text lets users clear the field and type a fresh integer or a partial
@@ -119,7 +121,10 @@ export default function ReviewReceiptScreen() {
     queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
   };
 
-  const handleSave = async () => {
+  // `after` decides where a successful save lands: straight into another scan
+  // (for working through a stack of receipts), back where the user came from, or
+  // the saved receipt itself.
+  const handleSave = async (after: "receipt" | "scan" | "back" = "receipt") => {
     const emptyItem = receipt.lineItems.find((li) => !li.name.trim());
     if (emptyItem) {
       Alert.alert("Missing name", "Every item must have a name.");
@@ -162,7 +167,9 @@ export default function ReviewReceiptScreen() {
       clearPendingReceipt();
       invalidateAll();
       showSuccessToast("Receipt saved", `${receipt.lineItems.length} item${receipt.lineItems.length === 1 ? "" : "s"} added`);
-      router.replace(`/receipt/${saved.id}`);
+      if (after === "scan") router.replace("/scan?autoOpen=1");
+      else if (after === "back") router.back();
+      else router.replace(`/receipt/${saved.id}`);
     } catch {
       showErrorToast("Couldn't save receipt", "Please try again.");
     } finally {
@@ -289,11 +296,20 @@ export default function ReviewReceiptScreen() {
             )}
           </View>
           {imageBase64 ? (
-            <Image
-              source={{ uri: `data:image/jpeg;base64,${imageBase64}` }}
-              style={[styles.thumb, { borderColor: colors.border }]}
-              resizeMode="cover"
-            />
+            <TouchableOpacity
+              onPress={() => setViewingImage(true)}
+              activeOpacity={0.8}
+              accessibilityLabel="View receipt photo full screen"
+            >
+              <Image
+                source={{ uri: `data:image/jpeg;base64,${imageBase64}` }}
+                style={[styles.thumb, { borderColor: colors.border }]}
+                resizeMode="cover"
+              />
+              <View style={styles.thumbZoomBadge}>
+                <Feather name="maximize-2" size={11} color="#fff" />
+              </View>
+            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -512,20 +528,38 @@ export default function ReviewReceiptScreen() {
       >
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && { opacity: 0.6 }]}
-          onPress={handleSave}
+          onPress={() => void handleSave("scan")}
           disabled={saving}
           activeOpacity={0.85}
         >
           {saving ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Feather name="check" size={18} color="#fff" />
+            <Feather name="plus-circle" size={18} color="#fff" />
           )}
-          <Text style={styles.saveBtnText}>
-            {saving ? "Saving…" : "Confirm & Save"}
-          </Text>
+          <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save & Next"}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.saveSecondaryBtn,
+            { borderColor: colors.border, backgroundColor: colors.card },
+            saving && { opacity: 0.6 },
+          ]}
+          onPress={() => void handleSave("back")}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Feather name="check" size={18} color={colors.foreground} />
+          <Text style={[styles.saveSecondaryBtnText, { color: colors.foreground }]}>Save & Close</Text>
         </TouchableOpacity>
       </View>
+
+      <ZoomableImageModal
+        visible={viewingImage}
+        uri={imageBase64 ? `data:image/jpeg;base64,${imageBase64}` : null}
+        onClose={() => setViewingImage(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -580,6 +614,17 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 8,
     borderWidth: 1,
+  },
+  thumbZoomBadge: {
+    position: "absolute",
+    right: 4,
+    bottom: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
   sectionLabel: {
     fontSize: 11,
@@ -709,6 +754,20 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: "#fff",
     fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+  },
+  saveSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  saveSecondaryBtnText: {
+    fontSize: 15,
     fontFamily: "Inter_600SemiBold",
   },
 });

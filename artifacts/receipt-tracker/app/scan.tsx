@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -118,6 +118,19 @@ export default function ScanScreen() {
   const [scanningLabel, setScanningLabel] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
+  // "Save & Next" on the review screen routes here with ?autoOpen=1 so the next
+  // receipt can be captured without an extra tap. Fires once per arrival; the
+  // ref guard stops a re-render (or the picker returning) from reopening it.
+  const { autoOpen } = useLocalSearchParams<{ autoOpen?: string }>();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpen !== "1" || autoOpenedRef.current) return;
+    if (locked && !canFreeScan) return;
+    autoOpenedRef.current = true;
+    void handleAddPhoto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen, locked, canFreeScan]);
+
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
     // A scan can create a new store — refresh the Stores list so it appears.
@@ -204,6 +217,46 @@ export default function ScanScreen() {
     if (response.status === 403) throw new PremiumRequiredError();
     if (!response.ok) throw new UploadError(response.status);
     return response.json() as Promise<T>;
+  };
+
+  // Capture a receipt with the device camera. Same asset shape as the library
+  // picker, so it feeds the identical crop-and-review flow. Camera capture is
+  // inherently one shot at a time — no multi-select branch to handle.
+  const handleTakePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        "Camera access needed",
+        "To take a photo of a receipt, allow camera access for TimetoPay in your device settings.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 1.0 });
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+    if (!asset.base64) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPendingImage({
+      uri: asset.uri,
+      base64: asset.base64,
+      width: asset.width,
+      height: asset.height,
+    });
+  };
+
+  // Entry point for the primary scan button. On native, let the user choose
+  // between the camera and their library; on web there's no in-app camera worth
+  // offering, so go straight to the file picker.
+  const handleAddPhoto = async () => {
+    if (Platform.OS === "web") {
+      await handlePickImage();
+      return;
+    }
+    Alert.alert("Add a receipt", "Take a photo now, or pick one you already have?", [
+      { text: "Take Photo", onPress: () => void handleTakePhoto() },
+      { text: "Choose from Library", onPress: () => void handlePickImage() },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const handlePickImage = async () => {
@@ -547,13 +600,21 @@ export default function ScanScreen() {
               { backgroundColor: colors.primary },
               locked && !canFreeScan && { opacity: 0.6 },
             ]}
-            onPress={locked && !canFreeScan ? () => router.push("/paywall") : handlePickImage}
+            onPress={locked && !canFreeScan ? () => router.push("/paywall") : handleAddPhoto}
             disabled={scanning}
             activeOpacity={0.8}
           >
-            <Feather name={locked && !canFreeScan ? "zap" : "image"} size={20} color="#fff" />
+            <Feather
+              name={locked && !canFreeScan ? "zap" : Platform.OS === "web" ? "image" : "camera"}
+              size={20}
+              color="#fff"
+            />
             <Text style={styles.primaryBtnText}>
-              {locked && !canFreeScan ? "Subscribe to scan" : "Choose Photo"}
+              {locked && !canFreeScan
+                ? "Subscribe to scan"
+                : Platform.OS === "web"
+                  ? "Choose Photo"
+                  : "Scan Receipt"}
             </Text>
           </TouchableOpacity>
 
