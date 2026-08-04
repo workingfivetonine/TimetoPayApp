@@ -1,10 +1,9 @@
 // Opt-in email reminder engine.
 //
 // Evaluates each reminder type per user and sends at most once per relevant
-// period using the per-type "last sent" cursors on `usersTable`. Recipients are
-// gated to subscription-related users only (entitled trialing/active/comped, or
-// past_due) via `computeEntitlement`, and each type also honors the user's
-// opt-out toggle. Each reminder is fired to Loops as an EVENT (the email itself
+// period using the per-type "last sent" cursors on `usersTable`. Every signed-up
+// user with an email is a candidate; each type honors its own opt-in toggle (all
+// default off). Each reminder is fired to Loops as an EVENT (the email itself
 // is built in the Loops dashboard); when Loops isn't configured the send is a
 // graceful no-op and the cursor is NOT advanced, so reminders resume once the
 // LOOPS_API_KEY lands.
@@ -17,7 +16,6 @@ import {
   lineItemsTable,
   shoppingTripsTable,
 } from "@workspace/db";
-import { TRIAL_DAYS } from "../billing/entitlement";
 import { loopsSendEvent } from "../email/loops";
 import {
   comparePeriods,
@@ -31,8 +29,6 @@ import { logger } from "../logger";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// How close to trial end the "trial ending" reminder fires.
-const TRIAL_ENDING_WINDOW_DAYS = 3;
 // Re-nudge cadences (a reminder for an ongoing condition won't repeat faster).
 const LIST_EXPORT_COOLDOWN_DAYS_WEEKLY = 7;
 const LIST_EXPORT_COOLDOWN_DAYS_MONTHLY = 30;
@@ -58,8 +54,8 @@ export interface SweepResult {
   byType: Record<string, number>;
 }
 
-// Run one full reminder sweep across all subscription-related users. Safe to run
-// repeatedly (idempotent per period); intended to be driven by the scheduler.
+// Run one full reminder sweep across all users. Safe to run repeatedly
+// (idempotent per period); intended to be driven by the scheduler.
 export async function runReminderSweep(
   now: Date = new Date(),
 ): Promise<SweepResult> {
@@ -127,13 +123,6 @@ export async function runReminderSweep(
 
   for (const user of eligible) {
     const updates: Partial<UserRow> = {};
-
-    // ── Payment reminders ─────────────────────────────────────────────────
-    // Trial-ending and payment-past-due are critical, non-optional notifications
-    // (losing access is something the user must be told) — always fired to Loops
-    // regardless of the marketing opt-out. Each dedupes internally.
-    await maybeTrialEnding(user, now, updates, bump);
-    await maybePastDue(user, now, updates, bump);
 
     // Engagement reminders, each gated on its own opt-in toggle.
     if (user.notifyListExport) await maybeListExport(user, now, updates, bump);
@@ -229,56 +218,6 @@ async function maybeTripReceiptMissing(
     .where(eq(shoppingTripsTable.id, trip.id));
   bump("trip_receipt_missing");
   return true;
-}
-
-// ── Trial ending ──────────────────────────────────────────────────────────
-async function maybeTrialEnding(
-  user: UserRow,
-  now: Date,
-  updates: Partial<UserRow>,
-  bump: (t: string) => void,
-): Promise<void> {
-  if (!user.trialStartedAt) return;
-  if (user.lastTrialEndingSentAt) return; // one trial per user, send once
-  const trialEnd = new Date(user.trialStartedAt.getTime() + TRIAL_DAYS * DAY_MS);
-  const windowOpen = new Date(trialEnd.getTime() - TRIAL_ENDING_WINDOW_DAYS * DAY_MS);
-  if (now < windowOpen || now >= trialEnd) return;
-  const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY_MS));
-
-  const res = await loopsSendEvent(user.email!, "trial_ending", {
-    eventProperties: { daysLeft, trialEndsAt: trialEnd.toISOString() },
-    contactProperties: { firstName: displayNameFromEmail(user.email), trialEndsAt: trialEnd.toISOString() },
-  });
-  if (res.sent) {
-    updates.lastTrialEndingSentAt = now;
-    bump("trialEnding");
-  }
-}
-
-// ── Payment past due ────────────────────────────────────────────────────────
-async function maybePastDue(
-  user: UserRow,
-  now: Date,
-  updates: Partial<UserRow>,
-  bump: (t: string) => void,
-): Promise<void> {
-  if (user.subscriptionStatus !== "past_due") {
-    // Reset so the NEXT distinct past_due episode re-notifies.
-    if (user.lastPastDueSentAt) updates.lastPastDueSentAt = null;
-    return;
-  }
-  if (user.lastPastDueSentAt) return; // already notified for this episode
-
-  const res = await loopsSendEvent(user.email!, "payment_past_due", {
-    eventProperties: {
-      currentPeriodEnd: user.subscriptionCurrentPeriodEnd ? user.subscriptionCurrentPeriodEnd.toISOString() : null,
-    },
-    contactProperties: { subscriptionStatus: "past_due" },
-  });
-  if (res.sent) {
-    updates.lastPastDueSentAt = now;
-    bump("pastDue");
-  }
 }
 
 // ── Weekly grocery-list export nudge ────────────────────────────────────────

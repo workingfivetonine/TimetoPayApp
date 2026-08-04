@@ -16,24 +16,9 @@ export async function sendWelcomeEmail(email: string, name?: string | null): Pro
   }
 }
 
-export async function sendSubscriptionThankYouEmail(email: string): Promise<void> {
+export async function sendAccountDeletedEmail(email: string): Promise<void> {
   try {
-    await loopsSendEvent(email, "subscription_started", {
-      contactProperties: { subscriptionStatus: "active" },
-    });
-  } catch (err) {
-    logger.error({ err }, "Subscription thank-you event failed");
-  }
-}
-
-export async function sendAccountDeletedEmail(
-  email: string,
-  subscriptionCancelled: boolean,
-): Promise<void> {
-  try {
-    await loopsSendEvent(email, "account_deleted", {
-      eventProperties: { subscriptionCancelled },
-    });
+    await loopsSendEvent(email, "account_deleted");
   } catch (err) {
     logger.error({ err }, "Account-deleted event failed");
   }

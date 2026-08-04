@@ -1,50 +1,30 @@
 import Stripe from "stripe";
-import { StripeSync } from "stripe-replit-sync";
 
-// Stripe client for the API server.
-// Reads credentials directly from environment variables (set in Railway Variables tab).
-// Required env vars:
-//   STRIPE_SECRET_KEY      — your Stripe secret key (from stripe.com → Developers → API Keys)
-//   STRIPE_WEBHOOK_SECRET  — your webhook signing secret (from stripe.com → Developers → Webhooks)
-//   DATABASE_URL           — your Neon connection string
-
-function getStripeCredentials(): { secretKey: string; webhookSecret?: string } {
+// Stripe client for the API server. The app is free — this exists solely for
+// voluntary one-off donations, so there is no subscription state to sync, no
+// webhook to verify, and nothing to unlock when a payment succeeds. Stripe emails
+// the donor their own receipt.
+//
+// Required env var:
+//   STRIPE_SECRET_KEY — from stripe.com → Developers → API Keys
+// (STRIPE_WEBHOOK_SECRET, the price/plan ids and the whole stripe-replit-sync
+// engine are gone along with subscriptions.)
+function getSecretKey(): string {
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
     throw new Error(
-      "Missing STRIPE_SECRET_KEY environment variable. " +
-        "Add it in Railway's Variables tab.",
+      "Missing STRIPE_SECRET_KEY environment variable. Add it in Railway's Variables tab.",
     );
   }
-  return {
-    secretKey,
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-  };
+  return secretKey;
 }
 
 export async function getUncachableStripeClient(): Promise<Stripe> {
-  const { secretKey } = getStripeCredentials();
-  return new Stripe(secretKey);
+  return new Stripe(getSecretKey());
 }
 
-export async function getStripeSync(): Promise<StripeSync> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
-  }
-  const { secretKey, webhookSecret } = getStripeCredentials();
-  return new StripeSync({
-    poolConfig: { connectionString: databaseUrl },
-    stripeSecretKey: secretKey,
-    stripeWebhookSecret: webhookSecret ?? "",
-  });
-}
-
-export async function isStripeConfigured(): Promise<boolean> {
-  try {
-    getStripeCredentials();
-    return true;
-  } catch {
-    return false;
-  }
+// Donations are optional, so every caller must tolerate Stripe being unset — an
+// unconfigured deployment simply doesn't offer the donate button.
+export function isStripeConfigured(): boolean {
+  return !!process.env.STRIPE_SECRET_KEY;
 }

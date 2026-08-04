@@ -2,7 +2,6 @@ import { Router } from "express";
 import { eq, sql, and, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { receiptsTable, storesTable, lineItemsTable, itemsTable, catalogStoresTable, catalogStoreAliasesTable, usersTable, boardPostsTable } from "@workspace/db";
-import { requirePremium } from "../middlewares/requireEntitlement";
 import { groupReceiptsByWeek } from "../lib/analytics/spend";
 import { normalizeName } from "../lib/catalog";
 import { haversineKm, type LatLng } from "../lib/geocode";
@@ -122,7 +121,7 @@ router.get("/fees", async (req, res): Promise<void> => {
 // receipts. Each card is only returned when there's enough data to be honest
 // ("cheapest" needs 2+ stores to compare); otherwise the field is null / [] and
 // the client hides that card. Premium-only.
-router.get("/best-of", requirePremium, async (req, res): Promise<void> => {
+router.get("/best-of", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -286,7 +285,7 @@ router.get("/best-of", requirePremium, async (req, res): Promise<void> => {
 });
 
 // Item price history — the deeper analytics insight, gated as premium on web.
-router.get("/items/:id/price-history", requirePremium, async (req, res): Promise<void> => {
+router.get("/items/:id/price-history", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const itemId = parseInt(String(req.params.id));
   const [item] = await db

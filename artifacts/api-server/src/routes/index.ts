@@ -10,10 +10,9 @@ import catalogRouter from "./catalog";
 import adminRouter from "./admin";
 import adminCatalogRouter from "./adminCatalog";
 import meRouter from "./me";
-import billingRouter from "./billing";
+import donateRouter from "./donate";
 import boardRouter from "./board";
 import supportRouter from "./support";
-import { paypalWebhookHandler } from "./paypalWebhook";
 import emailPrefsRouter from "./emailPrefs";
 import { requireAuth } from "../middlewares/auth";
 
@@ -21,9 +20,6 @@ const router: IRouter = Router();
 
 // Public routes
 router.use(healthRouter);
-// PayPal webhook is public (signature-verified inside the handler) and uses the
-// parsed JSON body, so it's mounted here before requireAuth.
-router.post("/webhooks/paypal", paypalWebhookHandler);
 // Email unsubscribe links are clicked straight from the inbox (no session); the
 // HMAC token in the URL is the authorization, so this is mounted public.
 router.use("/email", emailPrefsRouter);
@@ -31,17 +27,14 @@ router.use("/email", emailPrefsRouter);
 // Everything below requires an authenticated user
 router.use(requireAuth);
 
-// Ungated authed routes: /me (so the client can read entitlement to render the
-// paywall) and /billing (so a locked-out user can still subscribe or redeem).
 router.use("/me", meRouter);
-router.use("/billing", billingRouter);
+// Voluntary one-off donations. The app is free, so nothing here gates anything —
+// see routes/donate.ts.
+router.use("/donate", donateRouter);
 
-// Freemium model: data routes below are FREE for any signed-in user (free web
-// users keep full access to their own data). Premium surfaces are gated
-// per-route with `requirePremium` (403) inside their own routers — the AI
-// receipt endpoints (receipts.ts), the global catalog (catalog.ts), and the
-// deeper per-item price-history analytics (analytics.ts). Native clients and
-// admins/trial/comp users bypass the premium gate.
+// Every data route below is available to any signed-in user. There is no premium
+// tier: the paywall, entitlement checks and per-route `requirePremium` guards
+// were removed when the app became free.
 router.use("/stores", storesRouter);
 router.use("/items", itemsRouter);
 router.use("/receipts", receiptsRouter);

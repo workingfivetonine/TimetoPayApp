@@ -12,9 +12,7 @@ import {
 import { AdminSetUserRoleBody, AdminMergeUsersBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { normalizeName } from "../lib/catalog";
-import { computeEntitlement } from "../lib/billing/entitlement";
 import { runAdminDigest } from "../lib/adminDigest";
-import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
 import { sendAccountDeletedEmail } from "../lib/email/transactional";
 
 const router = Router();
@@ -106,37 +104,12 @@ router.get("/users", async (_req, res): Promise<void> => {
       createdAt: u.createdAt.toISOString(),
       countryCode: u.countryCode,
       stateCode: u.stateCode,
-      // Null until onboarding's plan step is reached — doubles as a signal for
-      // "signed up but never finished setting up".
-      planSelectedAt: u.planSelectedAt?.toISOString() ?? null,
       storeCount: storeMap.get(u.id) ?? 0,
       itemCount: itemMap.get(u.id) ?? 0,
       receiptCount: receiptMap.get(u.id)?.receiptCount ?? 0,
       totalSpend: Math.round(Number(receiptMap.get(u.id)?.totalSpend ?? 0) * 100) / 100,
       boardAutoApprove: u.boardAutoApprove,
     })),
-  );
-});
-
-// List all users with their subscription/entitlement status (trial/active/etc.)
-// and the provider backing it. Mirrors computeEntitlement so the admin view
-// matches exactly what each user is gated on.
-router.get("/subscribers", async (_req, res): Promise<void> => {
-  const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
-  res.json(
-    users.map((u) => {
-      const e = computeEntitlement(u);
-      return {
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        status: e.status,
-        provider: e.provider,
-        entitled: e.entitled,
-        currentPeriodEnd: e.currentPeriodEnd,
-        createdAt: u.createdAt.toISOString(),
-      };
-    }),
   );
 });
 
@@ -395,10 +368,9 @@ router.delete("/users/:userId", async (req, res): Promise<void> => {
   }
 
   // Cancel any active subscription so the deleted user stops being billed.
-  const subscriptionCancelled = !!(target.stripeSubscriptionId || target.paypalSubscriptionId);
-  await cancelUserSubscription(target);
+
   await deleteClerkUser(userId, req.log);
-  if (target.email) void sendAccountDeletedEmail(target.email, subscriptionCancelled);
+  if (target.email) void sendAccountDeletedEmail(target.email);
 
   res.json({ success: true });
 });

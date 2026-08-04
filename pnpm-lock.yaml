@@ -143,9 +143,6 @@ importers:
       stripe:
         specifier: ^22.2.0
         version: 22.2.0(@types/node@25.9.3)
-      stripe-replit-sync:
-        specifier: ^1.0.0
-        version: 1.0.0(stripe@22.2.0(@types/node@25.9.3))
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10
@@ -762,9 +759,6 @@ importers:
       stripe:
         specifier: ^22.2.0
         version: 22.2.0(@types/node@25.9.3)
-      stripe-replit-sync:
-        specifier: ^1.0.0
-        version: 1.0.0(stripe@22.2.0(@types/node@25.9.3))
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -6986,11 +6980,6 @@ packages:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
     engines: {node: '>=4.0.0'}
 
-  pg-node-migrations@0.0.8:
-    resolution: {integrity: sha512-44cMl9umOmCv0hzZyEcvjEq8Bm8u7mrzggZ06qXTJVSsMMB4j2OsjG+rSp+uzeKWyP2Vu0K9Ye2wKtjFUJwrdw==}
-    engines: {node: '>10.17.0'}
-    hasBin: true
-
   pg-pool@3.14.0:
     resolution: {integrity: sha512-gKtPkFdQPU3DksooVLi9LsjZxrsBUZIpa+7aVx+LV5pNh0KzP4Zleud2po+ConrxbuXGBJ6Hfer6hdgpIBpBaw==}
     peerDependencies:
@@ -7692,10 +7681,6 @@ packages:
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
-  sql-template-strings@2.2.2:
-    resolution: {integrity: sha512-UXhXR2869FQaD+GMly8jAMCRZ94nU5KcrFetZfWEMd+LVVG6y0ExgHAhatEcKZ/wk8YcKPdi+hiD2wm75lq3/Q==}
-    engines: {node: '>=4.0.0'}
-
   ssf@0.11.2:
     resolution: {integrity: sha512-+idbmIXoYET47hH+d7dfm2epdOMUDjqcB4648sTZ+t2JwoyBFL/insLfB/racrDmsKB3diwsDA696pZMieAC5g==}
     engines: {node: '>=0.8'}
@@ -7782,11 +7767,6 @@ packages:
   strip-json-comments@5.0.3:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
-
-  stripe-replit-sync@1.0.0:
-    resolution: {integrity: sha512-Bkbih3k+IX/GugN8bKWNpwDiI2xkSLOAR+P34W7pjaR8fXyVay/QqztbrvbHZcU1JlfXncmBhuODY5TYY6DXlw==}
-    peerDependencies:
-      stripe: '> 11'
 
   stripe@22.2.0:
     resolution: {integrity: sha512-WFGpMOom9QZqso1kcnSwJsCdC1QHDlMoCOxBZRf3JraMzhkfw7dgSdD2a1CFZrqC+mzAfqeEtYILrZhWKIDruA==}
@@ -8450,9 +8430,6 @@ packages:
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
-
-  yesql@7.0.0:
-    resolution: {integrity: sha512-sosfr7agy4ibLM7BvXBkM6BpBmKMGuBO8DUYQEuey+QqaqrgW+2bsSg6D050ocBYIz0PuHxUyehyzEztZTU4pw==}
 
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
@@ -15420,13 +15397,6 @@ snapshots:
 
   pg-int8@1.0.1: {}
 
-  pg-node-migrations@0.0.8:
-    dependencies:
-      pg: 8.21.0
-      sql-template-strings: 2.2.2
-    transitivePeerDependencies:
-      - pg-native
-
   pg-pool@3.14.0(pg@8.21.0):
     dependencies:
       pg: 8.21.0
@@ -16235,8 +16205,6 @@ snapshots:
 
   sprintf-js@1.0.3: {}
 
-  sql-template-strings@2.2.2: {}
-
   ssf@0.11.2:
     dependencies:
       frac: 1.1.2
@@ -16308,18 +16276,6 @@ snapshots:
   strip-json-comments@2.0.1: {}
 
   strip-json-comments@5.0.3: {}
-
-  stripe-replit-sync@1.0.0(stripe@22.2.0(@types/node@25.9.3)):
-    dependencies:
-      pg: 8.21.0
-      pg-node-migrations: 0.0.8
-      stripe: 22.2.0(@types/node@25.9.3)
-      ws: 8.21.0
-      yesql: 7.0.0
-    transitivePeerDependencies:
-      - bufferutil
-      - pg-native
-      - utf-8-validate
 
   stripe@22.2.0(@types/node@25.9.3):
     optionalDependencies:
@@ -16892,8 +16848,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
-
-  yesql@7.0.0: {}
 
   yocto-queue@0.1.0: {}
 

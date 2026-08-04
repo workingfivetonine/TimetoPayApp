@@ -2,7 +2,6 @@ import type { Request, Response } from "express";
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
-import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
 import { sendAccountDeletedEmail } from "../lib/email/transactional";
 import { logger } from "../lib/logger";
 
@@ -62,10 +61,8 @@ export async function clerkWebhookHandler(req: Request, res: Response): Promise<
     try {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
       if (user) {
-        const subscriptionCancelled = !!(user.stripeSubscriptionId || user.paypalSubscriptionId);
-        await cancelUserSubscription(user);
         await db.delete(usersTable).where(eq(usersTable.id, userId));
-        if (user.email) void sendAccountDeletedEmail(user.email, subscriptionCancelled);
+        if (user.email) void sendAccountDeletedEmail(user.email);
         logger.info({ userId }, "Clerk user.deleted: cancelled subscription + removed user data");
       }
     } catch (err) {

@@ -20,10 +20,7 @@ import { iconForItemName } from "../lib/itemIcon.js";
 import { bestFuzzyMatch } from "../lib/textSimilarity.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
 import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
-import { requirePremium, allowFreeSingleScan } from "../middlewares/requireEntitlement.js";
 import { geocodeAddress } from "../lib/geocode.js";
-import { getFreeScanUsage, recordFreeScan } from "../lib/billing/freeScan.js";
-import { computeEntitlement } from "../lib/billing/entitlement.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (
@@ -338,26 +335,6 @@ function parseJson(content: string): ParsedReceipt | null {
 }
 
 const router = Router();
-
-// Free-tier scan budget for the scan screen: how many AI scans the caller has
-// left this period. Entitled / native / admin callers are unlimited.
-router.get("/scan-usage", async (req, res): Promise<void> => {
-  const userId = req.userId!;
-  const platform = req.header("x-client-platform")?.toLowerCase();
-  const native = platform === "ios" || platform === "android";
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  const entitlement = computeEntitlement(user);
-  if (native || user.isAdmin || entitlement.entitled) {
-    res.json({ entitled: true, unlimited: true });
-    return;
-  }
-  const usage = await getFreeScanUsage(userId);
-  res.json({ entitled: false, unlimited: false, ...usage });
-});
 
 function formatReceipt(
   r: typeof receiptsTable.$inferSelect,
@@ -775,7 +752,7 @@ router.patch("/line-items/:lineItemId", async (req, res): Promise<void> => {
 });
 
 // Detect receipt bounding box in a photo using AI
-router.post("/detect-bounds", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/detect-bounds", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -836,7 +813,7 @@ Rules:
 });
 
 // Parse receipt image with AI
-router.post("/parse", allowFreeSingleScan, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -873,14 +850,6 @@ router.post("/parse", allowFreeSingleScan, imageGuard, async (req, res): Promise
     if (!parsed) {
       res.status(500).json({ error: "Failed to parse AI response as JSON" });
       return;
-    }
-    // A free user's metered scan only counts once it actually produced a result.
-    if (req.recordFreeScanOnSuccess) {
-      try {
-        await recordFreeScan(req.userId!);
-      } catch (e) {
-        req.log.warn({ e }, "Failed to record free scan usage");
-      }
     }
     res.json(parsed);
   } catch (err) {
@@ -1087,7 +1056,7 @@ async function geocodeStoreInBackground(storeId: number, address: string): Promi
 }
 
 // Parse and save receipt
-router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -1128,7 +1097,7 @@ router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Pro
 // Parse multiple images as ONE combined receipt (all photos of the same receipt).
 // Sends all images in a single OpenAI call so the model can reconcile partial
 // visibility across photos and produce one unified receipt.
-router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse-and-save-batch", imageGuard, async (req, res): Promise<void> => {
   const { imagesBase64 } = req.body as { imagesBase64: unknown };
   if (!Array.isArray(imagesBase64) || imagesBase64.length < 2) {
     res.status(400).json({ error: "imagesBase64 must be an array of at least 2 images" });
@@ -1262,7 +1231,7 @@ async function findDuplicate(
 // same (store, date, total) — pages that look like duplicates are returned
 // with isDuplicate:true and skipped in the DB so retrying a PDF never creates
 // duplicate rows.
-router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<void> => {
+router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
     res.status(400).json({ error: "pdfBase64 is required" });
