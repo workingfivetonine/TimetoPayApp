@@ -13,7 +13,10 @@ import { AdminSetUserRoleBody, AdminMergeUsersBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { normalizeName } from "../lib/catalog";
 import { runAdminDigest } from "../lib/adminDigest";
-import { sendAccountDeletedEmail } from "../lib/email/transactional";
+import {
+  sendAccountDeletedEmail,
+  sendPasswordResetRequiredEmail,
+} from "../lib/email/transactional";
 
 const router = Router();
 
@@ -400,7 +403,11 @@ router.post("/users/:userId/force-password-reset", async (req, res): Promise<voi
 
   try {
     await clerkClient.users.setPasswordCompromised(userId, { revokeAllSessions: true });
-    res.json({ success: true });
+    // Fire-and-forget, and only AFTER Clerk succeeds: a failed send must never
+    // turn a completed reset into an error response. Silent no-op until the
+    // `password_reset_required` template exists in the Loops dashboard.
+    if (target.email) void sendPasswordResetRequiredEmail(target.email);
+    res.json({ success: true, emailSent: !!target.email });
   } catch (err) {
     req.log.error({ err, userId }, "Failed to force password reset");
     res.status(502).json({ error: "Clerk rejected the password reset request" });

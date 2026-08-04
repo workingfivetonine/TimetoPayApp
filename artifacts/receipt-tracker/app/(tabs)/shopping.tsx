@@ -99,6 +99,10 @@ export default function ShoppingScreen() {
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [customItems, setCustomItems] = useState<string[]>([]);
   const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
+  // An accepted merge: the discarded duplicate's id, plus the name the surviving
+  // row displays. Held here for the same reason as the rest.
+  const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
+  const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -212,12 +216,20 @@ export default function ShoppingScreen() {
   // What Shopping Mode shows: everything on the list that wasn't unticked in
   // Create list. Reads the unfiltered list on purpose — the Items tab's search
   // and sort are a browsing aid and shouldn't silently shorten a shopping trip.
+  // Merged-away duplicates are filtered explicitly as well as via `excluded`.
+  // Accepting a merge adds the discarded id to both, so this is belt-and-braces —
+  // but it means the invariant doesn't depend on the builder remembering to touch
+  // `excluded`, which is exactly what went wrong the first time. A surviving row
+  // renamed by a merge shows that name here too.
   const selectedItems = useMemo(
     () =>
-      [...(list?.recurring ?? []), ...(list?.oneOff ?? [])].filter(
-        (it) => !excluded.has(it.itemId),
-      ),
-    [list?.recurring, list?.oneOff, excluded],
+      [...(list?.recurring ?? []), ...(list?.oneOff ?? [])]
+        .filter((it) => !excluded.has(it.itemId) && !mergedOut.has(it.itemId))
+        .map((it) => {
+          const override = nameOverrides.get(it.itemId);
+          return override ? { ...it, itemName: override } : it;
+        }),
+    [list?.recurring, list?.oneOff, excluded, mergedOut, nameOverrides],
   );
 
   // Ending a trip is deliberate — only this fires the upload reminder, never a
@@ -362,6 +374,10 @@ export default function ShoppingScreen() {
           onCustomItemsChange={setCustomItems}
           quantities={quantities}
           onQuantitiesChange={setQuantities}
+          mergedOut={mergedOut}
+          onMergedOutChange={setMergedOut}
+          nameOverrides={nameOverrides}
+          onNameOverridesChange={setNameOverrides}
         />
       ) : view === "shop" ? (
         <ShoppingModeView

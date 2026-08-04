@@ -23,3 +23,15 @@ export async function sendAccountDeletedEmail(email: string): Promise<void> {
     logger.error({ err }, "Account-deleted event failed");
   }
 }
+
+// Sent after an admin forces a reset. Clerk has no admin "send a reset email"
+// API, so this is OUR email, and it deliberately carries no credential and no
+// magic link — it only points the user at the existing self-service "Forgot
+// password" flow on the sign-in screen.
+export async function sendPasswordResetRequiredEmail(email: string): Promise<void> {
+  try {
+    await loopsSendEvent(email, "password_reset_required");
+  } catch (err) {
+    logger.error({ err }, "Password-reset-required event failed");
+  }
+}

@@ -86,9 +86,22 @@ export default function ReviewReceiptScreen() {
   // decimal ("2", "2.", "0.5") instead of the value snapping back to the old
   // number on every keystroke.
   const [numText, setNumText] = useState<Record<string, string>>({});
-  const setNum = (key: string, text: string, applyValid: () => void) => {
+  // `allowEmpty` is for the nullable adjustment fields (delivery fee / tax /
+  // discount), where clearing the box MEANS "no such charge" and has to reach the
+  // setter so it can null the value. Without it the input looked empty while the
+  // old number stayed in state and got saved anyway. Deliberately not the default:
+  // total, price and quantity are required, and passing "" to them would flip
+  // their `*Uncertain` flags while keeping the old number — a silent no-op that
+  // reads as "confirmed" when the user hasn't confirmed anything.
+  const setNum = (
+    key: string,
+    text: string,
+    applyValid: () => void,
+    { allowEmpty = false }: { allowEmpty?: boolean } = {},
+  ) => {
     setNumText((m) => ({ ...m, [key]: text }));
-    if (!isNaN(parseFloat(text))) applyValid();
+    const isEmpty = text.trim() === "";
+    if (isEmpty ? allowEmpty : !isNaN(parseFloat(text))) applyValid();
   };
   const numVal = (key: string, current: number) =>
     numText[key] !== undefined ? numText[key] : String(current);
@@ -383,7 +396,7 @@ export default function ReviewReceiptScreen() {
             <TextInput
               style={[styles.fieldInput, fieldStyle(false)]}
               value={numVal("deliveryFee", receipt.deliveryFee ?? 0)}
-              onChangeText={(v) => setNum("deliveryFee", v, () => setDeliveryFee(v))}
+              onChangeText={(v) => setNum("deliveryFee", v, () => setDeliveryFee(v), { allowEmpty: true })}
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor={colors.mutedForeground}
@@ -401,7 +414,7 @@ export default function ReviewReceiptScreen() {
               <TextInput
                 style={[styles.fieldInput, fieldStyle(false)]}
                 value={numVal("tax", receipt.tax ?? 0)}
-                onChangeText={(v) => setNum("tax", v, () => setTax(v))}
+                onChangeText={(v) => setNum("tax", v, () => setTax(v), { allowEmpty: true })}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor={colors.mutedForeground}
@@ -415,7 +428,7 @@ export default function ReviewReceiptScreen() {
               <TextInput
                 style={[styles.fieldInput, fieldStyle(false)]}
                 value={numVal("discount", receipt.discount ?? 0)}
-                onChangeText={(v) => setNum("discount", v, () => setDiscount(v))}
+                onChangeText={(v) => setNum("discount", v, () => setDiscount(v), { allowEmpty: true })}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor={colors.mutedForeground}

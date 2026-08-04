@@ -61,6 +61,14 @@ interface Props {
   // output, but it is lost on a tab switch for the same reason if not lifted.
   quantities?: Map<number, number>;
   onQuantitiesChange?: React.Dispatch<React.SetStateAction<Map<number, number>>>;
+  // An accepted merge decision, which is two pieces: `mergedOut` is the discarded
+  // duplicate's id (hidden outright, distinct from merely unticked), and
+  // `nameOverrides` is the display name the surviving row takes. Both have to be
+  // lifted or the merge silently undoes itself on a tab switch.
+  mergedOut?: Set<number>;
+  onMergedOutChange?: React.Dispatch<React.SetStateAction<Set<number>>>;
+  nameOverrides?: Map<number, string>;
+  onNameOverridesChange?: React.Dispatch<React.SetStateAction<Map<number, string>>>;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -148,6 +156,10 @@ export function ShoppingListPdfModal({
   onCustomItemsChange,
   quantities: quantitiesProp,
   onQuantitiesChange,
+  mergedOut: mergedOutProp,
+  onMergedOutChange,
+  nameOverrides: nameOverridesProp,
+  onNameOverridesChange,
 }: Props) {
   const colors = useColors();
   const { symbol } = useCurrency();
@@ -183,10 +195,21 @@ export function ShoppingListPdfModal({
   const [priceMode, setPriceMode] = useState<PriceMode>("lowest");
   const [groupMode, setGroupMode] = useState<GroupMode>("category");
 
-  // Merge state
+  // Merge state. `mergePairs` is recomputed from the list itself so it needn't be
+  // lifted, but the accepted DECISIONS must be — see the prop comments.
   const [mergePairs, setMergePairs] = useState<MergePair[]>([]);
-  const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
-  const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
+
+  const [mergedOutLocal, setMergedOutLocal] = useState<Set<number>>(new Set());
+  const mergedOut = mergedOutProp ?? mergedOutLocal;
+  const setMergedOut =
+    mergedOutProp !== undefined && onMergedOutChange ? onMergedOutChange : setMergedOutLocal;
+
+  const [nameOverridesLocal, setNameOverridesLocal] = useState<Map<number, string>>(new Map());
+  const nameOverrides = nameOverridesProp ?? nameOverridesLocal;
+  const setNameOverrides =
+    nameOverridesProp !== undefined && onNameOverridesChange
+      ? onNameOverridesChange
+      : setNameOverridesLocal;
 
   // Reset state each time the modal opens. Skipped entirely when inline: as a
   // sub-tab there is no "open" moment, and wiping the selection on every tab
@@ -379,8 +402,7 @@ export function ShoppingListPdfModal({
   // `excluded` is what the parent screen reads to build the Shopping Mode list.
   // Adding to `mergedOut` alone made the duplicate vanish from Create list but
   // reappear as its own tickable row in Shopping, double-counting in the basket
-  // total. `mergedOut` is local (nothing outside needs "hide entirely"), so the
-  // sync has to happen here.
+  // total.
   const acceptMerge = (pair: MergePair, displayName?: string) => {
     setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
     if (displayName !== undefined) {
