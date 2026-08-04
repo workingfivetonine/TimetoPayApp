@@ -178,7 +178,7 @@ export default function AdminUserDetailScreen() {
     if (busy) return;
     confirmAction(
       "Require password reset",
-      `${current?.username ?? current?.email ?? "This user"} will be signed out everywhere and must set a new password before signing in again. No email is sent — Clerk has no admin reset-email API, so tell them yourself. Has no effect if they sign in with Google.`,
+      `${current?.username ?? current?.email ?? "This user"} will be signed out everywhere and must set a new password before signing in again. We'll email them a link to the "Forgot password" flow. Has no effect if they sign in with Google.`,
       "Require reset",
       () => forceReset.mutate({ userId }),
     );
@@ -353,8 +353,8 @@ export default function AdminUserDetailScreen() {
             </TouchableOpacity>
             {forceReset.isSuccess ? (
               <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-                Done — they must set a new password next sign-in. Let them know directly; no
-                email was sent.
+                Done — they must set a new password next sign-in, and we've emailed them
+                about it. Worth telling them directly too if it's urgent.
               </Text>
             ) : null}
 
