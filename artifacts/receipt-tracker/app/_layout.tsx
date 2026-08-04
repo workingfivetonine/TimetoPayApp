@@ -36,6 +36,7 @@ import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { DataProvider } from "@/context/DataContext";
+import { useReceiptShareIntent } from "@/hooks/useReceiptShareIntent";
 import { getApiOrigin } from "@/lib/apiBase";
 import {
   queryClient,
@@ -198,6 +199,10 @@ function InitialLayout() {
   // every request computes the origin fresh in the browser, so an early query
   // (before this render) can't grab a stale/wrong base.
   setBaseUrl(() => getApiOrigin());
+
+  // A receipt shared in from Photos/Files. Gated on being signed in so the file
+  // isn't dropped by the auth redirect below.
+  useReceiptShareIntent(isLoaded && !!isSignedIn);
 
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";

@@ -30,6 +30,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceipts";
+import { takeSharedFile } from "@/stores/sharedFile";
 import { getApiOrigin } from "@/lib/apiBase";
 import { usePremiumLock } from "@/hooks/usePremiumLock";
 import { PremiumUpsell } from "@/components/PremiumUpsell";
@@ -61,6 +62,32 @@ interface DuplicateReceipt {
   storeName: string;
   total: number;
   purchasedAt: string;
+}
+
+// Native and web read files differently: native uses expo-file-system (the
+// blob/FileReader path only works in a browser), which is why PDF upload used to
+// fail on the phone.
+async function readFileAsBase64(uri: string): Promise<string> {
+  if (Platform.OS === "web") {
+    const fileResponse = await expoFetch(uri);
+    const blob = await fileResponse.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const b64 = dataUrl.split(",")[1];
+        if (!b64) reject(new Error("Empty file"));
+        else resolve(b64);
+      };
+      reader.onerror = () => reject(new Error("FileReader error"));
+      reader.readAsDataURL(blob);
+    });
+  }
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  if (!base64) throw new Error("Empty file");
+  return base64;
 }
 
 function toSummary(saved: SavedReceipt): BatchReceiptSummary {
@@ -121,7 +148,7 @@ export default function ScanScreen() {
   // "Save & Next" on the review screen routes here with ?autoOpen=1 so the next
   // receipt can be captured without an extra tap. Fires once per arrival; the
   // ref guard stops a re-render (or the picker returning) from reopening it.
-  const { autoOpen } = useLocalSearchParams<{ autoOpen?: string }>();
+  const { autoOpen, shared } = useLocalSearchParams<{ autoOpen?: string; shared?: string }>();
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (autoOpen !== "1" || autoOpenedRef.current) return;
@@ -130,6 +157,48 @@ export default function ScanScreen() {
     void handleAddPhoto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpen, locked, canFreeScan]);
+
+  // A receipt shared in from another app (see useReceiptShareIntent). Routed here
+  // with ?shared=1; the file itself is parked in module state because the intent
+  // arrives outside navigation. `takeSharedFile` clears as it reads, so a remount
+  // can't reprocess it.
+  const sharedHandledRef = useRef(false);
+  useEffect(() => {
+    if (shared !== "1" || sharedHandledRef.current) return;
+    sharedHandledRef.current = true;
+    const file = takeSharedFile();
+    if (!file) return;
+    void (async () => {
+      if (locked && !canFreeScan) {
+        promptUpgrade();
+        return;
+      }
+      let base64: string;
+      try {
+        base64 = await readFileAsBase64(file.uri);
+      } catch {
+        showErrorToast(
+          "Couldn't open this file",
+          "We couldn't read the shared file. Try opening TimetoPay and adding it directly.",
+        );
+        return;
+      }
+      if (file.kind === "pdf") {
+        await parsePdf(base64);
+      } else {
+        // Same crop-then-scan path as a picked photo. Dimensions can be absent
+        // from a share intent; the editor needs numbers, so fall back to a square
+        // and let it re-measure.
+        setPendingImage({
+          uri: file.uri,
+          base64,
+          width: file.width ?? 1000,
+          height: file.height ?? 1000,
+        });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shared, locked, canFreeScan]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
@@ -441,32 +510,10 @@ export default function ScanScreen() {
     if (result.canceled || !result.assets[0]?.uri) return;
 
     // Read the picked file into base64 first, then hand off to parsePdf so a
-    // failed parse can be retried without re-picking the file. Native and web
-    // read files differently: native uses expo-file-system (the blob/FileReader
-    // path only works in a browser), which is why PDF upload failed on the phone.
+    // failed parse can be retried without re-picking the file.
     let base64: string;
     try {
-      const uri = result.assets[0].uri;
-      if (Platform.OS === "web") {
-        const fileResponse = await expoFetch(uri);
-        const blob = await fileResponse.blob();
-        base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const b64 = dataUrl.split(",")[1];
-            if (!b64) reject(new Error("Empty file"));
-            else resolve(b64);
-          };
-          reader.onerror = () => reject(new Error("FileReader error"));
-          reader.readAsDataURL(blob);
-        });
-      } else {
-        base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        if (!base64) throw new Error("Empty file");
-      }
+      base64 = await readFileAsBase64(result.assets[0].uri);
     } catch {
       showErrorToast(
         "Couldn't open this file",
