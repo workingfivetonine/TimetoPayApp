@@ -40,69 +40,9 @@ match your logo/colors once in Loops' brand settings.
 
 ---
 
-## 2. Thanks for subscribing — event: `subscription_started`
-**Sends when:** a subscription becomes active (Stripe or PayPal).
-**Variables:** `firstName`, `plan`
-
-**Subject:** You're in — welcome to TimetoPay Premium 🎉
-**Preview:** Unlimited AI scanning is now unlocked.
-
-**Body:**
-> Hi {{ firstName }},
->
-> Thanks for subscribing to TimetoPay Premium! Your {{ plan }} plan is active.
->
-> You now have **unlimited AI receipt scanning**, PDF and multi-receipt uploads, and the full price-history and analytics tools.
->
-> [Scan a receipt →](https://5to9shopping.com/scan)
->
-> Thank you for supporting TimetoPay 💜
-
----
-
-## 3. Payment didn't go through — event: `payment_past_due`
-**Sends when:** a payment fails (subscription goes past due).
-**Variables:** `currentPeriodEnd`
-
-**Subject:** Action needed: your TimetoPay payment didn't go through
-**Preview:** Update your payment method to keep Premium.
-
-**Body:**
-> Hi {{ firstName }},
->
-> We had trouble processing your latest TimetoPay payment, so your Premium access is at risk.
->
-> To keep unlimited scanning and your analytics, please update your payment method:
->
-> [Update billing →](https://5to9shopping.com/account)
->
-> If you've already fixed it, you can ignore this — thanks!
-
----
-
-## 4. Trial ending — event: `trial_ending`
-**Sends when:** the free trial is within ~3 days of ending.
-**Variables:** `daysLeft`, `trialEndsAt`, `firstName`
-
-**Subject:** Your TimetoPay trial ends in {{ daysLeft }} days
-**Preview:** Subscribe to keep unlimited scanning.
-
-**Body:**
-> Hi {{ firstName }},
->
-> Heads up — your TimetoPay free trial ends in **{{ daysLeft }} days**.
->
-> Don't lose your price history and unlimited scanning. Subscribe now and keep everything running:
->
-> [See plans →](https://5to9shopping.com/paywall)
->
-> Questions? Just reply — we're happy to help.
-
----
-
-## 5. Account deleted — event: `account_deleted`
+## 2. Account deleted — event: `account_deleted`
 **Sends when:** a user deletes their account.
-**Variables:** `subscriptionCancelled` (true/false)
+**Variables:** none
 
 **Subject:** Your TimetoPay account has been deleted
 **Preview:** Sorry to see you go.
@@ -112,16 +52,13 @@ match your logo/colors once in Loops' brand settings.
 >
 > This confirms your TimetoPay account and data have been deleted.
 >
-> *(If `subscriptionCancelled` is true, add this line — Loops conditional block, or make a second version:)*
-> Your subscription has been cancelled, and you won't be billed again.
->
 > If this wasn't you, or you change your mind, you're always welcome back at [5to9shopping.com](https://5to9shopping.com).
 >
 > Thanks for giving TimetoPay a try.
 
 ---
 
-## 6. Shopping-list nudge — event: `list_export_ready`
+## 3. Shopping-list nudge — event: `list_export_ready`
 **Sends when:** the user has items on their list (weekly/monthly per their setting).
 **Variables:** `itemCount`, `firstName`
 
@@ -139,7 +76,7 @@ match your logo/colors once in Loops' brand settings.
 
 ---
 
-## 7. "Haven't scanned lately" — event: `receipt_inactivity`
+## 4. "Haven't scanned lately" — event: `receipt_inactivity`
 **Sends when:** the user hasn't added a receipt in a while.
 **Variables:** `headline`, `body`, `daysSinceLastReceipt` (the app writes friendly copy into `headline` + `body`)
 
@@ -157,7 +94,7 @@ match your logo/colors once in Loops' brand settings.
 
 ---
 
-## 8. Weekly spend recap — event: `weekly_summary`
+## 5. Weekly spend recap — event: `weekly_summary`
 **Sends when:** the start of each week, recapping the week just finished.
 **Variables:** `periodStart`, `periodEnd`, `total`, `previousTotal`, `changeAmount`, `changeDirection` (up/down/flat), `firstName`
 
@@ -179,7 +116,7 @@ match your logo/colors once in Loops' brand settings.
 
 ---
 
-## 9. Monthly spend recap — event: `monthly_summary`
+## 6. Monthly spend recap — event: `monthly_summary`
 **Sends when:** the start of each month, recapping the month just finished.
 **Variables:** same as weekly (`periodStart`, `periodEnd`, `total`, `previousTotal`, `changeAmount`, `changeDirection`, `firstName`)
 
@@ -199,7 +136,7 @@ match your logo/colors once in Loops' brand settings.
 
 ---
 
-## 10. Email preferences updated — event: `preferences_updated`
+## 7. Email preferences updated — event: `preferences_updated`
 **Sends when:** a user changes their email/notification settings (debounced to at
 most one per 10 minutes, so flipping several toggles sends a single email).
 **Variables:** `firstName`
@@ -217,6 +154,64 @@ most one per 10 minutes, so flipping several toggles sends a single email).
 > [Manage preferences →](https://5to9shopping.com/account)
 >
 > If you didn't make this change, please reply and let us know.
+
+---
+
+## Password reset required — event: `password_reset_required`
+**Sends when:** an admin forces a password reset on the user's account. Fired only
+after Clerk accepts the reset, so it can't arrive if the reset didn't happen.
+**Variables:** `firstName`
+
+Deliberately carries **no reset link and no login token** — it points at the
+app's own "Forgot password" flow instead. That means the email is safe even if it's
+forwarded, and there's nothing in it worth phishing.
+
+**Subject:** Action needed: reset your TimetoPay password
+**Preview:** You'll be asked for a new password next time you sign in.
+
+**Body:**
+> Hi {{ firstName }},
+>
+> For security, an administrator has required a new password on your TimetoPay account. You've been signed out on all your devices.
+>
+> **To get back in:**
+> 1. Open TimetoPay and go to the sign-in screen.
+> 2. Tap **Forgot password**.
+> 3. Follow the emailed link to set a new password.
+>
+> [Go to sign in →](https://5to9shopping.com/sign-in)
+>
+> We'll never email you a password or ask you to reply with one. If you weren't expecting this, contact us before signing in.
+>
+> The TimetoPay team
+
+*(If the account signs in with Google there's no password to reset — they can just
+sign in again. Worth a line in the Loop if you want to cover it.)*
+
+---
+
+## Receipt missing after a shop — event: `trip_receipt_missing`
+**Sends when:** a week after the user finishes a trip in Shopping Mode without
+logging a receipt since. Once per trip, so a weekly shopper gets one nudge per
+missed trip rather than a monthly scold.
+**Variables:** `firstName`, `itemsPicked`, `daysSince`
+
+**Subject:** Did you keep the receipt? 🧾
+**Preview:** Your prices only update when the receipt does.
+
+**Body:**
+> Hi {{ firstName }},
+>
+> You ticked off **{{ itemsPicked }} items** on your last shop {{ daysSince }} days ago — but we haven't seen the receipt yet.
+>
+> Adding it takes about ten seconds and it's what keeps the good stuff working: your price history, the best-store suggestions, and your spend totals all come from receipts.
+>
+> [Add that receipt →](https://5to9shopping.com/scan)
+>
+> Already added it somewhere else? Then you're all set — we'll stop asking.
+
+*(Both `itemsPicked` and `daysSince` are numbers, so "1 items" and "1 days" are
+possible. If Loops lets you branch on the value, a singular variant reads better.)*
 
 ---
 
@@ -239,16 +234,27 @@ your support inbox when someone submits the in-app support form. Copy its
 ---
 
 ## Build order (suggested)
-Do the high-impact ones first, then the rest:
-1. `welcome`
-2. `trial_ending`
-3. `payment_past_due`
-4. `subscription_started`
-5. Support transactional
-6. `account_deleted`, `list_export_ready`, `receipt_inactivity`, `weekly_summary`, `monthly_summary`
+The two at the top don't exist yet and the app is already firing them, so they're
+currently silent no-ops — build these first:
+1. **`password_reset_required`** — an admin can already force a reset today, and
+   without this the user is signed out with no explanation.
+2. **`trip_receipt_missing`** — fires a week after any Shopping Mode trip.
+3. `welcome`
+4. Support transactional
+5. `account_deleted`, `list_export_ready`, `receipt_inactivity`, `weekly_summary`,
+   `monthly_summary`, `preferences_updated`
 
 ## Before they'll actually send
 - `LOOPS_API_KEY` set in Railway ✅
 - Your sending domain verified in Loops
 - Each Loop **published** (toggled live)
-- Old `RESEND_*` variables removed from Railway
+
+**The failure mode to know about:** an event with no matching Loop in the dashboard
+is a **silent no-op**. The app fires it, Loops accepts it, nothing is delivered and
+nothing errors. So "no email arrived" almost always means the Loop doesn't exist or
+isn't published — not that the code is broken.
+
+## No longer sent
+`subscription_started`, `trial_ending` and `payment_past_due` are **gone** —
+TimetoPay is free, so there's no billing to email anyone about. If you already
+built those Loops, unpublish them; they'll never be triggered again.

@@ -1,5 +1,5 @@
-// Transactional lifecycle emails (signup welcome, subscription thank-you,
-// account-deleted). These are sent as Loops EVENTS — the email content and any
+// Transactional lifecycle emails (signup welcome, account-deleted, admin-forced
+// password reset). These are sent as Loops EVENTS — the email content and any
 // follow-up automation are built in the Loops dashboard, keyed to the event
 // name. Each call also keeps the Loops contact's properties fresh. No Resend.
 import { loopsSendEvent, loopsUpsertContact } from "./loops";
@@ -16,25 +16,26 @@ export async function sendWelcomeEmail(email: string, name?: string | null): Pro
   }
 }
 
-export async function sendSubscriptionThankYouEmail(email: string): Promise<void> {
+export async function sendAccountDeletedEmail(email: string): Promise<void> {
   try {
-    await loopsSendEvent(email, "subscription_started", {
-      contactProperties: { subscriptionStatus: "active" },
-    });
+    await loopsSendEvent(email, "account_deleted");
   } catch (err) {
-    logger.error({ err }, "Subscription thank-you event failed");
+    logger.error({ err }, "Account-deleted event failed");
   }
 }
 
-export async function sendAccountDeletedEmail(
-  email: string,
-  subscriptionCancelled: boolean,
-): Promise<void> {
+// Sent after an admin forces a reset. Clerk has no admin "send a reset email"
+// API, so this is OUR email, and it deliberately carries no credential and no
+// magic link — it only points the user at the existing self-service "Forgot
+// password" flow on the sign-in screen.
+export async function sendPasswordResetRequiredEmail(email: string): Promise<void> {
   try {
-    await loopsSendEvent(email, "account_deleted", {
-      eventProperties: { subscriptionCancelled },
+    await loopsSendEvent(email, "password_reset_required", {
+      // Sent so the template can greet by name without depending on the contact
+      // already having been created by the welcome event.
+      contactProperties: { firstName: displayNameFromEmail(email) },
     });
   } catch (err) {
-    logger.error({ err }, "Account-deleted event failed");
+    logger.error({ err }, "Password-reset-required event failed");
   }
 }

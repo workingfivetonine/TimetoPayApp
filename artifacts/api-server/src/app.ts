@@ -9,7 +9,6 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
-import { stripeWebhookHandler } from "./routes/stripeWebhook";
 import { clerkWebhookHandler } from "./routes/clerkWebhook";
 import { logger } from "./lib/logger";
 
@@ -40,25 +39,16 @@ app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
 
-// Stripe webhook needs the raw body for signature verification, so it must be
-// registered BEFORE the JSON body parser. It is public (Stripe-signed) — auth is
-// the signature check inside the handler.
-app.post(
-  "/api/stripe/webhook",
-  express.raw({ type: "application/json", limit: "5mb" }),
-  stripeWebhookHandler,
-);
-
-// Clerk (Svix) webhook also needs the raw body for signature verification.
-// Cancels the subscription + removes data when a user is deleted in Clerk.
+// Clerk (Svix) webhook needs the raw body for signature verification. Removes
+// the user's data when they are deleted in Clerk.
 app.post(
   "/api/webhooks/clerk",
   express.raw({ type: "application/json", limit: "1mb" }),
   clerkWebhookHandler,
 );
 
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+app.use(express.json({ limit: "28mb" }));
+app.use(express.urlencoded({ extended: true, limit: "28mb" }));
 
 // Resolve the publishable key from the incoming request host so the same server
 // can serve multiple Clerk custom domains. Falls back to CLERK_PUBLISHABLE_KEY.

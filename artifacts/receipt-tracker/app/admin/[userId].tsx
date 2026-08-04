@@ -20,6 +20,7 @@ import {
   useAdminGetUserReceipts,
   useAdminSetUserRole,
   useAdminDeleteUser,
+  useAdminForcePasswordReset,
   useAdminMergeUsers,
 } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
@@ -43,6 +44,47 @@ function confirmAction(title: string, message: string, confirmLabel: string, onC
       { text: confirmLabel, style: "destructive", onPress: onConfirm },
     ]);
   }
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
+function DetailRow({
+  label,
+  value,
+  colors,
+  mono,
+}: {
+  label: string;
+  value: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  colors: any;
+  mono?: boolean;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>{label}</Text>
+      <Text
+        style={[
+          styles.detailValue,
+          { color: colors.foreground },
+          mono && { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12 },
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+    </View>
+  );
 }
 
 export default function AdminUserDetailScreen() {
@@ -86,7 +128,9 @@ export default function AdminUserDetailScreen() {
   const deleteUser = useAdminDeleteUser();
   const mergeUsers = useAdminMergeUsers();
 
-  const busy = setRole.isPending || deleteUser.isPending || mergeUsers.isPending;
+  const forceReset = useAdminForcePasswordReset();
+  const busy =
+    setRole.isPending || deleteUser.isPending || mergeUsers.isPending || forceReset.isPending;
 
   const refreshAdminData = () => {
     queryClient.invalidateQueries();
@@ -130,6 +174,16 @@ export default function AdminUserDetailScreen() {
     );
   };
 
+  const handleForcePasswordReset = () => {
+    if (busy) return;
+    confirmAction(
+      "Require password reset",
+      `${current?.username ?? current?.email ?? "This user"} will be signed out everywhere and must set a new password before signing in again. We'll email them a link to the "Forgot password" flow. Has no effect if they sign in with Google.`,
+      "Require reset",
+      () => forceReset.mutate({ userId }),
+    );
+  };
+
   const handleMerge = (targetId: string, targetEmail: string | null | undefined) => {
     if (busy) return;
     confirmAction(
@@ -166,6 +220,36 @@ export default function AdminUserDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Account details */}
+        {current ? (
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Account</Text>
+            <DetailRow label="Username" value={current.username ?? "— not set yet"} colors={colors} />
+            <DetailRow label="Email" value={current.email ?? "— none"} colors={colors} />
+            <DetailRow label="Joined" value={formatDate(current.createdAt)} colors={colors} />
+            <DetailRow
+              label="Region"
+              value={
+                current.countryCode
+                  ? [current.countryCode, current.stateCode].filter(Boolean).join(" / ")
+                  : "— not set"
+              }
+              colors={colors}
+            />
+            <DetailRow
+              label="Profile setup"
+              value={current.username ? "Completed" : "No username chosen yet"}
+              colors={colors}
+            />
+            <DetailRow
+              label="Posts without review"
+              value={current.boardAutoApprove ? "Yes" : "No"}
+              colors={colors}
+            />
+            <DetailRow label="User ID" value={current.id} colors={colors} mono />
+          </View>
+        ) : null}
+
         {/* User type */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>User type</Text>
@@ -252,17 +336,38 @@ export default function AdminUserDetailScreen() {
           </View>
         ) : null}
 
-        {/* Danger zone */}
+        {/* Danger zone. Refused for your own account server-side, so it's hidden
+            here too — locking yourself out isn't recoverable in-app. */}
         {!isMaster ? (
-          <TouchableOpacity
-            style={[styles.deleteBtn, { borderColor: colors.destructive }, busy && { opacity: 0.5 }]}
-            onPress={handleDelete}
-            disabled={busy}
-            activeOpacity={0.8}
-          >
-            <Feather name="trash-2" size={18} color={colors.destructive} />
-            <Text style={[styles.deleteText, { color: colors.destructive }]}>Delete user</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { borderColor: colors.border }, busy && { opacity: 0.5 }]}
+              onPress={handleForcePasswordReset}
+              disabled={busy}
+              activeOpacity={0.8}
+            >
+              <Feather name="key" size={18} color={colors.foreground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
+                Require password reset
+              </Text>
+            </TouchableOpacity>
+            {forceReset.isSuccess ? (
+              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+                Done — they must set a new password next sign-in, and we've emailed them
+                about it. Worth telling them directly too if it's urgent.
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.deleteBtn, { borderColor: colors.destructive }, busy && { opacity: 0.5 }]}
+              onPress={handleDelete}
+              disabled={busy}
+              activeOpacity={0.8}
+            >
+              <Feather name="trash-2" size={18} color={colors.destructive} />
+              <Text style={[styles.deleteText, { color: colors.destructive }]}>Delete user</Text>
+            </TouchableOpacity>
+          </>
         ) : null}
 
         {actionError ? (
@@ -354,6 +459,26 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   deleteText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  secondaryBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  hintText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 10,
+  },
+  detailLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  detailValue: { flexShrink: 1, fontSize: 13, fontFamily: "Inter_600SemiBold" },
   errorText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   receiptCard: { borderWidth: 1, borderRadius: 14, padding: 16 },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },

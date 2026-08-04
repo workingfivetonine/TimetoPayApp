@@ -1,7 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runStartupReconciliations } from "./lib/bootstrap";
-import { initStripe } from "./lib/billing/stripeSync";
 import { startAdminDigestScheduler } from "./lib/adminDigestScheduler";
 import { startReminderScheduler } from "./lib/notifications/reminderScheduler";
 
@@ -30,18 +29,12 @@ app.listen(port, (err) => {
   // Fire-and-forget one-time data reconciliations (idempotent).
   void runStartupReconciliations();
 
-  // One-time Stripe sync setup (schema + managed webhook + backfill). No-op when
-  // Stripe isn't connected.
-  void initStripe().catch((err) =>
-    logger.error({ err }, "Stripe init failed"),
-  );
-
   // Periodic admin review digest (new catalog items / stores / users). Unref'd
   // timers; no-op if Gmail isn't connected or no admin email is on file.
   startAdminDigestScheduler();
 
-  // Periodic opt-in email reminders (payment / list-export / receipt-inactivity
-  // / spend summaries) for subscription-related users. Unref'd timer; graceful
-  // no-op when Resend isn't connected.
+  // Periodic opt-in email reminders (list-export / receipt-inactivity / spend
+  // summaries / shopping-trip receipt nudges). Unref'd timer; graceful no-op
+  // when Loops isn't configured.
   startReminderScheduler();
 });

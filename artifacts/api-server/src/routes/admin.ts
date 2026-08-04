@@ -12,10 +12,11 @@ import {
 import { AdminSetUserRoleBody, AdminMergeUsersBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { normalizeName } from "../lib/catalog";
-import { computeEntitlement } from "../lib/billing/entitlement";
 import { runAdminDigest } from "../lib/adminDigest";
-import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
-import { sendAccountDeletedEmail } from "../lib/email/transactional";
+import {
+  sendAccountDeletedEmail,
+  sendPasswordResetRequiredEmail,
+} from "../lib/email/transactional";
 
 const router = Router();
 
@@ -100,37 +101,18 @@ router.get("/users", async (_req, res): Promise<void> => {
     users.map((u) => ({
       id: u.id,
       email: u.email,
+      username: u.username,
       isAdmin: u.isAdmin,
       role: u.role,
       createdAt: u.createdAt.toISOString(),
+      countryCode: u.countryCode,
+      stateCode: u.stateCode,
       storeCount: storeMap.get(u.id) ?? 0,
       itemCount: itemMap.get(u.id) ?? 0,
       receiptCount: receiptMap.get(u.id)?.receiptCount ?? 0,
       totalSpend: Math.round(Number(receiptMap.get(u.id)?.totalSpend ?? 0) * 100) / 100,
       boardAutoApprove: u.boardAutoApprove,
     })),
-  );
-});
-
-// List all users with their subscription/entitlement status (trial/active/etc.)
-// and the provider backing it. Mirrors computeEntitlement so the admin view
-// matches exactly what each user is gated on.
-router.get("/subscribers", async (_req, res): Promise<void> => {
-  const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
-  res.json(
-    users.map((u) => {
-      const e = computeEntitlement(u);
-      return {
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        status: e.status,
-        provider: e.provider,
-        entitled: e.entitled,
-        currentPeriodEnd: e.currentPeriodEnd,
-        createdAt: u.createdAt.toISOString(),
-      };
-    }),
   );
 });
 
@@ -388,13 +370,48 @@ router.delete("/users/:userId", async (req, res): Promise<void> => {
     return;
   }
 
-  // Cancel any active subscription so the deleted user stops being billed.
-  const subscriptionCancelled = !!(target.stripeSubscriptionId || target.paypalSubscriptionId);
-  await cancelUserSubscription(target);
   await deleteClerkUser(userId, req.log);
-  if (target.email) void sendAccountDeletedEmail(target.email, subscriptionCancelled);
+  if (target.email) void sendAccountDeletedEmail(target.email);
 
   res.json({ success: true });
+});
+
+// Force a user to set a new password before they can sign in again.
+//
+// Clerk has no admin "send a reset email" API, so this uses the primitive it does
+// expose: flagging the current password as compromised, which makes Clerk demand a
+// reset at next sign-in. Sessions are revoked at the same time, otherwise an
+// already-signed-in device would keep working and the reset wouldn't bite.
+//
+// Only meaningful for password accounts — a user who signs in with Google has no
+// password to reset, so this is a no-op for them beyond the sign-out.
+router.post("/users/:userId/force-password-reset", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+
+  // Locking yourself out of the only admin account is unrecoverable from inside
+  // the app, so it's refused rather than confirmed.
+  if (userId === req.userId) {
+    res.status(400).json({ error: "You can't force a password reset on your own account" });
+    return;
+  }
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  try {
+    await clerkClient.users.setPasswordCompromised(userId, { revokeAllSessions: true });
+    // Fire-and-forget, and only AFTER Clerk succeeds: a failed send must never
+    // turn a completed reset into an error response. Silent no-op until the
+    // `password_reset_required` template exists in the Loops dashboard.
+    if (target.email) void sendPasswordResetRequiredEmail(target.email);
+    res.json({ success: true, emailSent: !!target.email });
+  } catch (err) {
+    req.log.error({ err, userId }, "Failed to force password reset");
+    res.status(502).json({ error: "Clerk rejected the password reset request" });
+  }
 });
 
 // Read-only view of a specific user's receipts.

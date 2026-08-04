@@ -35,6 +35,40 @@ interface Props {
   recurring: ShoppingListItem[];
   oneOff: ShoppingListItem[];
   preparedFor: string;
+  // Rendered as a sub-tab of the shopping screen rather than a modal: no
+  // overlay, no sheet chrome, no close button (switching tabs is the way out).
+  inline?: boolean;
+  // Everything the user builds up here is owned by the parent when inline. As a
+  // sub-tab this component is unmounted whenever another sub-tab is showing, so
+  // any state kept locally would be destroyed on every tab switch — the parent
+  // holding it is what makes the selection survive, and what lets Shopping Mode
+  // read the ticked set. Each of these is controlled iff the value prop is
+  // passed; the modal path passes none of them and keeps owning them locally.
+  //
+  // The change handlers take a SetStateAction rather than a plain value so the
+  // parent's raw useState setter can be passed straight through and React's
+  // update queueing is preserved — otherwise two taps landing in one batch would
+  // both read the same stale value and one would be dropped.
+  //
+  // `excluded` holds the DEselected item ids — empty means everything included.
+  excluded?: Set<number>;
+  onExcludedChange?: React.Dispatch<React.SetStateAction<Set<number>>>;
+  // Free-text extras so Shopping Mode can show them alongside the real items.
+  // They have no item id, so they travel as names.
+  customItems?: string[];
+  onCustomItemsChange?: React.Dispatch<React.SetStateAction<string[]>>;
+  // Per-item quantity overrides; absent id means 1. Only feeds the PDF/share
+  // output, but it is lost on a tab switch for the same reason if not lifted.
+  quantities?: Map<number, number>;
+  onQuantitiesChange?: React.Dispatch<React.SetStateAction<Map<number, number>>>;
+  // An accepted merge decision, which is two pieces: `mergedOut` is the discarded
+  // duplicate's id (hidden outright, distinct from merely unticked), and
+  // `nameOverrides` is the display name the surviving row takes. Both have to be
+  // lifted or the merge silently undoes itself on a tab switch.
+  mergedOut?: Set<number>;
+  onMergedOutChange?: React.Dispatch<React.SetStateAction<Set<number>>>;
+  nameOverrides?: Map<number, string>;
+  onNameOverridesChange?: React.Dispatch<React.SetStateAction<Map<number, string>>>;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -115,14 +149,42 @@ export function ShoppingListPdfModal({
   recurring,
   oneOff,
   preparedFor,
+  inline = false,
+  excluded: excludedProp,
+  onExcludedChange,
+  customItems: customItemsProp,
+  onCustomItemsChange,
+  quantities: quantitiesProp,
+  onQuantitiesChange,
+  mergedOut: mergedOutProp,
+  onMergedOutChange,
+  nameOverrides: nameOverridesProp,
+  onNameOverridesChange,
 }: Props) {
   const colors = useColors();
   const { symbol } = useCurrency();
 
-  // Core selection state
-  const [excluded, setExcluded] = useState<Set<number>>(new Set());
-  const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
-  const [customItems, setCustomItems] = useState<string[]>([]);
+  // Core builder state. Each piece is controlled by the parent when the matching
+  // value prop is passed (the inline/sub-tab case); otherwise owned locally, as
+  // the modal always did. Deliberately NOT a local-state-plus-mirror-effect: as
+  // a sub-tab this component unmounts on every tab switch, so a mirror effect
+  // would refire on remount with the empty initial value and clobber the
+  // parent's copy — wiping exactly the state the lift was meant to preserve.
+  const [excludedLocal, setExcludedLocal] = useState<Set<number>>(new Set());
+  const excluded = excludedProp ?? excludedLocal;
+  const setExcluded =
+    excludedProp !== undefined && onExcludedChange ? onExcludedChange : setExcludedLocal;
+
+  const [quantitiesLocal, setQuantitiesLocal] = useState<Map<number, number>>(new Map());
+  const quantities = quantitiesProp ?? quantitiesLocal;
+  const setQuantities =
+    quantitiesProp !== undefined && onQuantitiesChange ? onQuantitiesChange : setQuantitiesLocal;
+
+  const [customItemsLocal, setCustomItemsLocal] = useState<string[]>([]);
+  const customItems = customItemsProp ?? customItemsLocal;
+  const setCustomItems =
+    customItemsProp !== undefined && onCustomItemsChange ? onCustomItemsChange : setCustomItemsLocal;
+
   const [customInput, setCustomInput] = useState("");
   const [generating, setGenerating] = useState(false);
 
@@ -133,13 +195,27 @@ export function ShoppingListPdfModal({
   const [priceMode, setPriceMode] = useState<PriceMode>("lowest");
   const [groupMode, setGroupMode] = useState<GroupMode>("category");
 
-  // Merge state
+  // Merge state. `mergePairs` is recomputed from the list itself so it needn't be
+  // lifted, but the accepted DECISIONS must be — see the prop comments.
   const [mergePairs, setMergePairs] = useState<MergePair[]>([]);
-  const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
-  const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
 
-  // Reset all state each time the modal opens
+  const [mergedOutLocal, setMergedOutLocal] = useState<Set<number>>(new Set());
+  const mergedOut = mergedOutProp ?? mergedOutLocal;
+  const setMergedOut =
+    mergedOutProp !== undefined && onMergedOutChange ? onMergedOutChange : setMergedOutLocal;
+
+  const [nameOverridesLocal, setNameOverridesLocal] = useState<Map<number, string>>(new Map());
+  const nameOverrides = nameOverridesProp ?? nameOverridesLocal;
+  const setNameOverrides =
+    nameOverridesProp !== undefined && onNameOverridesChange
+      ? onNameOverridesChange
+      : setNameOverridesLocal;
+
+  // Reset state each time the modal opens. Skipped entirely when inline: as a
+  // sub-tab there is no "open" moment, and wiping the selection on every tab
+  // switch would defeat the point of the parent owning it.
   useEffect(() => {
+    if (inline) return;
     if (visible) {
       setExcluded(new Set());
       setQuantities(new Map());
@@ -155,7 +231,15 @@ export function ShoppingListPdfModal({
       setMergePairs(findSimilarPairs([...recurring, ...oneOff]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, inline]);
+
+  // Inline has no open event, so merge suggestions are computed from the list
+  // itself and refresh when the list changes.
+  useEffect(() => {
+    if (!inline) return;
+    setMergePairs(findSimilarPairs([...recurring, ...oneOff]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inline, recurring, oneOff]);
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
@@ -243,6 +327,30 @@ export function ShoppingListPdfModal({
     });
   };
 
+  // Bulk select/deselect acts on the CURRENTLY VISIBLE items only, so it
+  // composes with the category/store filters instead of silently reaching
+  // items the user has filtered out of view.
+  const visibleIds = useMemo(
+    () => [...filtered.regular, ...filtered.oneOff].map((it) => it.itemId),
+    [filtered],
+  );
+
+  const selectAllVisible = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) next.delete(id);
+      return next;
+    });
+  };
+
+  const deselectAllVisible = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) next.add(id);
+      return next;
+    });
+  };
+
   const toggleCat = (cat: string) => {
     setActiveCats((prev) => {
       const next = new Set(prev);
@@ -286,29 +394,36 @@ export function ShoppingListPdfModal({
     setMergePairs((prev) => prev.map((p) => (p.id === id ? { ...p, dismissed: true } : p)));
   };
 
+  // Accepting a merge always discards itemB and keeps itemA's slot; the two
+  // branches differ only in which NAME is displayed on that slot.
+  //
+  // The discarded id has to land in BOTH sets, and they are not redundant:
+  // `mergedOut` hides the row outright in here and in the PDF/Share output, while
+  // `excluded` is what the parent screen reads to build the Shopping Mode list.
+  // Adding to `mergedOut` alone made the duplicate vanish from Create list but
+  // reappear as its own tickable row in Shopping, double-counting in the basket
+  // total.
+  const acceptMerge = (pair: MergePair, displayName?: string) => {
+    setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
+    if (displayName !== undefined) {
+      setNameOverrides((prev) => new Map([...prev, [pair.itemA.itemId, displayName]]));
+    }
+    setExcluded((prev) => {
+      const n = new Set(prev);
+      n.delete(pair.itemA.itemId);
+      n.add(pair.itemB.itemId);
+      return n;
+    });
+    dismissPair(pair.id);
+  };
+
   const handleMerge = (pair: MergePair) => {
     Alert.alert(
       "Merge Similar Items",
       `"${pair.itemA.itemName}" and "${pair.itemB.itemName}" look similar.\n\nWhich name should be kept?`,
       [
-        {
-          text: pair.itemA.itemName,
-          onPress: () => {
-            setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
-            setExcluded((prev) => { const n = new Set(prev); n.delete(pair.itemA.itemId); return n; });
-            dismissPair(pair.id);
-          },
-        },
-        {
-          text: pair.itemB.itemName,
-          onPress: () => {
-            // Keep itemA's slot but display with itemB's name
-            setMergedOut((prev) => new Set([...prev, pair.itemB.itemId]));
-            setNameOverrides((prev) => new Map([...prev, [pair.itemA.itemId, pair.itemB.itemName]]));
-            setExcluded((prev) => { const n = new Set(prev); n.delete(pair.itemA.itemId); return n; });
-            dismissPair(pair.id);
-          },
-        },
+        { text: pair.itemA.itemName, onPress: () => acceptMerge(pair) },
+        { text: pair.itemB.itemName, onPress: () => acceptMerge(pair, pair.itemB.itemName) },
         { text: "Cancel", style: "cancel" },
       ],
     );
@@ -505,22 +620,27 @@ export function ShoppingListPdfModal({
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-
+  // Built as an element, not a wrapper component: a component defined inside
+  // render gets a new identity every pass, so React would unmount and remount
+  // this whole subtree on each keystroke and the custom-item input would lose
+  // focus. Inline drops the overlay/sheet framing; the modal path is unchanged.
+  const content = (
+    <>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.title, { color: colors.foreground }]}>Review & Export</Text>
+              <Text style={[styles.title, { color: colors.foreground }]}>
+                {inline ? "Build your list" : "Review & Export"}
+              </Text>
               <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
                 {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close">
-              <Feather name="x" size={22} color={colors.mutedForeground} />
-            </TouchableOpacity>
+            {inline ? null : (
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close">
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Filter bar */}
@@ -637,6 +757,70 @@ export function ShoppingListPdfModal({
             contentContainerStyle={{ paddingBottom: 16 }}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Custom items — kept at the top so anything not already tracked
+                can be added before working down the list. */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Add a custom item</Text>
+              <View style={styles.customInputRow}>
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                  placeholder="e.g. Birthday candles"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={customInput}
+                  onChangeText={setCustomInput}
+                  onSubmitEditing={addCustom}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: colors.accent }]}
+                  onPress={addCustom}
+                  accessibilityLabel="Add custom item"
+                >
+                  <Feather name="plus" size={20} color={colors.accentForeground} />
+                </TouchableOpacity>
+              </View>
+              {customItems.map((name, index) => (
+                <View key={`${name}-${index}`} style={[styles.row, { borderBottomColor: colors.border }]}>
+                  <Text style={styles.rowIcon}>📝</Text>
+                  <Text style={[styles.rowName, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => removeCustom(index)}
+                    accessibilityLabel="Remove custom item"
+                    style={styles.removeBtn}
+                  >
+                    <Feather name="x" size={18} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            {/* Bulk selection */}
+            {visibleIds.length > 0 && (
+              <View style={styles.bulkRow}>
+                <TouchableOpacity
+                  style={[styles.bulkBtn, { borderColor: colors.border }]}
+                  onPress={selectAllVisible}
+                  accessibilityLabel="Select all shown items"
+                >
+                  <Feather name="check-square" size={14} color={colors.primary} />
+                  <Text style={[styles.bulkBtnText, { color: colors.primary }]}>Select all</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.bulkBtn, { borderColor: colors.border }]}
+                  onPress={deselectAllVisible}
+                  accessibilityLabel="Deselect all shown items"
+                >
+                  <Feather name="square" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.bulkBtnText, { color: colors.mutedForeground }]}>Deselect all</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Merge suggestions */}
             {activePairs.length > 0 && (
               <View style={[styles.mergeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -691,46 +875,6 @@ export function ShoppingListPdfModal({
               </View>
             )}
 
-            {/* Custom items */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Add a custom item</Text>
-              <View style={styles.customInputRow}>
-                <TextInput
-                  style={[
-                    styles.customInput,
-                    { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border },
-                  ]}
-                  placeholder="e.g. Birthday candles"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={customInput}
-                  onChangeText={setCustomInput}
-                  onSubmitEditing={addCustom}
-                  returnKeyType="done"
-                />
-                <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: colors.accent }]}
-                  onPress={addCustom}
-                  accessibilityLabel="Add custom item"
-                >
-                  <Feather name="plus" size={20} color={colors.accentForeground} />
-                </TouchableOpacity>
-              </View>
-              {customItems.map((name, index) => (
-                <View key={`${name}-${index}`} style={[styles.row, { borderBottomColor: colors.border }]}>
-                  <Text style={styles.rowIcon}>📝</Text>
-                  <Text style={[styles.rowName, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
-                    {name}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => removeCustom(index)}
-                    accessibilityLabel="Remove custom item"
-                    style={styles.removeBtn}
-                  >
-                    <Feather name="x" size={18} color={colors.mutedForeground} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
           </ScrollView>
 
           {/* Footer */}
@@ -740,13 +884,16 @@ export function ShoppingListPdfModal({
               { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? 28 : 16 },
             ]}
           >
-            <TouchableOpacity
-              style={[styles.cancelBtn, { borderColor: colors.border }]}
-              onPress={onClose}
-              disabled={generating}
-            >
-              <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
-            </TouchableOpacity>
+            {/* No Cancel inline — switching sub-tabs is how you leave. */}
+            {inline ? null : (
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={onClose}
+                disabled={generating}
+              >
+                <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.shareBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
               onPress={handleShareText}
@@ -771,14 +918,26 @@ export function ShoppingListPdfModal({
               )}
             </TouchableOpacity>
           </View>
+    </>
+  );
 
-        </View>
+  if (inline) {
+    return (
+      <View style={[styles.inlineRoot, { backgroundColor: colors.background }]}>{content}</View>
+    );
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={[styles.sheet, { backgroundColor: colors.background }]}>{content}</View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  inlineRoot: { flex: 1 },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -833,8 +992,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   priceToggleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  chipScroll: { flexGrow: 0 },
-  chipRow: { gap: 6, paddingHorizontal: 2 },
+  // Same guard as the board's filter row: a horizontal ScrollView has no
+  // intrinsic height, so give it one it can't be squeezed below.
+  chipScroll: { flexGrow: 0, flexShrink: 0, minHeight: 30 },
+  chipRow: { gap: 6, paddingHorizontal: 2, alignItems: "center", minHeight: 30 },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -887,6 +1048,17 @@ const styles = StyleSheet.create({
   // Body
   body: { paddingHorizontal: 20 },
   section: { marginTop: 16 },
+  bulkRow: { flexDirection: "row", gap: 8, marginTop: 16 },
+  bulkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  bulkBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   sectionTitle: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",

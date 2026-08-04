@@ -17,12 +17,10 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
+import { bestFuzzyMatch } from "../lib/textSimilarity.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
 import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
-import { requirePremium, allowFreeSingleScan } from "../middlewares/requireEntitlement.js";
 import { geocodeAddress } from "../lib/geocode.js";
-import { getFreeScanUsage, recordFreeScan } from "../lib/billing/freeScan.js";
-import { computeEntitlement } from "../lib/billing/entitlement.js";
 // Use lib directly to skip pdf-parse's test-file read on import
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse: (
@@ -41,12 +39,12 @@ const execFileAsync = promisify(execFile);
 
 // Abuse-control limits for the AI-backed endpoints. Base64 expands ~33% over
 // raw bytes, so these char caps bound the decoded image/PDF the model and
-// pdftoppm have to process well below the global 20mb body cap.
+// pdftoppm have to process well below the global 28mb body cap.
 const MAX_IMAGE_B64_CHARS = 10 * 1024 * 1024; // ~7.5 MB decoded image
-const MAX_PDF_B64_CHARS = 15 * 1024 * 1024; // ~11 MB decoded PDF
+const MAX_PDF_B64_CHARS = 24 * 1024 * 1024; // ~18 MB decoded PDF
 // Only the first few pages are ever sent to the model; bound the expensive
 // local work (text extraction + rasterization) to the same cap.
-const PDF_MAX_PAGES = 4;
+const PDF_MAX_PAGES = 10;
 // Hard wall-clock cap on the pdftoppm subprocess so a crafted PDF cannot
 // monopolize a worker; SIGKILL guarantees the child is reaped even if it
 // ignores SIGTERM.
@@ -221,8 +219,8 @@ TYPICAL RECEIPT LAYOUT — use this as a reference map when reading the image:
   │  CHKN BRST 500G          1   3.75   │  ← expand abbrev → "Chicken Breast 500g"
   │─────────────────────────────────────│
   │  Subtotal:                   9.73   │  ← IGNORE (not a line item)
-  │  Loyalty discount:          -0.50   │  ← IGNORE
-  │  VAT (20%):                  1.62   │  ← IGNORE
+  │  Loyalty discount:          -0.50   │  ← discount (NOT a line item)
+  │  VAT (20%):                  1.62   │  ← tax (NOT a line item)
   │  Delivery fee:               1.99   │  ← deliveryFee (NOT a line item)
   │  Tip:                        1.00   │  ← IGNORE
   │─────────────────────────────────────│
@@ -245,6 +243,8 @@ WORKED EXAMPLE — given the receipt above, the correct output is:
   "total": 10.23,
   "totalUncertain": false,
   "deliveryFee": 1.99,
+  "tax": 1.62,
+  "discount": 0.50,
   "lineItems": [
     { "name": "Whole Milk 2L",       "icon": "🥛", "category": "Dairy & Eggs",    "price": 1.35, "quantity": 1, "nameUncertain": false, "priceUncertain": false },
     { "name": "Free Range Eggs",     "icon": "🥚", "category": "Dairy & Eggs",    "price": 2.49, "quantity": 2, "nameUncertain": false, "priceUncertain": false },
@@ -267,6 +267,8 @@ Now extract data from the receipt image provided and return ONLY a single valid 
   "total": <final total paid as a number>,
   "totalUncertain": <true if total was blurry/missing/guessed, false if clearly readable>,
   "deliveryFee": <the delivery and/or service fee charged, as a number; 0 if the receipt shows none>,
+  "tax": <total sales tax / VAT / GST charged, as a positive number; 0 if the receipt shows none>,
+  "discount": <total discounts / coupons / loyalty savings, as a POSITIVE number; 0 if the receipt shows none>,
   "lineItems": [
     {
       "name": "Clean Title Case name",
@@ -284,8 +286,10 @@ Rules:
 - storeCountryCode: infer the store's country from the address, currency symbol, phone format, language, or tax labels (e.g. "VAT" → UK/EU, "GST" → AU/CA, "$" with a US state abbreviation → US). Return the uppercase ISO-3166 alpha-2 code (e.g. "US", "GB", "CA", "AU"). If you genuinely cannot tell, return null.
 - storeStateCode: ONLY for a US store, return the USPS 2-letter state code (e.g. "CA", "NY", "TX") read from the address. For any non-US store, or if the US state is unreadable, return null.
 - storeAddress: the store branch's street address printed near the top of the receipt (typically under the store name). Include street, city, and postal/zip code if shown, as a single line. Return null if no address is printed. This is the STORE's location — never the customer's.
-- Include ONLY purchased product lines — exclude subtotals, taxes, discounts, delivery fees, tips, loyalty points.
+- lineItems must contain ONLY purchased product lines — never subtotals, taxes, discounts, delivery fees, tips, or loyalty points. Tax, discounts and delivery fees are captured in their own top-level fields below instead.
 - deliveryFee: capture the delivery fee and/or service/handling fee charged for the order (sum them if both appear) as a positive number. This is NOT a line item — never add it to lineItems. If the receipt shows no delivery or service fee (e.g. an in-store purchase), return 0. Do NOT count tips, taxes, or bag fees here.
+- tax: sum every sales-tax line (VAT, GST, state/local tax, etc.) as a positive number. This is NOT a line item. Return 0 if no tax is shown or it's already included with no separate line.
+- discount: sum every discount, coupon, promotion, or loyalty-saving line as a POSITIVE number (0.50, not -0.50), even though the receipt prints it as a deduction. This is NOT a line item. Return 0 if none are shown.
 - icon must be exactly one emoji that best represents the product (e.g. 🥛 milk, 🍞 bread, 🥕 carrots, 🍗 chicken, 🧻 paper towels). If unsure, use 🛒.
 - category MUST be EXACTLY one of these fixed values (copy verbatim): "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen", "Beverages", "Snacks", "Household", "Personal Care", "Baby", "Pet", "Other". Pick the single best fit; use "Other" only if nothing else fits.
 - price is always the per-unit price; if only a line total is shown for qty > 1, divide to get the unit price.
@@ -304,6 +308,8 @@ type ParsedReceipt = {
   purchasedAt: string;
   total: number;
   deliveryFee?: number | null;
+  tax?: number | null;
+  discount?: number | null;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null }[];
 };
 
@@ -330,26 +336,6 @@ function parseJson(content: string): ParsedReceipt | null {
 
 const router = Router();
 
-// Free-tier scan budget for the scan screen: how many AI scans the caller has
-// left this period. Entitled / native / admin callers are unlimited.
-router.get("/scan-usage", async (req, res): Promise<void> => {
-  const userId = req.userId!;
-  const platform = req.header("x-client-platform")?.toLowerCase();
-  const native = platform === "ios" || platform === "android";
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  const entitlement = computeEntitlement(user);
-  if (native || user.isAdmin || entitlement.entitled) {
-    res.json({ entitled: true, unlimited: true });
-    return;
-  }
-  const usage = await getFreeScanUsage(userId);
-  res.json({ entitled: false, unlimited: false, ...usage });
-});
-
 function formatReceipt(
   r: typeof receiptsTable.$inferSelect,
   storeName: string,
@@ -363,6 +349,8 @@ function formatReceipt(
     total: Number(r.total),
     totalBeforeTax: r.totalBeforeTax != null ? Number(r.totalBeforeTax) : null,
     deliveryFee: r.deliveryFee != null ? Number(r.deliveryFee) : null,
+    tax: r.tax != null ? Number(r.tax) : null,
+    discount: r.discount != null ? Number(r.discount) : null,
     purchasedAt: r.purchasedAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
   };
@@ -448,9 +436,23 @@ router.post("/merge", async (req, res): Promise<void> => {
       const combinedBeforeTax = allHaveBeforeTax
         ? String(rows.reduce((sum, r) => sum + Number(r.receipt.totalBeforeTax), 0))
         : null;
+      // Tax / discount / delivery fee sum across every merged receipt, treating
+      // a missing value as 0. Unlike totalBeforeTax there's no all-or-nothing
+      // rule: one page of a multi-page receipt carrying the tax line while the
+      // others don't is normal, and that shouldn't discard it.
+      const sumAdjustment = (pick: (r: (typeof rows)[number]) => string | null) => {
+        const total = rows.reduce((sum, r) => sum + Number(pick(r) ?? 0), 0);
+        return total > 0 ? String(total) : null;
+      };
       await tx
         .update(receiptsTable)
-        .set({ total: String(combinedTotal), totalBeforeTax: combinedBeforeTax })
+        .set({
+          total: String(combinedTotal),
+          totalBeforeTax: combinedBeforeTax,
+          tax: sumAdjustment((r) => r.receipt.tax),
+          discount: sumAdjustment((r) => r.receipt.discount),
+          deliveryFee: sumAdjustment((r) => r.receipt.deliveryFee),
+        })
         .where(eq(receiptsTable.id, target.id));
 
       // Delete the now-empty source receipts (line items already moved).
@@ -560,6 +562,68 @@ router.get("/:id", async (req, res): Promise<void> => {
     ...formatReceipt(receipt, storeName),
     lineItems,
   });
+});
+
+// Repoint ONE receipt at a different store, creating the store if the user has
+// no store by that name yet. Deliberately not a rename: PATCH /api/stores/:id
+// edits the shared store row, which would retitle every other receipt linked to
+// it. Here the old store row is left untouched — only this receipt moves.
+router.patch("/:id/store", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = parseInt(req.params.id);
+  const storeName = (req.body as { storeName?: unknown }).storeName;
+  if (typeof storeName !== "string" || !storeName.trim()) {
+    res.status(400).json({ error: "storeName is required" });
+    return;
+  }
+  const name = storeName.trim();
+
+  try {
+    const updated = await db.transaction(async (tx) => {
+      const [receipt] = await tx
+        .select()
+        .from(receiptsTable)
+        .where(and(eq(receiptsTable.id, id), eq(receiptsTable.userId, userId)))
+        .for("update");
+      if (!receipt) return null;
+
+      let store = (
+        await tx
+          .select()
+          .from(storesTable)
+          .where(and(eq(storesTable.userId, userId), sql`LOWER(${storesTable.name}) = LOWER(${name})`))
+      )[0];
+      if (!store) {
+        const [u] = await tx
+          .select({ countryCode: usersTable.countryCode, stateCode: usersTable.stateCode })
+          .from(usersTable)
+          .where(eq(usersTable.id, userId));
+        [store] = await tx
+          .insert(storesTable)
+          .values({
+            name,
+            userId,
+            countryCode: u?.countryCode ?? null,
+            stateCode: u?.stateCode ?? null,
+          })
+          .returning();
+      }
+
+      if (store.id !== receipt.storeId) {
+        await tx.update(receiptsTable).set({ storeId: store.id }).where(eq(receiptsTable.id, receipt.id));
+      }
+      return { receipt, storeName: store.name };
+    });
+
+    if (!updated) {
+      res.status(404).json({ error: "Receipt not found" });
+      return;
+    }
+    res.json(formatReceipt(updated.receipt, updated.storeName));
+  } catch (err) {
+    req.log.error({ err }, "Failed to update receipt store");
+    res.status(500).json({ error: "Failed to update receipt store" });
+  }
 });
 
 router.delete("/:id", async (req, res): Promise<void> => {
@@ -688,7 +752,7 @@ router.patch("/line-items/:lineItemId", async (req, res): Promise<void> => {
 });
 
 // Detect receipt bounding box in a photo using AI
-router.post("/detect-bounds", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/detect-bounds", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -749,7 +813,7 @@ Rules:
 });
 
 // Parse receipt image with AI
-router.post("/parse", allowFreeSingleScan, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -786,14 +850,6 @@ router.post("/parse", allowFreeSingleScan, imageGuard, async (req, res): Promise
     if (!parsed) {
       res.status(500).json({ error: "Failed to parse AI response as JSON" });
       return;
-    }
-    // A free user's metered scan only counts once it actually produced a result.
-    if (req.recordFreeScanOnSuccess) {
-      try {
-        await recordFreeScan(req.userId!);
-      } catch (e) {
-        req.log.warn({ e }, "Failed to record free scan usage");
-      }
     }
     res.json(parsed);
   } catch (err) {
@@ -833,6 +889,8 @@ async function persistParsedReceipt(userId: string, parsed: {
   purchasedAt: string;
   total: number;
   deliveryFee?: number | null;
+  tax?: number | null;
+  discount?: number | null;
   lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[];
 }) {
   // Uploading user's own region, used as the fallback for new/unstamped stores.
@@ -894,18 +952,48 @@ async function persistParsedReceipt(userId: string, parsed: {
         storeId: store.id,
         purchasedAt: new Date(parsed.purchasedAt),
         total: String(parsed.total),
-        // Only persist a delivery fee when one was actually detected (> 0).
+        // Only persist these adjustments when one was actually detected (> 0),
+        // so a receipt with no tax/discount/fee stays null rather than showing
+        // a meaningless 0.00 row.
         deliveryFee:
           parsed.deliveryFee != null && parsed.deliveryFee > 0
             ? String(parsed.deliveryFee)
             : null,
+        tax: parsed.tax != null && parsed.tax > 0 ? String(parsed.tax) : null,
+        discount:
+          parsed.discount != null && parsed.discount > 0 ? String(parsed.discount) : null,
       })
       .returning();
+
+    // Items this user has bought at THIS store before. Used as the candidate set
+    // for fuzzy-matching scanned names, loaded once for the whole receipt rather
+    // than per line item. Scoped to the store on purpose: "Bread" at one shop
+    // shouldn't absorb a differently-branded "Bread" only ever bought elsewhere.
+    const storeHistory = await tx
+      .selectDistinct({ id: itemsTable.id, name: itemsTable.name })
+      .from(lineItemsTable)
+      .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+      .innerJoin(itemsTable, eq(lineItemsTable.itemId, itemsTable.id))
+      .where(and(eq(receiptsTable.userId, userId), eq(receiptsTable.storeId, store.id)));
 
     // Create line items
     const savedLineItems = [];
     for (const li of parsed.lineItems) {
       let item = (await tx.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
+      // No exact name match: before minting a near-duplicate item, check for a
+      // near-miss against what's been bought here — OCR typos, punctuation and
+      // spacing differences, word reordering, plurals ("Sourdough Bred",
+      // "Whole Milk 2 L", "Banana"). Deliberately conservative: the threshold is
+      // tight enough that heavy abbreviations ("CHKN BRST") and brand synonyms
+      // ("Coke" for "Coca Cola") still create separate items, because a wrong
+      // merge here silently corrupts an item's price history with no user
+      // confirmation step, and that's worse than a duplicate the user can merge.
+      if (!item) {
+        const match = bestFuzzyMatch(li.name, storeHistory, (c) => c.name);
+        if (match) {
+          item = (await tx.select().from(itemsTable).where(and(eq(itemsTable.id, match.id), eq(itemsTable.userId, userId))))[0];
+        }
+      }
       const liCategory = isValidCategory(li.category) ? li.category : categoryForItemName(li.name);
       if (!item) {
         const icon = li.icon || iconForItemName(li.name);
@@ -968,7 +1056,7 @@ async function geocodeStoreInBackground(storeId: number, address: string): Promi
 }
 
 // Parse and save receipt
-router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse-and-save", imageGuard, async (req, res): Promise<void> => {
   const { imageBase64 } = req.body as { imageBase64: string };
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
@@ -1009,7 +1097,7 @@ router.post("/parse-and-save", requirePremium, imageGuard, async (req, res): Pro
 // Parse multiple images as ONE combined receipt (all photos of the same receipt).
 // Sends all images in a single OpenAI call so the model can reconcile partial
 // visibility across photos and produce one unified receipt.
-router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res): Promise<void> => {
+router.post("/parse-and-save-batch", imageGuard, async (req, res): Promise<void> => {
   const { imagesBase64 } = req.body as { imagesBase64: unknown };
   if (!Array.isArray(imagesBase64) || imagesBase64.length < 2) {
     res.status(400).json({ error: "imagesBase64 must be an array of at least 2 images" });
@@ -1062,7 +1150,7 @@ router.post("/parse-and-save-batch", requirePremium, imageGuard, async (req, res
 
 // Save an already-parsed (and user-corrected) receipt — skips AI, saves directly
 router.post("/save-parsed", async (req, res): Promise<void> => {
-  const parsed = req.body as { storeName: string; storeAddress?: string | null; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
+  const parsed = req.body as { storeName: string; storeAddress?: string | null; storeCountryCode?: string | null; storeStateCode?: string | null; purchasedAt: string; total: number; deliveryFee?: number | null; tax?: number | null; discount?: number | null; lineItems: { name: string; price: number; quantity: number; icon?: string | null; category?: string | null; unit?: string | null }[] };
   if (!parsed.storeName || !parsed.purchasedAt || parsed.total == null || !Array.isArray(parsed.lineItems)) {
     res.status(400).json({ error: "storeName, purchasedAt, total, and lineItems are required" });
     return;
@@ -1143,7 +1231,7 @@ async function findDuplicate(
 // same (store, date, total) — pages that look like duplicates are returned
 // with isDuplicate:true and skipped in the DB so retrying a PDF never creates
 // duplicate rows.
-router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<void> => {
+router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
   const { pdfBase64 } = req.body as { pdfBase64: string };
   if (!pdfBase64) {
     res.status(400).json({ error: "pdfBase64 is required" });
@@ -1159,19 +1247,30 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
     await writeFile(pdfPath, buffer);
 
     // Determine page count: prefer pdfinfo (fast, no rendering), fall back to
-    // pdf-parse (slower but works without poppler tools), then assume 1.
-    let pageCount = 1;
+    // pdf-parse (slower but works without poppler tools), then assume 1. Keep
+    // the UNCAPPED total separately so we can tell the client how many pages
+    // (if any) were skipped, instead of silently truncating.
+    let totalPages = 1;
     const dims = await readPdfDims(pdfPath);
     if (dims) {
-      pageCount = Math.min(dims.pages, PDF_MAX_PAGES);
+      totalPages = dims.pages;
     } else {
       try {
-        const { numpages } = await pdfParse(buffer, { max: PDF_MAX_PAGES });
-        pageCount = Math.min(numpages, PDF_MAX_PAGES);
+        // `max: 1` bounds the EXTRACTION loop, not the reported count: pdf-parse
+        // sets `numpages` from the document's page-count metadata before that loop
+        // runs, so the true uncapped total comes back either way. Without a bound
+        // this walks and extracts text from every page of a document that pdfinfo
+        // already failed to parse — CPU spent before the AI budget or the render
+        // cap apply, and there's no wall-clock timeout on this call. We only want
+        // the count here; rendering happens per-page via pdftoppm below.
+        const { numpages } = await pdfParse(buffer, { max: 1 });
+        totalPages = numpages;
       } catch {
-        pageCount = 1;
+        totalPages = 1;
       }
     }
+    const pageCount = Math.min(totalPages, PDF_MAX_PAGES);
+    const pagesSkipped = Math.max(0, totalPages - pageCount);
 
     // Charge the shared AI budget once for this request before any model call.
     if (!chargeGlobalAiBudget(res)) return;
@@ -1264,7 +1363,7 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
       return;
     }
 
-    res.status(201).json({ receipts: results });
+    res.status(201).json({ receipts: results, pagesSkipped });
   } catch (err) {
     req.log.error({ err }, "Failed to parse PDF receipt");
     res.status(500).json({ error: "Failed to process PDF receipt" });

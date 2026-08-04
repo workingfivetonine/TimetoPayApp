@@ -1,10 +1,10 @@
 import { chromium } from "playwright-core";
 import { mkdir } from "node:fs/promises";
 
-const EXEC = process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE;
-const DOMAIN = process.env.REPLIT_EXPO_DEV_DOMAIN;
-if (!EXEC) throw new Error("REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE not set");
-if (!DOMAIN) throw new Error("REPLIT_EXPO_DEV_DOMAIN not set");
+const EXEC = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+const DOMAIN = process.env.EXPO_DEV_DOMAIN;
+if (!EXEC) throw new Error("PLAYWRIGHT_CHROMIUM_EXECUTABLE not set");
+if (!DOMAIN) throw new Error("EXPO_DEV_DOMAIN not set");
 const BASE = `https://${DOMAIN}`;
 
 const OUT = "screenshots/raw";

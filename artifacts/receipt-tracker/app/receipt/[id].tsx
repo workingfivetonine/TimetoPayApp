@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,22 +6,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
-  TextInput,
   Platform,
-  KeyboardAvoidingView,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@clerk/expo";
 import * as Haptics from "expo-haptics";
 import {
   useGetReceipt,
-  useUpdateItem,
-  useDeleteLineItem,
   useDeleteReceipt,
-  getGetReceiptQueryKey,
   getListReceiptsQueryKey,
   getGetShoppingListQueryKey,
   getGetSpendAnalyticsQueryKey,
@@ -33,13 +26,14 @@ import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify, confirmDestructive } from "@/lib/confirm";
-import { getApiOrigin } from "@/lib/apiBase";
-import { UNIT_GROUPS } from "@/lib/units";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import type { LineItem } from "@workspace/api-client-react";
-
-// The generated LineItem type is drifted and lacks `unit`; read it via a cast.
-const lineItemUnit = (li: LineItem): string => (li as { unit?: string | null }).unit ?? "each";
+import { useStoreEditor, StoreEditModal } from "@/components/StoreEditModal";
+import {
+  useLineItemEditor,
+  LineItemEditModal,
+  LineItemUndoBanner,
+  lineItemUnit,
+} from "@/components/LineItemEditor";
 
 export default function ReceiptDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,21 +43,12 @@ export default function ReceiptDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { getToken } = useAuth();
-  const [editingItem, setEditingItem] = useState<LineItem | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-  const [editPrice, setEditPrice] = useState("");
-  const [editQty, setEditQty] = useState("");
-  const [editUnit, setEditUnit] = useState("each");
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [pendingDeleteLiId, setPendingDeleteLiId] = useState<number | null>(null);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editor = useLineItemEditor();
+  const { pendingDeleteLiId } = editor;
+  const storeEditor = useStoreEditor();
 
   const receiptId = parseInt(id ?? "0");
   const { data: receipt, isLoading, dataUpdatedAt } = useGetReceipt(receiptId);
-  const updateItemMutation = useUpdateItem();
-  const deleteLineItemMutation = useDeleteLineItem();
   const deleteReceiptMutation = useDeleteReceipt();
   const isOnline = useOnlineStatus();
 
@@ -98,109 +83,6 @@ export default function ReceiptDetailScreen() {
     });
   };
 
-  const openEdit = (li: LineItem) => {
-    setEditingItem(li);
-    setEditName(li.itemName);
-    setEditNotes("");
-    setEditPrice(String(Number(li.price)));
-    setEditQty(String(Number(li.quantity)));
-    setEditUnit(lineItemUnit(li));
-  };
-
-  const handleSaveItemEdit = async () => {
-    if (!editingItem || !editName.trim()) return;
-    if (!isOnline) {
-      notify("You're offline", "Connect to the internet to edit items.");
-      return;
-    }
-    const price = Number(editPrice);
-    const qty = Number(editQty);
-    if (!isFinite(price) || price < 0) {
-      notify("Invalid price", "Enter a valid price.");
-      return;
-    }
-    if (!isFinite(qty) || qty <= 0) {
-      notify("Invalid amount", "Enter a valid weight/amount.");
-      return;
-    }
-    setSavingEdit(true);
-    try {
-      // 1. Item name + notes (catalog record).
-      await updateItemMutation.mutateAsync({
-        id: editingItem.itemId,
-        data: { name: editName.trim(), notes: editNotes.trim() || undefined },
-      });
-      // 2. This purchase's price / weight / unit (the line item). Raw fetch —
-      // the endpoint is newer than the generated client.
-      const token = await getToken();
-      const res = await fetch(`${getApiOrigin()}/api/receipts/line-items/${editingItem.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-client-platform": Platform.OS,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ price, quantity: qty, unit: editUnit }),
-      });
-      if (!res.ok) throw new Error(`line-item update ${res.status}`);
-      queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
-      queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
-      setEditingItem(null);
-    } catch {
-      notify("Couldn't save", "Please try again.");
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const commitDeleteLineItem = (liId: number) => {
-    deleteLineItemMutation.mutate(
-      { id: liId },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetReceiptQueryKey(receiptId) });
-          queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
-        },
-      },
-    );
-  };
-
-  const handleDeleteLineItem = async (liId: number) => {
-    if (!isOnline) {
-      notify("You're offline", "Connect to the internet to remove items.");
-      return;
-    }
-    if (undoTimerRef.current) {
-      clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = null;
-      if (pendingDeleteLiId !== null && pendingDeleteLiId !== liId) {
-        commitDeleteLineItem(pendingDeleteLiId);
-      }
-    }
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setPendingDeleteLiId(liId);
-    undoTimerRef.current = setTimeout(() => {
-      setPendingDeleteLiId(null);
-      undoTimerRef.current = null;
-      commitDeleteLineItem(liId);
-    }, 4000);
-  };
-
-  const handleUndoDeleteLineItem = () => {
-    if (undoTimerRef.current) {
-      clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = null;
-    }
-    setPendingDeleteLiId(null);
-  };
-
   if (isLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -233,7 +115,16 @@ export default function ReceiptDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={[styles.storeName, { color: colors.foreground }]}>{receipt.storeName}</Text>
+          <TouchableOpacity
+            style={styles.storeNameRow}
+            onPress={() => storeEditor.open(receiptId, receipt.storeName)}
+            accessibilityLabel="Edit store name"
+          >
+            <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
+              {receipt.storeName}
+            </Text>
+            <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+          </TouchableOpacity>
           <Text style={[styles.date, { color: colors.mutedForeground }]}>{dateStr}</Text>
         </View>
         <View style={[styles.totalBadge, { backgroundColor: colors.accent }]}>
@@ -283,13 +174,13 @@ export default function ReceiptDetailScreen() {
                   {format(Number(li.price))}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => openEdit(li)}
+                  onPress={() => editor.openEdit(li, receiptId)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
                 >
                   <Feather name="edit-2" size={14} color={colors.mutedForeground} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleDeleteLineItem(li.id)}
+                  onPress={() => editor.requestDelete(li.id, receiptId)}
                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
                 >
                   <Feather name="x" size={14} color={colors.mutedForeground} />
@@ -308,18 +199,25 @@ export default function ReceiptDetailScreen() {
         {/* Total summary */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {(() => {
-            // deliveryFee is a drifted field not in the generated type — read via cast.
-            const deliveryFee = (receipt as { deliveryFee?: number | null }).deliveryFee;
-            return deliveryFee != null && deliveryFee > 0 ? (
-              <View style={[styles.totalRow, { marginBottom: 8 }]}>
+            // These qualify the total rather than being purchased items, so they
+            // sit above it here instead of in the item list.
+            const adj = receipt;
+            const rows: { label: string; amount: number; negative?: boolean }[] = [];
+            if (adj.deliveryFee != null && adj.deliveryFee > 0)
+              rows.push({ label: "Delivery / service fee", amount: Number(adj.deliveryFee) });
+            if (adj.tax != null && adj.tax > 0) rows.push({ label: "Tax", amount: Number(adj.tax) });
+            // Stored as a positive magnitude; shown with a minus so it reads the
+            // way it appeared on the receipt.
+            if (adj.discount != null && adj.discount > 0)
+              rows.push({ label: "Discount", amount: Number(adj.discount), negative: true });
+            return rows.map((row) => (
+              <View key={row.label} style={[styles.totalRow, { marginBottom: 8 }]}>
+                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
                 <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>
-                  Delivery / service fee
-                </Text>
-                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>
-                  {format(Number(deliveryFee))}
+                  {row.negative ? `−${format(row.amount)}` : format(row.amount)}
                 </Text>
               </View>
-            ) : null;
+            ));
           })()}
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
@@ -341,108 +239,11 @@ export default function ReceiptDetailScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Undo-delete banner for line items */}
-      {pendingDeleteLiId !== null && (
-        <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
-          <Text style={[styles.undoText, { color: colors.background }]}>Item removed</Text>
-          <TouchableOpacity onPress={handleUndoDeleteLineItem} activeOpacity={0.7}>
-            <Text style={[styles.undoAction, { color: colors.primary }]}>Undo</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <LineItemUndoBanner editor={editor} />
 
-      {/* Edit Item Modal */}
-      <Modal visible={!!editingItem} animationType="slide" presentationStyle="formSheet">
-        <KeyboardAvoidingView
-          style={[styles.modalContainer, { backgroundColor: colors.background }]}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Platform.OS === "android" ? insets.top + 16 : 16 }]}>
-            <TouchableOpacity onPress={() => setEditingItem(null)}>
-              <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Item</Text>
-            <TouchableOpacity onPress={handleSaveItemEdit} disabled={savingEdit}>
-              <Text style={[styles.modalSave, { color: colors.primary, opacity: savingEdit ? 0.5 : 1 }]}>
-                {savingEdit ? "Saving…" : "Save"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>ITEM NAME</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Item name"
-              placeholderTextColor={colors.mutedForeground}
-              autoFocus
-            />
+      <StoreEditModal editor={storeEditor} />
 
-            <View style={styles.twoCol}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>PRICE</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
-                  value={editPrice}
-                  onChangeText={setEditPrice}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor={colors.mutedForeground}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>AMOUNT / WEIGHT</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
-                  value={editQty}
-                  onChangeText={setEditQty}
-                  keyboardType="decimal-pad"
-                  placeholder="1"
-                  placeholderTextColor={colors.mutedForeground}
-                />
-              </View>
-            </View>
-
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>UNIT</Text>
-            {UNIT_GROUPS.map((g) => (
-              <View key={g.label} style={{ marginBottom: 6 }}>
-                <Text style={[styles.unitGroupLabel, { color: colors.mutedForeground }]}>{g.label}</Text>
-                <View style={styles.unitChips}>
-                  {g.units.map((u) => {
-                    const active = editUnit === u;
-                    return (
-                      <TouchableOpacity
-                        key={u}
-                        onPress={() => setEditUnit(u)}
-                        style={[
-                          styles.unitChip,
-                          { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : "transparent" },
-                        ]}
-                      >
-                        <Text style={{ color: active ? colors.primaryForeground : colors.mutedForeground, fontSize: 13, fontFamily: "Inter_500Medium" }}>
-                          {u}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>NOTES (OPTIONAL)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
-              value={editNotes}
-              onChangeText={setEditNotes}
-              placeholder="Add notes about this item..."
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              numberOfLines={3}
-            />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+      <LineItemEditModal editor={editor} />
     </View>
   );
 }
@@ -459,7 +260,8 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerInfo: { flex: 1 },
-  storeName: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  storeNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  storeName: { flexShrink: 1, fontSize: 20, fontFamily: "Inter_700Bold" },
   date: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   totalBadge: {
     borderRadius: 10,
@@ -502,37 +304,6 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   totalAmount: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  modalContainer: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  modalCancel: { fontSize: 16, fontFamily: "Inter_400Regular" },
-  modalSave: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  modalContent: { padding: 20 },
-  fieldLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 0.6,
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-  },
-  textArea: { minHeight: 80, textAlignVertical: "top" },
-  twoCol: { flexDirection: "row", gap: 12 },
-  unitGroupLabel: { fontSize: 11, fontFamily: "Inter_500Medium", marginBottom: 4 },
-  unitChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  unitChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   deleteBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -544,22 +315,4 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   deleteBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  undoBanner: {
-    position: "absolute",
-    bottom: 100,
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  undoText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  undoAction: { fontSize: 14, fontFamily: "Inter_700Bold" },
 });

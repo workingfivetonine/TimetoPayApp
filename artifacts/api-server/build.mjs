@@ -119,22 +119,6 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     },
   });
 
-  // stripe-replit-sync's runMigrations() resolves its SQL files relative to
-  // __dirname at runtime. Because we bundle into dist/index.mjs, __dirname is
-  // dist/, so the package's own dist/migrations is never on disk next to the
-  // bundle — the migration step then silently skips ("directory not found") and
-  // the `stripe.*` tables are never created. Copy the migrations next to the
-  // bundle so they resolve to dist/migrations.
-  const require2 = createRequire(import.meta.url);
-  try {
-    const stripeSyncPkg = require2.resolve("stripe-replit-sync/package.json");
-    const stripeSyncRoot = path.dirname(stripeSyncPkg);
-    const migrationsSource = path.join(stripeSyncRoot, "dist", "migrations");
-    await cp(migrationsSource, path.join(distDir, "migrations"), { recursive: true, force: true });
-    console.info("[build] Copied stripe-replit-sync migrations → dist/migrations");
-  } catch {
-    console.warn("[build] stripe-replit-sync migrations not found — Stripe schema init may fail on first run");
-  }
 }
 
 buildAll().catch((err) => {

@@ -27,6 +27,11 @@ export interface ParsedReceiptData {
   // Delivery / service fee detected on the receipt (0 or absent = none). Kept
   // separate from line items; shown and editable on the review screen.
   deliveryFee?: number | null;
+  // Tax and total discounts detected on the receipt (0 or absent = none). Both
+  // are positive magnitudes and, like deliveryFee, qualify the total rather than
+  // being purchased items — shown and editable on the review screen.
+  tax?: number | null;
+  discount?: number | null;
   lineItems: ParsedLineItem[];
 }
 

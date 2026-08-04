@@ -10,7 +10,6 @@ import {
   usersTable,
 } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
-import { computeEntitlement } from "../lib/billing/entitlement";
 
 const router = Router();
 
@@ -51,9 +50,8 @@ async function checkBoardEligibility(userId: string, isAdmin: boolean): Promise<
 
   const missing: string[] = [];
 
-  const entitlement = computeEntitlement(user);
-  if (!entitlement.entitled) missing.push("subscription");
-
+  // Upload count is the only bar: contributing to the board means having
+  // actually used the app, which is what this gate is for.
   const [countRow] = await db
     .select({ count: sql<number>`cast(count(*) as int)` })
     .from(receiptsTable)
@@ -212,6 +210,94 @@ router.post("/", async (req, res): Promise<void> => {
   res.status(201).json({ id: post!.id, status });
 });
 
+// PATCH /board/:id — the post's author edits their own wording. Admins are not
+// given edit rights on purpose: rewriting someone else's words under their name
+// is a different power from removing a post, and moderation only needs removal.
+//
+// An edit by a user whose posts normally need approval sends the post back to the
+// queue. Without that, "post something innocuous → get approved → rewrite it"
+// would be a way straight past moderation.
+router.patch("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const postId = parseInt(req.params.id as string);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { content, tag } = req.body as { content?: string; tag?: string };
+  const trimmed = content?.trim() ?? "";
+  if (!trimmed || trimmed.length > MAX_CONTENT_LENGTH) {
+    res.status(400).json({ error: `Content must be 1–${MAX_CONTENT_LENGTH} characters` });
+    return;
+  }
+
+  const [post] = await db.select().from(boardPostsTable).where(eq(boardPostsTable.id, postId));
+  if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+  if (post.userId !== userId) { res.status(403).json({ error: "Not your post" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const keepsApproval = !!req.isAdmin || !!user?.boardAutoApprove;
+  const status = keepsApproval ? post.status : "pending";
+
+  await db
+    .update(boardPostsTable)
+    .set({
+      content: trimmed,
+      // An explicit tag replaces the old one; omitting the field leaves it alone.
+      ...(tag !== undefined ? { tag: tag && VALID_TAGS.has(tag) ? tag : null } : {}),
+      status,
+      ...(keepsApproval ? {} : { approvedAt: null, approvedBy: null }),
+    })
+    .where(eq(boardPostsTable.id, postId));
+
+  res.json({ id: postId, status });
+});
+
+// DELETE /board/reply/:id — author removes their own reply, admin removes any.
+// Declared before DELETE /:id so "reply" isn't swallowed as an id.
+router.delete("/reply/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const replyId = parseInt(req.params.id as string);
+  if (isNaN(replyId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [reply] = await db.select().from(boardRepliesTable).where(eq(boardRepliesTable.id, replyId));
+  if (!reply) { res.status(404).json({ error: "Reply not found" }); return; }
+  if (!req.isAdmin && reply.userId !== userId) {
+    res.status(403).json({ error: "Not your reply" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(boardRepliesTable).where(eq(boardRepliesTable.id, replyId));
+    // replyCount is a denormalised counter, so it has to be walked back by hand.
+    // Only approved replies were ever counted (see the reply-approve path).
+    if (reply.status === "approved") {
+      await tx
+        .update(boardPostsTable)
+        .set({ replyCount: sql`GREATEST(${boardPostsTable.replyCount} - 1, 0)` })
+        .where(eq(boardPostsTable.id, reply.postId));
+    }
+  });
+
+  res.status(204).send();
+});
+
+// DELETE /board/:id — author removes their own post, admin removes any. Replies,
+// agrees and thanks are cascade-deleted by their FKs.
+router.delete("/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const postId = parseInt(req.params.id as string);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [post] = await db.select().from(boardPostsTable).where(eq(boardPostsTable.id, postId));
+  if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+  if (!req.isAdmin && post.userId !== userId) {
+    res.status(403).json({ error: "Not your post" });
+    return;
+  }
+
+  await db.delete(boardPostsTable).where(eq(boardPostsTable.id, postId));
+  res.status(204).send();
+});
+
 // POST /board/:id/agree — toggle agree on a post
 router.post("/:id/agree", async (req, res): Promise<void> => {
   const userId = req.userId!;
@@ -313,12 +399,21 @@ router.get("/:id/replies", async (req, res): Promise<void> => {
       content: boardRepliesTable.content,
       region: boardRepliesTable.region,
       createdAt: boardRepliesTable.createdAt,
+      userId: boardRepliesTable.userId,
     })
     .from(boardRepliesTable)
     .where(and(eq(boardRepliesTable.postId, postId), eq(boardRepliesTable.status, "approved")))
     .orderBy(boardRepliesTable.createdAt);
 
-  res.json(replies.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })));
+  // Replies display anonymously, so `isOwn` is the only ownership signal sent —
+  // it drives the author's delete control. The raw userId stays server-side.
+  res.json(
+    replies.map(({ userId, ...r }) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      isOwn: userId === req.userId,
+    })),
+  );
 });
 
 // POST /board/:id/replies — submit a reply

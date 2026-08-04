@@ -23,6 +23,8 @@ import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { StoreNameField } from "@/components/StoreNameField";
+import { ZoomableImageModal } from "@/components/ZoomableImageModal";
 import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
@@ -77,15 +79,29 @@ export default function ReviewReceiptScreen() {
     initialReceipt ? { ...initialReceipt } : null
   );
   const [saving, setSaving] = useState(false);
+  const [viewingImage, setViewingImage] = useState(false);
 
   // Raw text buffers for the numeric inputs (price / qty / total). Keeping the
   // typed text lets users clear the field and type a fresh integer or a partial
   // decimal ("2", "2.", "0.5") instead of the value snapping back to the old
   // number on every keystroke.
   const [numText, setNumText] = useState<Record<string, string>>({});
-  const setNum = (key: string, text: string, applyValid: () => void) => {
+  // `allowEmpty` is for the nullable adjustment fields (delivery fee / tax /
+  // discount), where clearing the box MEANS "no such charge" and has to reach the
+  // setter so it can null the value. Without it the input looked empty while the
+  // old number stayed in state and got saved anyway. Deliberately not the default:
+  // total, price and quantity are required, and passing "" to them would flip
+  // their `*Uncertain` flags while keeping the old number — a silent no-op that
+  // reads as "confirmed" when the user hasn't confirmed anything.
+  const setNum = (
+    key: string,
+    text: string,
+    applyValid: () => void,
+    { allowEmpty = false }: { allowEmpty?: boolean } = {},
+  ) => {
     setNumText((m) => ({ ...m, [key]: text }));
-    if (!isNaN(parseFloat(text))) applyValid();
+    const isEmpty = text.trim() === "";
+    if (isEmpty ? allowEmpty : !isNaN(parseFloat(text))) applyValid();
   };
   const numVal = (key: string, current: number) =>
     numText[key] !== undefined ? numText[key] : String(current);
@@ -118,7 +134,10 @@ export default function ReviewReceiptScreen() {
     queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
   };
 
-  const handleSave = async () => {
+  // `after` decides where a successful save lands: straight into another scan
+  // (for working through a stack of receipts), back where the user came from, or
+  // the saved receipt itself.
+  const handleSave = async (after: "receipt" | "scan" | "back" = "receipt") => {
     const emptyItem = receipt.lineItems.find((li) => !li.name.trim());
     if (emptyItem) {
       Alert.alert("Missing name", "Every item must have a name.");
@@ -143,6 +162,8 @@ export default function ReviewReceiptScreen() {
           purchasedAt: toIso(receipt.purchasedAt),
           total: receipt.total,
           deliveryFee: receipt.deliveryFee ?? undefined,
+          tax: receipt.tax ?? undefined,
+          discount: receipt.discount ?? undefined,
           lineItems: receipt.lineItems.map((li) => ({
             name: li.name,
             price: li.price,
@@ -161,7 +182,9 @@ export default function ReviewReceiptScreen() {
       clearPendingReceipt();
       invalidateAll();
       showSuccessToast("Receipt saved", `${receipt.lineItems.length} item${receipt.lineItems.length === 1 ? "" : "s"} added`);
-      router.replace(`/receipt/${saved.id}`);
+      if (after === "scan") router.replace("/scan?autoOpen=1");
+      else if (after === "back") router.back();
+      else router.replace(`/receipt/${saved.id}`);
     } catch {
       showErrorToast("Couldn't save receipt", "Please try again.");
     } finally {
@@ -177,15 +200,20 @@ export default function ReviewReceiptScreen() {
     const n = parseFloat(v);
     setReceipt((r) => r && { ...r, total: isNaN(n) ? r.total : n, totalUncertain: false });
   };
-  const setDeliveryFee = (v: string) => {
+  // Delivery fee, tax and discount share one shape: optional positive amounts
+  // that qualify the total. Blank clears the field rather than forcing a 0.
+  const setAdjustment = (key: "deliveryFee" | "tax" | "discount") => (v: string) => {
     const trimmed = v.trim();
     if (trimmed === "") {
-      setReceipt((r) => r && { ...r, deliveryFee: null });
+      setReceipt((r) => r && { ...r, [key]: null });
       return;
     }
     const n = parseFloat(trimmed);
-    setReceipt((r) => r && { ...r, deliveryFee: isNaN(n) ? r.deliveryFee ?? null : n });
+    setReceipt((r) => r && { ...r, [key]: isNaN(n) ? r[key] ?? null : n });
   };
+  const setDeliveryFee = setAdjustment("deliveryFee");
+  const setTax = setAdjustment("tax");
+  const setDiscount = setAdjustment("discount");
   const setItemField = (
     idx: number,
     field: "name" | "price" | "quantity",
@@ -288,11 +316,20 @@ export default function ReviewReceiptScreen() {
             )}
           </View>
           {imageBase64 ? (
-            <Image
-              source={{ uri: `data:image/jpeg;base64,${imageBase64}` }}
-              style={[styles.thumb, { borderColor: colors.border }]}
-              resizeMode="cover"
-            />
+            <TouchableOpacity
+              onPress={() => setViewingImage(true)}
+              activeOpacity={0.8}
+              accessibilityLabel="View receipt photo full screen"
+            >
+              <Image
+                source={{ uri: `data:image/jpeg;base64,${imageBase64}` }}
+                style={[styles.thumb, { borderColor: colors.border }]}
+                resizeMode="cover"
+              />
+              <View style={styles.thumbZoomBadge}>
+                <Feather name="maximize-2" size={11} color="#fff" />
+              </View>
+            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -309,13 +346,10 @@ export default function ReviewReceiptScreen() {
                 <Text style={{ color: WARN }}> ⚠</Text>
               )}
             </Text>
-            <TextInput
-              style={[styles.fieldInput, fieldStyle(receipt.storeNameUncertain)]}
+            <StoreNameField
               value={receipt.storeName}
               onChangeText={setStoreName}
-              placeholder="Store name"
-              placeholderTextColor={colors.mutedForeground}
-              returnKeyType="done"
+              uncertain={receipt.storeNameUncertain}
             />
           </View>
 
@@ -362,12 +396,45 @@ export default function ReviewReceiptScreen() {
             <TextInput
               style={[styles.fieldInput, fieldStyle(false)]}
               value={numVal("deliveryFee", receipt.deliveryFee ?? 0)}
-              onChangeText={(v) => setNum("deliveryFee", v, () => setDeliveryFee(v))}
+              onChangeText={(v) => setNum("deliveryFee", v, () => setDeliveryFee(v), { allowEmpty: true })}
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor={colors.mutedForeground}
               returnKeyType="done"
             />
+          </View>
+
+          {/* Tax + discount — like the fee above, these qualify the total and
+              are never line items. Discount is entered as a positive amount. */}
+          <View style={styles.twoColRow}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Tax (optional)
+              </Text>
+              <TextInput
+                style={[styles.fieldInput, fieldStyle(false)]}
+                value={numVal("tax", receipt.tax ?? 0)}
+                onChangeText={(v) => setNum("tax", v, () => setTax(v), { allowEmpty: true })}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Discount (optional)
+              </Text>
+              <TextInput
+                style={[styles.fieldInput, fieldStyle(false)]}
+                value={numVal("discount", receipt.discount ?? 0)}
+                onChangeText={(v) => setNum("discount", v, () => setDiscount(v), { allowEmpty: true })}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+              />
+            </View>
           </View>
         </View>
 
@@ -514,20 +581,38 @@ export default function ReviewReceiptScreen() {
       >
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && { opacity: 0.6 }]}
-          onPress={handleSave}
+          onPress={() => void handleSave("scan")}
           disabled={saving}
           activeOpacity={0.85}
         >
           {saving ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Feather name="check" size={18} color="#fff" />
+            <Feather name="plus-circle" size={18} color="#fff" />
           )}
-          <Text style={styles.saveBtnText}>
-            {saving ? "Saving…" : "Confirm & Save"}
-          </Text>
+          <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save & Next"}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.saveSecondaryBtn,
+            { borderColor: colors.border, backgroundColor: colors.card },
+            saving && { opacity: 0.6 },
+          ]}
+          onPress={() => void handleSave("back")}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Feather name="check" size={18} color={colors.foreground} />
+          <Text style={[styles.saveSecondaryBtnText, { color: colors.foreground }]}>Save & Close</Text>
         </TouchableOpacity>
       </View>
+
+      <ZoomableImageModal
+        visible={viewingImage}
+        uri={imageBase64 ? `data:image/jpeg;base64,${imageBase64}` : null}
+        onClose={() => setViewingImage(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -582,6 +667,17 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 8,
     borderWidth: 1,
+  },
+  thumbZoomBadge: {
+    position: "absolute",
+    right: 4,
+    bottom: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
   sectionLabel: {
     fontSize: 11,
@@ -711,6 +807,20 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: "#fff",
     fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+  },
+  saveSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  saveSecondaryBtnText: {
+    fontSize: 15,
     fontFamily: "Inter_600SemiBold",
   },
 });

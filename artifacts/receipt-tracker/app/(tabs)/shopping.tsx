@@ -25,6 +25,7 @@ import { ShoppingListItemRow } from "@/components/ShoppingListItem";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { ShoppingListPdfModal } from "@/components/ShoppingListPdfModal";
+import { ShoppingModeView } from "@/components/ShoppingModeView";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { notify } from "@/lib/confirm";
 import { getApiOrigin } from "@/lib/apiBase";
@@ -32,6 +33,13 @@ import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useUser, useAuth } from "@clerk/expo";
+
+type ShoppingView = "items" | "create" | "shop";
+const SHOPPING_VIEWS: { key: ShoppingView; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { key: "items", label: "Items", icon: "list" },
+  { key: "create", label: "Create list", icon: "check-square" },
+  { key: "shop", label: "Shopping", icon: "shopping-cart" },
+];
 
 type ShoppingSort = "az" | "price" | "category";
 const SHOPPING_SORT: SortOption<ShoppingSort>[] = [
@@ -77,9 +85,30 @@ export default function ShoppingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
   const [dismissingItemId, setDismissingItemId] = useState<number | null>(null);
-  const [pdfModalVisible, setPdfModalVisible] = useState(false);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ShoppingSort>("az");
+
+  // Which sub-tab is showing. The three views share the screen rather than the
+  // list-builder being a modal, so building a list and shopping it are one flow.
+  const [view, setView] = useState<ShoppingView>("items");
+  // Everything the list builder accumulates lives here, not inside it. Switching
+  // sub-tabs UNMOUNTS the builder, so anything it held locally would be gone on
+  // the way back — and Shopping Mode needs to read what was ticked. `excluded`
+  // holds DEselected ids: empty means everything is included, matching the
+  // builder's own convention.
+  const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  const [customItems, setCustomItems] = useState<string[]>([]);
+  const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
+  // An accepted merge: the discarded duplicate's id, plus the name the surviving
+  // row displays. Held here for the same reason as the rest.
+  const [mergedOut, setMergedOut] = useState<Set<number>>(new Set());
+  const [nameOverrides, setNameOverrides] = useState<Map<number, string>>(new Map());
+  // What's already in the basket this trip. Owned here for the same reason: the
+  // Shopping view unmounts on a tab switch, and losing this would throw away the
+  // shopper's progress mid-trip while the trip is still open. Still not persisted
+  // beyond the screen — a stale half-ticked list on the next trip is worse than
+  // starting clean — so it's cleared on "Done shopping".
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -190,8 +219,56 @@ export default function ShoppingScreen() {
     user?.primaryEmailAddress?.emailAddress ||
     "";
 
-  const handleOpenPdfModal = () => {
-    setPdfModalVisible(true);
+  // What Shopping Mode shows: everything on the list that wasn't unticked in
+  // Create list. Reads the unfiltered list on purpose — the Items tab's search
+  // and sort are a browsing aid and shouldn't silently shorten a shopping trip.
+  // Merged-away duplicates are filtered explicitly as well as via `excluded`.
+  // Accepting a merge adds the discarded id to both, so this is belt-and-braces —
+  // but it means the invariant doesn't depend on the builder remembering to touch
+  // `excluded`, which is exactly what went wrong the first time. A surviving row
+  // renamed by a merge shows that name here too.
+  const selectedItems = useMemo(
+    () =>
+      [...(list?.recurring ?? []), ...(list?.oneOff ?? [])]
+        .filter((it) => !excluded.has(it.itemId) && !mergedOut.has(it.itemId))
+        .map((it) => {
+          const override = nameOverrides.get(it.itemId);
+          return override ? { ...it, itemName: override } : it;
+        }),
+    [list?.recurring, list?.oneOff, excluded, mergedOut, nameOverrides],
+  );
+
+  // Ending a trip is deliberate — only this fires the upload reminder, never a
+  // tab switch or backgrounding, both of which happen constantly mid-shop.
+  const handleDoneShopping = async ({ picked }: { picked: number; total: number }) => {
+    setView("items");
+    // The trip is over, so the basket resets. This is the ONLY thing that clears
+    // it — a tab switch must not.
+    setPicked(new Set());
+    notify(
+      picked > 0 ? "Trip finished" : "Trip closed",
+      picked > 0
+        ? `${picked} item${picked === 1 ? "" : "s"} picked up. Scan your receipt to log what you spent.`
+        : "Scan your receipt when you have it to log what you spent.",
+    );
+
+    // Record the trip so the week-later "still no receipt" reminder can fire.
+    // Deliberately not awaited into the UI and failures are swallowed: the trip
+    // record only drives an optional email, and losing it must never make
+    // finishing a trip look broken.
+    try {
+      const token = await getToken();
+      await fetch(`${getApiOrigin()}/api/shopping-list/trips`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ itemsPicked: picked, itemsPlanned: selectedItems.length + customItems.length }),
+      });
+    } catch {
+      // Non-fatal by design — see above.
+    }
   };
 
   const recurring = useMemo(
@@ -232,24 +309,46 @@ export default function ShoppingScreen() {
             <Feather name="grid" size={16} color={colors.accentForeground} />
             <Text style={[styles.browseButtonText, { color: colors.accentForeground }]}>Browse</Text>
           </TouchableOpacity>
-          {hasItems && (
-            <TouchableOpacity
-              style={[styles.downloadButton, { backgroundColor: colors.accent }]}
-              onPress={handleOpenPdfModal}
-              accessibilityLabel="generate printable shopping list"
-            >
-              <Feather name="download" size={16} color={colors.accentForeground} />
-              <Text style={[styles.downloadButtonText, { color: colors.accentForeground }]}>
-                Download
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
 
+      {/* Sub-tab switcher. Only meaningful once there's something to work with,
+          so it stays hidden on an empty list rather than offering two dead tabs. */}
       {hasItems ? (
+        <View style={[styles.viewTabs, { borderBottomColor: colors.border }]}>
+          {SHOPPING_VIEWS.map((v) => {
+            const active = view === v.key;
+            return (
+              <TouchableOpacity
+                key={v.key}
+                style={[styles.viewTab, active && { borderBottomColor: colors.primary }]}
+                onPress={() => setView(v.key)}
+                activeOpacity={0.7}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+              >
+                <Feather
+                  name={v.icon}
+                  size={15}
+                  color={active ? colors.primary : colors.mutedForeground}
+                />
+                <Text
+                  style={[
+                    styles.viewTabText,
+                    { color: active ? colors.primary : colors.mutedForeground },
+                  ]}
+                >
+                  {v.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {hasItems && view === "items" ? (
         <ListControls
           query={query}
           onQueryChange={setQuery}
@@ -269,6 +368,33 @@ export default function ShoppingScreen() {
           icon="check-square"
           title="No items yet"
           subtitle="Scan receipts to auto-build your shopping list with prices"
+        />
+      ) : view === "create" ? (
+        <ShoppingListPdfModal
+          inline
+          visible
+          onClose={() => setView("items")}
+          recurring={list?.recurring ?? []}
+          oneOff={list?.oneOff ?? []}
+          preparedFor={preparedFor}
+          excluded={excluded}
+          onExcludedChange={setExcluded}
+          customItems={customItems}
+          onCustomItemsChange={setCustomItems}
+          quantities={quantities}
+          onQuantitiesChange={setQuantities}
+          mergedOut={mergedOut}
+          onMergedOutChange={setMergedOut}
+          nameOverrides={nameOverrides}
+          onNameOverridesChange={setNameOverrides}
+        />
+      ) : view === "shop" ? (
+        <ShoppingModeView
+          items={selectedItems}
+          customItems={customItems}
+          picked={picked}
+          onPickedChange={setPicked}
+          onDoneShopping={handleDoneShopping}
         />
       ) : matchCount === 0 ? (
         <EmptyState
@@ -310,14 +436,6 @@ export default function ShoppingScreen() {
         />
       )}
 
-      <ShoppingListPdfModal
-        visible={pdfModalVisible}
-        onClose={() => setPdfModalVisible(false)}
-        recurring={list?.recurring ?? []}
-        oneOff={list?.oneOff ?? []}
-        preparedFor={preparedFor}
-      />
-
       {undo ? (
         <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
           <Text style={[styles.undoText, { color: colors.background }]} numberOfLines={1}>
@@ -358,15 +476,23 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
-  downloadButton: {
+  viewTabs: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  viewTab: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    height: 40,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingVertical: 12,
+    // Transparent by default so the active tab's coloured border doesn't shift
+    // the row's height when it appears.
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
-  downloadButtonText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  viewTabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   browseButton: {
     flexDirection: "row",
     alignItems: "center",

@@ -20,7 +20,6 @@ import { fetch as expoFetch } from "expo/fetch";
 import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListStores,
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
   getListReceiptsQueryKey,
@@ -30,6 +29,7 @@ import {
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { DateField } from "@/components/DateField";
+import { StoreNameField } from "@/components/StoreNameField";
 import { getApiOrigin } from "@/lib/apiBase";
 
 interface LineItemRow {
@@ -61,18 +61,9 @@ export default function QuickAddScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const [storeName, setStoreName] = useState("");
-  const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
   const [date, setDate] = useState(todayDate());
   const [lineItems, setLineItems] = useState<LineItemRow[]>([makeRow()]);
   const [saving, setSaving] = useState(false);
-
-  const { data: stores } = useListStores();
-
-  const filteredStores = useMemo(() => {
-    if (!stores || !storeName.trim()) return [];
-    const q = storeName.toLowerCase();
-    return stores.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 5);
-  }, [stores, storeName]);
 
   const calculatedTotal = useMemo(() => {
     return lineItems.reduce((sum, li) => {
@@ -217,51 +208,7 @@ export default function QuickAddScreen() {
         {/* Store */}
         <View style={s.fieldWrap}>
           <Text style={[s.label, { color: colors.mutedForeground }]}>Store (optional)</Text>
-          <View>
-            <View style={[s.storeInputRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Feather name="shopping-bag" size={15} color={colors.mutedForeground} style={{ marginLeft: 12 }} />
-              <TextInput
-                style={[s.storeInput, { color: colors.foreground }]}
-                placeholder="Store name"
-                placeholderTextColor={colors.mutedForeground}
-                value={storeName}
-                onChangeText={(v) => {
-                  setStoreName(v);
-                  setStoreDropdownOpen(v.trim().length > 0);
-                }}
-                onFocus={() => setStoreDropdownOpen(storeName.trim().length > 0)}
-                returnKeyType="next"
-              />
-              {storeName.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => { setStoreName(""); setStoreDropdownOpen(false); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{ marginRight: 12 }}
-                >
-                  <Feather name="x-circle" size={15} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Autocomplete dropdown */}
-            {storeDropdownOpen && filteredStores.length > 0 && (
-              <View style={[s.dropdown, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.foreground }]}>
-                {filteredStores.map((store) => (
-                  <TouchableOpacity
-                    key={store.id}
-                    style={[s.dropdownItem, { borderBottomColor: colors.border }]}
-                    onPress={() => {
-                      setStoreName(store.name);
-                      setStoreDropdownOpen(false);
-                    }}
-                  >
-                    <Feather name="shopping-bag" size={13} color={colors.primary} />
-                    <Text style={[s.dropdownText, { color: colors.foreground }]}>{store.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
+          <StoreNameField value={storeName} onChangeText={setStoreName} />
         </View>
 
         {/* Date */}
@@ -397,43 +344,6 @@ function styles(colors: any) {
       fontFamily: "Inter_500Medium",
       marginBottom: 6,
     },
-    storeInputRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderWidth: 1,
-      borderRadius: 12,
-      height: 46,
-      gap: 8,
-    },
-    storeInput: {
-      flex: 1,
-      height: 46,
-      fontSize: 15,
-      fontFamily: "Inter_400Regular",
-    },
-    dropdown: {
-      position: "absolute",
-      top: 50,
-      left: 0,
-      right: 0,
-      borderWidth: 1,
-      borderRadius: 12,
-      zIndex: 100,
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 6,
-      overflow: "hidden",
-    },
-    dropdownItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    dropdownText: { fontSize: 15, fontFamily: "Inter_400Regular" },
     dateRow: {
       flexDirection: "row",
       alignItems: "center",

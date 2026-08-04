@@ -75,33 +75,6 @@ async function backfillStoreRegions(): Promise<void> {
   }
 }
 
-// The one-time "Choose your plan" onboarding step (web) is shown to signed-in
-// users whose `planSelectedAt` is NULL. It was added after users already
-// existed, so every pre-existing user would otherwise be force-routed through it
-// — violating the rule that RETURNING users skip onboarding. We treat any user
-// who has already completed the earlier region-setup step (countryCode set) as a
-// returning user and mark their plan choice as made, so only genuinely new
-// accounts (which pick a region then a plan in one flow) ever see the screen.
-// Idempotent: once stamped the rows no longer match (planSelectedAt non-null).
-async function backfillPlanSelected(): Promise<void> {
-  const updated = await db
-    .update(usersTable)
-    .set({ planSelectedAt: sql`now()` })
-    .where(
-      and(
-        sql`${usersTable.countryCode} is not null`,
-        sql`${usersTable.planSelectedAt} is null`,
-      ),
-    )
-    .returning({ id: usersTable.id });
-  if (updated.length > 0) {
-    logger.info(
-      { count: updated.length },
-      "Backfilled planSelectedAt for returning users (skip choose-plan onboarding)",
-    );
-  }
-}
-
 // Keep the `role` label in sync with the `isAdmin` power flag for the elected
 // admin. Backfills role='master_admin' for the existing admin after the role
 // column is introduced. Idempotent (no-op once roles agree).
@@ -218,22 +191,35 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "notes" text`);
   await db.execute(sql`ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "updated_at" timestamptz NOT NULL DEFAULT now()`);
 
-  // Free-tier AI scan metering (one row per free scan). Created here because the
-  // table may not exist yet when drizzle-kit push lags the deploy.
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS "free_scan_events" (
-    "id" serial PRIMARY KEY,
-    "user_id" text NOT NULL,
-    "created_at" timestamptz NOT NULL DEFAULT now()
-  )`);
-  await db.execute(
-    sql`CREATE INDEX IF NOT EXISTS "free_scan_events_user_created_idx" ON "free_scan_events" ("user_id", "created_at")`,
-  );
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "brand" text`);
   await db.execute(sql`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "size" text`);
   // Per-purchase unit of measure for a line item's quantity (each/lb/kg/oz/L/ml…).
   await db.execute(sql`ALTER TABLE "line_items" ADD COLUMN IF NOT EXISTS "unit" text`);
   // Delivery / service fee captured from a receipt (feeds "additional fees" analytics).
   await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "delivery_fee" numeric(10, 2)`);
+  // Receipt-level tax / discount magnitudes, captured by the scan prompt as fields
+  // rather than line items. Drizzle emits an explicit column list on SELECT, so a
+  // deploy landing before these exist would 500 the whole Receipts list, not just
+  // the save path — hence self-healing here like every other additive column.
+  await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "tax" numeric(10, 2)`);
+  await db.execute(sql`ALTER TABLE "receipts" ADD COLUMN IF NOT EXISTS "discount" numeric(10, 2)`);
+  // Finished Shopping Mode trips — written by POST /shopping-list/trips and read
+  // by the trip_receipt_missing reminder sweep. Both are live the moment the new
+  // server code deploys, so the table has to exist without waiting for a manual
+  // drizzle-kit push.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "shopping_trips" (
+    "id" serial PRIMARY KEY,
+    "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "closed_at" timestamptz NOT NULL DEFAULT now(),
+    "items_picked" integer NOT NULL DEFAULT 0,
+    "items_planned" integer NOT NULL DEFAULT 0,
+    "receipt_logged_at" timestamptz,
+    "reminder_sent_at" timestamptz,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "shopping_trips_user_closed_idx" ON "shopping_trips" ("user_id", "closed_at")`,
+  );
   // Optional user home address + geocoded coordinates for store "distance from".
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "address" text`);
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "latitude" numeric(9, 6)`);
@@ -256,11 +242,6 @@ async function ensureSchemaColumns(): Promise<void> {
   // Debounce cursor for the "email preferences updated" confirmation email.
   await db.execute(
     sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_prefs_email_sent_at" timestamptz`,
-  );
-  // Whether the subscription is scheduled to cancel at period end (Stripe
-  // cancel_at_period_end) — drives "Premium access ends [date]" copy.
-  await db.execute(
-    sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "subscription_cancel_at_period_end" boolean NOT NULL DEFAULT false`,
   );
   // Trusted community poster flag — when true, board posts/replies skip the
   // approval queue. Read by POST /board, so a missing column would 500 posting.
@@ -341,7 +322,6 @@ async function ensureSchemaColumns(): Promise<void> {
   // the columns were already pushed). Re-assert the correct default so new users
   // are opted OUT. Only affects future inserts — existing rows are left untouched
   // so we never override a user's deliberate choice.
-  await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_payment_reminders" SET DEFAULT false`);
   await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_list_export" SET DEFAULT false`);
   await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_receipt_reminders" SET DEFAULT false`);
   await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "notify_spend_summary" SET DEFAULT false`);
@@ -373,7 +353,6 @@ export async function runStartupReconciliations(): Promise<void> {
     await releaseLegacyAdminData();
     await backfillStoreRegions();
     await backfillStoreLogos();
-    await backfillPlanSelected();
   } catch (err) {
     logger.error({ err }, "Startup reconciliation failed");
   }

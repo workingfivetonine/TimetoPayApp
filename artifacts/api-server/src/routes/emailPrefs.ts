@@ -17,7 +17,6 @@ async function unsubscribeAll(userId: string): Promise<boolean> {
   const rows = await db
     .update(usersTable)
     .set({
-      notifyPaymentReminders: false,
       notifyListExport: false,
       notifyReceiptReminders: false,
       notifySpendSummary: false,

@@ -32,10 +32,10 @@ import Toast, {
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BoardNotificationProvider } from "@/contexts/BoardNotification";
-import { AnnualOfferModal } from "@/components/AnnualOfferModal";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { DataProvider } from "@/context/DataContext";
+import { useReceiptShareIntent } from "@/hooks/useReceiptShareIntent";
 import { getApiOrigin } from "@/lib/apiBase";
 import {
   queryClient,
@@ -52,8 +52,7 @@ import {
 // value (e.g. http://localhost) from Expo's no-window static-export module eval.
 setBaseUrl(() => getApiOrigin());
 
-// Declare the platform so the server can enforce the web-only paywall (native
-// clients are intentionally never paywalled to avoid app-store IAP policy).
+// Declare the platform so the server can tell native from web requests.
 setClientPlatform(Platform.OS);
 
 // Register the PWA service worker on web so Chrome fires `beforeinstallprompt`.
@@ -139,7 +138,6 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="landing" options={{ headerShown: false }} />
-      <Stack.Screen name="pricing" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: "fullScreenModal" }} />
@@ -150,9 +148,7 @@ function RootLayoutNav() {
       <Stack.Screen name="catalog" options={{ headerShown: false }} />
       <Stack.Screen name="profile-setup" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="region-setup" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="choose-plan" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
-      <Stack.Screen name="paywall" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="help" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="admin/[userId]" options={{ headerShown: false }} />
@@ -199,13 +195,15 @@ function InitialLayout() {
   // (before this render) can't grab a stale/wrong base.
   setBaseUrl(() => getApiOrigin());
 
+  // A receipt shared in from Photos/Files. Gated on being signed in so the file
+  // isn't dropped by the auth redirect below.
+  useReceiptShareIntent(isLoaded && !!isSignedIn);
+
   const inAuthGroup = segments[0] === "(auth)";
   const onLanding = segments[0] === "landing";
-  const onPricing = segments[0] === "pricing";
   const onRegionSetup = segments[0] === "region-setup";
-  const onChoosePlan = segments[0] === "choose-plan";
   const onProfileSetup = segments[0] === "profile-setup";
-  const isPublicRoute = inAuthGroup || onLanding || onPricing;
+  const isPublicRoute = inAuthGroup || onLanding;
 
   // Region gate: a signed-in user must pick a region before using the app, since
   // the catalog is scoped by it. Only fetch once signed in.
@@ -213,23 +211,13 @@ function InitialLayout() {
     query: { queryKey: getGetCurrentUserQueryKey(), enabled: isSignedIn },
   });
   const needsRegion = isSignedIn && me != null && !me.countryCode;
-  // After region is set, a brand-new user picks a plan once (Subscribe / trial /
-  // free). planSelected flips permanently after any choice on /choose-plan.
-  // Web-only: native is never paywalled, so mobile onboarding must NOT be routed
-  // through the plan picker (the choice is meaningless there).
-  // TimetoPay is free — there is no plan to pick, so the plan-picker onboarding
-  // step is disabled. (The /choose-plan screen is kept but no longer routed to.)
-  const needsPlan = false;
-
   // Every signed-in user sets a username + avatar once, right after signup —
   // before region/plan. (username lives on the server CurrentUser response.)
   const needsProfile =
     isSignedIn && me != null && !(me as { username?: string | null }).username;
 
-  // Freemium model: we no longer redirect lapsed web users to the paywall.
-  // Free users keep full access to their own data; premium surfaces (AI scan,
-  // global catalog, deep price-history analytics) are gated in-place with an
-  // upsell (see usePremiumLock) and the server returns 403 on those routes.
+  // The app is free: there is no plan step and nothing to be locked out of, so
+  // onboarding is signup → profile → region → app.
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -241,8 +229,6 @@ function InitialLayout() {
       router.replace("/profile-setup");
     } else if (needsRegion && !onRegionSetup && !onProfileSetup) {
       router.replace("/region-setup");
-    } else if (needsPlan && !onChoosePlan && !onRegionSetup && !onProfileSetup) {
-      router.replace("/choose-plan");
     } else if (
       isSignedIn &&
       !needsProfile &&
@@ -265,10 +251,8 @@ function InitialLayout() {
     isPublicRoute,
     needsProfile,
     needsRegion,
-    needsPlan,
     onProfileSetup,
     onRegionSetup,
-    onChoosePlan,
     router,
   ]);
 
@@ -283,7 +267,6 @@ function InitialLayout() {
   return (
     <>
       <RootLayoutNav />
-      <AnnualOfferModal />
       <UpdatePrompt />
     </>
   );

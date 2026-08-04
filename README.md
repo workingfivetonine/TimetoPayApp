@@ -17,12 +17,12 @@ Live at **[5to9shopping.com](https://5to9shopping.com)**
 - **Spend analytics** — this-month and since-join spend totals, weekly/monthly trends, and a spend calendar with per-day quick-add
 - **Multi-currency display** — prices render in the user's local currency symbol based on their country (visual only — amounts are never converted)
 - **Store management** — track multiple stores with delivery fees, hours, website, and Google Maps directions
-- **Community board** — a moderated tips/deals board for subscribers with 2+ uploaded receipts
+- **Community board** — a moderated tips/deals board for users with 2+ uploaded receipts
 - **Profile & onboarding** — unique username + generated avatar, shown as the author on the community board
 - **Cross-store catalog** — region-scoped shared item catalog for price benchmarking
-- **Subscriptions** — Stripe and PayPal billing with an opt-in free trial, in-app trial-ending and payment-failed banners, and a self-service "manage/cancel" flow
-- **Email** — welcome, subscription thank-you, trial-ending, payment past-due, account-deleted, and spend-summary emails sent via **Loops** as events (content + automations designed in the Loops dashboard); all reminders default OFF
-- **Privacy & GDPR** — privacy policy, Terms/Privacy acceptance at signup, full data export, and self-service account + data deletion (cancels billing)
+- **Free, with no paid tier** — every feature is available to every signed-in user. Support is an optional donation link; there is no plan, paywall or entitlement check anywhere
+- **Email** — welcome, password-reset-required, account-deleted, list-export, receipt-inactivity, shopping-trip and spend-summary emails sent via **Loops** as events (content + automations designed in the Loops dashboard); all reminders default OFF
+- **Privacy & GDPR** — privacy policy, Terms/Privacy acceptance at signup, full data export, and self-service account + data deletion
 - **PWA support** — installable on mobile home screen, offline-capable
 
 ---
@@ -36,7 +36,6 @@ Live at **[5to9shopping.com](https://5to9shopping.com)**
 | Database | PostgreSQL via Drizzle ORM |
 | Auth | Clerk |
 | AI | OpenAI (vision model for receipt parsing) |
-| Payments | Stripe + PayPal |
 | Email | Loops (loops.so) |
 | Frontend hosting | Vercel |
 | Backend hosting | Railway |
@@ -52,8 +51,8 @@ TimetoPayApp/
 │   ├── api-server/          # Express backend
 │   │   └── src/
 │   │       ├── routes/      # API route handlers
-│   │       ├── lib/         # Billing, email, AI, analytics
-│   │       └── middlewares/ # Auth, rate limiting, entitlement
+│   │       ├── lib/         # Email, AI, analytics, notifications
+│   │       └── middlewares/ # Auth, rate limiting
 │   └── receipt-tracker/     # Expo/React Native frontend
 │       ├── app/             # Expo Router screens
 │       ├── components/      # Shared UI components
@@ -62,8 +61,7 @@ TimetoPayApp/
 ├── lib/
 │   ├── db/                  # Drizzle schema and database client
 │   ├── api-spec/            # OpenAPI spec
-│   ├── api-client-react/    # Generated React Query hooks
-│   └── billing/             # Entitlement logic
+│   └── api-client-react/    # Generated React Query hooks
 └── scripts/                 # Dev and test utilities
 ```
 
@@ -78,18 +76,7 @@ TimetoPayApp/
 | `DATABASE_URL` | Neon PostgreSQL connection string |
 | `CLERK_SECRET_KEY` | Clerk secret key (`sk_live_...`) |
 | `CLERK_PUBLISHABLE_KEY` | Clerk publishable key (`pk_live_...`) |
-| `STRIPE_SECRET_KEY` | Stripe secret key |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `STRIPE_PRICE_ID` | Monthly subscription price ID |
-| `STRIPE_ANNUAL_PRICE_ID` | Annual subscription price ID |
-| `STRIPE_ANNUAL_COUPON_ID` | Annual discount coupon ID |
-| `PAYPAL_CLIENT_ID` | PayPal app client ID |
-| `PAYPAL_CLIENT_SECRET` | PayPal app client secret |
-| `PAYPAL_API_BASE` | `https://api-m.paypal.com` |
-| `PAYPAL_PLAN_ID` | PayPal subscription plan ID |
-| `PAYPAL_WEBHOOK_ID` | PayPal webhook ID |
-| `AI_INTEGRATIONS_OPENAI_API_KEY` | OpenAI API key |
-| `AI_INTEGRATIONS_OPENAI_BASE_URL` | `https://api.openai.com/v1` |
+| `OPENAI_API_KEY` | OpenAI API key (receipt parsing / catalog AI) |
 | `LOOPS_API_KEY` | Loops API key (app.loops.so → Settings → API) |
 | `LOOPS_TRANSACTIONAL_SUPPORT_ID` | Loops transactional ID for the support-form relay |
 | `LOOPS_TRANSACTIONAL_ADMIN_DIGEST_ID` | Loops transactional ID for the admin digest |
@@ -105,6 +92,7 @@ TimetoPayApp/
 | `EXPO_PUBLIC_API_URL` | `https://api.5to9shopping.com` |
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (`pk_live_...`) |
 | `EXPO_PUBLIC_CLERK_FRONTEND_API_URL` | `https://clerk.5to9shopping.com` |
+| `EXPO_PUBLIC_DONATE_URL` | Optional donation page (defaults to the live one) |
 | `ENABLE_EXPERIMENTAL_COREPACK` | `1` |
 
 ---
@@ -145,20 +133,21 @@ All DNS is managed through Vercel's DNS panel (Vercel nameservers). Key records:
 | Role | Access |
 |---|---|
 | `master_admin` | Full access + admin panel, cross-user data |
-| `family` | Full complimentary access, no paywall |
-| `general` | Standard user, subscription required for premium features |
+| `family` | Standard user (label only) |
+| `general` | Standard user (label only) |
+
+`family` and `general` are labels with identical permissions — the app is free, so
+there is nothing for a role to unlock.
 
 ---
 
 ## Key Architecture Notes
 
 - User IDs are Clerk user IDs (text primary key) — not auto-generated integers
-- Entitlement is computed server-side from `subscriptionStatus` — never trust client-reported subscription state
 - PDF parsing uses `poppler` (`pdftoppm`) for rasterization — must be installed on the server
 - Clerk authentication uses a direct CNAME (`clerk.5to9shopping.com`) — no proxy
-- All email notifications default to OFF for new users; trial-ending and payment-past-due notices are the exception (always sent, as losing access is critical)
-- The web paywall is enforced server-side per feature (`requirePremium` / `allowFreeSingleScan`); native clients are never paywalled (App Store IAP policy)
-- The committed API client (`lib/api-client-react`, `lib/api-zod`) is generated but has drifted from the OpenAPI spec — **do not regenerate**. Add new endpoints as raw Express routes called via `fetch`, and read new fields via casts.
+- All email notifications default to OFF for new users (opt-in), with a 2-day post-signup grace period before any reminder can fire
+- The committed API client (`lib/api-client-react`, `lib/api-zod`) is generated from `lib/api-spec/openapi.yaml` via `pnpm --filter @workspace/api-spec run codegen`. Parts of the server have drifted ahead of the spec, so some newer endpoints are raw Express routes called via `fetch` with new fields read through casts — when you regenerate, check the spec covers what the client already relies on.
 - Additive schema changes are applied at server boot via idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` in `bootstrap.ts` (no migration step in the deploy)
 - Multi-currency is display-only: a country→symbol map in `lib/geo`; amounts are shown as entered and never converted
 - The API base URL is pinned in `artifacts/receipt-tracker/vercel.json` (`build.env.EXPO_PUBLIC_API_URL = https://api.5to9shopping.com`). `getApiOrigin()` returns this first, so the generated client can never fall back to `localhost` (it otherwise tried to derive the origin, which fails during Expo's no-`window` static build)

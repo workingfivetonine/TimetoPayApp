@@ -1,8 +1,8 @@
 import { chromium } from "playwright-core";
 import { mkdir } from "node:fs/promises";
 
-const EXEC = process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE;
-const DOMAIN = process.env.REPLIT_EXPO_DEV_DOMAIN;
+const EXEC = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+const DOMAIN = process.env.EXPO_DEV_DOMAIN;
 const BASE = `https://${DOMAIN}`;
 const OUT = "screenshots/raw";
 await mkdir(OUT, { recursive: true });

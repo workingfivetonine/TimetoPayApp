@@ -1,22 +1,21 @@
 // Opt-in email reminder engine.
 //
 // Evaluates each reminder type per user and sends at most once per relevant
-// period using the per-type "last sent" cursors on `usersTable`. Recipients are
-// gated to subscription-related users only (entitled trialing/active/comped, or
-// past_due) via `computeEntitlement`, and each type also honors the user's
-// opt-out toggle. Each reminder is fired to Loops as an EVENT (the email itself
+// period using the per-type "last sent" cursors on `usersTable`. Every signed-up
+// user with an email is a candidate; each type honors its own opt-in toggle (all
+// default off). Each reminder is fired to Loops as an EVENT (the email itself
 // is built in the Loops dashboard); when Loops isn't configured the send is a
 // graceful no-op and the cursor is NOT advanced, so reminders resume once the
 // LOOPS_API_KEY lands.
-import { and, eq, inArray, max, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
   receiptsTable,
   itemsTable,
   lineItemsTable,
+  shoppingTripsTable,
 } from "@workspace/db";
-import { computeBillingEntitlement, TRIAL_DAYS } from "../billing/entitlement";
 import { loopsSendEvent } from "../email/loops";
 import {
   comparePeriods,
@@ -30,8 +29,6 @@ import { logger } from "../logger";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// How close to trial end the "trial ending" reminder fires.
-const TRIAL_ENDING_WINDOW_DAYS = 3;
 // Re-nudge cadences (a reminder for an ongoing condition won't repeat faster).
 const LIST_EXPORT_COOLDOWN_DAYS_WEEKLY = 7;
 const LIST_EXPORT_COOLDOWN_DAYS_MONTHLY = 30;
@@ -42,6 +39,8 @@ const RECEIPT_INACTIVITY_COOLDOWN_DAYS_MONTHLY = 30;
 const NEGLECTED_STAPLE_DAYS = 21;
 // Grace period after signup during which we send NO reminder emails of any type.
 const SIGNUP_GRACE_DAYS = 2;
+// How long after a finished shopping trip to nudge about the missing receipt.
+const TRIP_RECEIPT_REMINDER_DAYS = 7;
 
 type UserRow = typeof usersTable.$inferSelect;
 
@@ -55,8 +54,8 @@ export interface SweepResult {
   byType: Record<string, number>;
 }
 
-// Run one full reminder sweep across all subscription-related users. Safe to run
-// repeatedly (idempotent per period); intended to be driven by the scheduler.
+// Run one full reminder sweep across all users. Safe to run repeatedly
+// (idempotent per period); intended to be driven by the scheduler.
 export async function runReminderSweep(
   now: Date = new Date(),
 ): Promise<SweepResult> {
@@ -68,16 +67,16 @@ export async function runReminderSweep(
 
   const allUsers = await db.select().from(usersTable);
 
-  // Restrict to subscription-related users up front.
+  // Anyone with an email is a candidate. This used to require a paid billing
+  // status, which silently killed every engagement reminder once the app became
+  // free — almost nobody reached the checks below. Opt-in is still enforced per
+  // type via the notify* toggles, which all default to false, so widening this
+  // doesn't email anyone who hasn't asked to be emailed.
   const eligible = allUsers.filter((u) => {
     if (!u.email) return false;
     // Signup grace: never email anyone in their first couple of days.
     if (daysBetween(now, new Date(u.createdAt)) < SIGNUP_GRACE_DAYS) return false;
-    // Email scheduling keys off REAL billing status (not the free-app override),
-    // so legacy subscribers still get payment reminders as before.
-    const ent = computeBillingEntitlement(u, now);
-    const isPastDue = u.subscriptionStatus === "past_due";
-    return ent.entitled || isPastDue;
+    return true;
   });
   result.evaluatedUsers = eligible.length;
   if (!eligible.length) return result;
@@ -122,25 +121,22 @@ export async function runReminderSweep(
   }
 
   for (const user of eligible) {
-    const ent = computeBillingEntitlement(user, now);
     const updates: Partial<UserRow> = {};
 
-    // ── Payment reminders ─────────────────────────────────────────────────
-    // Trial-ending and payment-past-due are critical, non-optional notifications
-    // (losing access is something the user must be told) — always fired to Loops
-    // regardless of the marketing opt-out. Each dedupes internally.
-    await maybeTrialEnding(user, now, updates, bump);
-    await maybePastDue(user, now, updates, bump);
-
-    // Engagement reminders only go to currently-entitled users (a past_due,
-    // grace-elapsed user gets the payment reminder above, not nudges).
-    if (ent.entitled) {
-      if (user.notifyListExport) await maybeListExport(user, now, updates, bump);
-      if (user.notifyReceiptReminders)
+    // Engagement reminders, each gated on its own opt-in toggle.
+    if (user.notifyListExport) await maybeListExport(user, now, updates, bump);
+    if (user.notifyReceiptReminders) {
+      // Trip-anchored first: "you shopped on Tuesday and there's still no
+      // receipt" is a better nudge than generic inactivity, and it dedupes per
+      // trip. If it fires, skip the inactivity one so a single user can't get
+      // two near-identical "upload a receipt" emails in the same sweep.
+      const nudged = await maybeTripReceiptMissing(user, now, bump);
+      if (!nudged) {
         await maybeReceiptInactivity(user, now, lastReceiptByUser.get(user.id) ?? null, updates, bump);
-      if (user.notifySpendSummary)
-        await maybeSpendSummaries(user, now, receiptsByUser.get(user.id) ?? [], updates, bump);
+      }
     }
+    if (user.notifySpendSummary)
+      await maybeSpendSummaries(user, now, receiptsByUser.get(user.id) ?? [], updates, bump);
 
     if (Object.keys(updates).length) {
       await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
@@ -151,54 +147,76 @@ export async function runReminderSweep(
   return result;
 }
 
-// ── Trial ending ──────────────────────────────────────────────────────────
-async function maybeTrialEnding(
+// ── Shopping trip with no receipt ─────────────────────────────────────────
+// A week after a finished shopping trip, nudge if no receipt has been logged
+// since. Returns true when an email was sent, so the caller can skip the generic
+// inactivity nudge and avoid two near-identical emails in one sweep.
+//
+// State lives on the trip row rather than a user-level cursor: `reminderSentAt`
+// makes this once-per-trip no matter how often the sweep runs, and it means a
+// user who shops weekly gets one nudge per missed trip rather than one per month.
+async function maybeTripReceiptMissing(
   user: UserRow,
   now: Date,
-  updates: Partial<UserRow>,
   bump: (t: string) => void,
-): Promise<void> {
-  if (!user.trialStartedAt) return;
-  if (user.lastTrialEndingSentAt) return; // one trial per user, send once
-  const trialEnd = new Date(user.trialStartedAt.getTime() + TRIAL_DAYS * DAY_MS);
-  const windowOpen = new Date(trialEnd.getTime() - TRIAL_ENDING_WINDOW_DAYS * DAY_MS);
-  if (now < windowOpen || now >= trialEnd) return;
-  const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY_MS));
+): Promise<boolean> {
+  const dueBefore = new Date(now.getTime() - TRIP_RECEIPT_REMINDER_DAYS * DAY_MS);
 
-  const res = await loopsSendEvent(user.email!, "trial_ending", {
-    eventProperties: { daysLeft, trialEndsAt: trialEnd.toISOString() },
-    contactProperties: { firstName: displayNameFromEmail(user.email), trialEndsAt: trialEnd.toISOString() },
-  });
-  if (res.sent) {
-    updates.lastTrialEndingSentAt = now;
-    bump("trialEnding");
+  // Oldest un-nudged trip that closed at least a week ago and still has no
+  // receipt against it.
+  const [trip] = await db
+    .select()
+    .from(shoppingTripsTable)
+    .where(
+      and(
+        eq(shoppingTripsTable.userId, user.id),
+        isNull(shoppingTripsTable.receiptLoggedAt),
+        isNull(shoppingTripsTable.reminderSentAt),
+        sql`${shoppingTripsTable.closedAt} <= ${dueBefore.toISOString()}`,
+      ),
+    )
+    .orderBy(shoppingTripsTable.closedAt)
+    .limit(1);
+  if (!trip) return false;
+
+  // A receipt logged after the trip closed counts as done, whenever it was
+  // entered. Checked live rather than trusting receiptLoggedAt, since receipts
+  // are created by paths that know nothing about trips.
+  const [{ count: receiptsSince } = { count: 0 }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(receiptsTable)
+    .where(
+      and(
+        eq(receiptsTable.userId, user.id),
+        sql`${receiptsTable.createdAt} >= ${trip.closedAt.toISOString()}`,
+      ),
+    );
+  if (receiptsSince > 0) {
+    // Backfill so this trip is settled and never reconsidered.
+    await db
+      .update(shoppingTripsTable)
+      .set({ receiptLoggedAt: now })
+      .where(eq(shoppingTripsTable.id, trip.id));
+    return false;
   }
-}
 
-// ── Payment past due ────────────────────────────────────────────────────────
-async function maybePastDue(
-  user: UserRow,
-  now: Date,
-  updates: Partial<UserRow>,
-  bump: (t: string) => void,
-): Promise<void> {
-  if (user.subscriptionStatus !== "past_due") {
-    // Reset so the NEXT distinct past_due episode re-notifies.
-    if (user.lastPastDueSentAt) updates.lastPastDueSentAt = null;
-    return;
-  }
-  if (user.lastPastDueSentAt) return; // already notified for this episode
-
-  const res = await loopsSendEvent(user.email!, "payment_past_due", {
+  const res = await loopsSendEvent(user.email!, "trip_receipt_missing", {
     eventProperties: {
-      currentPeriodEnd: user.subscriptionCurrentPeriodEnd ? user.subscriptionCurrentPeriodEnd.toISOString() : null,
+      itemsPicked: trip.itemsPicked,
+      daysSince: daysBetween(now, trip.closedAt),
     },
-    contactProperties: { subscriptionStatus: "past_due" },
+    contactProperties: { firstName: displayNameFromEmail(user.email!) },
   });
-  if (res.sent) {
-    updates.lastPastDueSentAt = now;
-    bump("pastDue");
-  }
+  // Cursor only advances on a real send, matching every other type here: if Loops
+  // isn't configured the nudge is retried once it is.
+  if (!res.sent) return false;
+
+  await db
+    .update(shoppingTripsTable)
+    .set({ reminderSentAt: now })
+    .where(eq(shoppingTripsTable.id, trip.id));
+  bump("trip_receipt_missing");
+  return true;
 }
 
 // ── Weekly grocery-list export nudge ────────────────────────────────────────

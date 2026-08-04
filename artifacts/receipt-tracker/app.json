@@ -62,6 +62,16 @@
         }
       ],
       [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsImageWithMaxCount": 1,
+            "NSExtensionActivationSupportsFileWithMaxCount": 1
+          },
+          "androidIntentFilters": ["image/*", "application/pdf"]
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {

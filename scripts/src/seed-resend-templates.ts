@@ -77,38 +77,6 @@ interface TemplateDef {
 }
 
 const TEMPLATES: TemplateDef[] = [
-  // Trial ending ──────────────────────────────────────────────────────────────
-  // Variables: SUBJECT, NAME, DAYS_LEFT_PHRASE, ENDS_DATE
-  {
-    envVar: "RESEND_TEMPLATE_TRIAL_ENDING",
-    name: `${BRAND} — Trial Ending`,
-    subject: "{{{SUBJECT}}}",
-    html: layout(
-      "Hi {{{NAME}}}, your trial is almost up",
-      [
-        p("Your TimetoPay free trial {{{DAYS_LEFT_PHRASE}}}{{{ENDS_DATE}}}."),
-        p("Subscribe to keep AI receipt scanning, the cross-user price catalog, and per-item price history. No pressure — your saved receipts stay put either way."),
-      ].join("\n      "),
-    ),
-    text: "Hi {{{NAME}}}, your TimetoPay free trial {{{DAYS_LEFT_PHRASE}}}{{{ENDS_DATE}}}. Subscribe to keep premium features.",
-  },
-
-  // Payment past due ──────────────────────────────────────────────────────────
-  // Variables: SUBJECT, NAME, ACCESS_UNTIL
-  {
-    envVar: "RESEND_TEMPLATE_PAST_DUE",
-    name: `${BRAND} — Payment Past Due`,
-    subject: "{{{SUBJECT}}}",
-    html: layout(
-      "Hi {{{NAME}}}, there's a problem with your payment",
-      [
-        p("Your most recent TimetoPay subscription payment didn't go through.{{{ACCESS_UNTIL}}}"),
-        p("Please update your payment method from the app's subscription settings to avoid losing premium features."),
-      ].join("\n      "),
-    ),
-    text: "Hi {{{NAME}}}, your most recent TimetoPay payment didn't go through.{{{ACCESS_UNTIL}}} Update your payment method in subscription settings.",
-  },
-
   // Shopping list nudge ───────────────────────────────────────────────────────
   // Variables: SUBJECT, NAME, ITEM_COUNT
   {

@@ -3,7 +3,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { UpdateMyRegionBody, UpdateMyNotificationPreferencesBody } from "@workspace/api-zod";
 import { validateRegion } from "@workspace/geo";
-import { formatCurrentUser } from "../lib/billing/entitlement";
+import { formatCurrentUser } from "../lib/currentUser";
 import { geocodeAddress } from "../lib/geocode";
 import {
   isValidUsernameFormat,
@@ -12,7 +12,6 @@ import {
 } from "../lib/username";
 import { clerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
-import { cancelUserSubscription } from "../lib/billing/cancelSubscription";
 import { sendAccountDeletedEmail, sendWelcomeEmail } from "../lib/email/transactional";
 import { loopsUpsertContact, loopsSendEvent } from "../lib/email/loops";
 
@@ -22,7 +21,6 @@ type UserRow = typeof usersTable.$inferSelect;
 
 function formatNotificationPreferences(user: UserRow) {
   return {
-    notifyPaymentReminders: user.notifyPaymentReminders,
     notifyListExport: user.notifyListExport,
     notifyReceiptReminders: user.notifyReceiptReminders,
     notifySpendSummary: user.notifySpendSummary,
@@ -58,9 +56,6 @@ router.delete("/", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Admin accounts can't be deleted from here." });
     return;
   }
-  // Cancel any active subscription FIRST so a deleted account stops billing.
-  const subscriptionCancelled = !!(user.stripeSubscriptionId || user.paypalSubscriptionId);
-  await cancelUserSubscription(user);
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   try {
     await clerkClient.users.deleteUser(userId);
@@ -69,7 +64,7 @@ router.delete("/", async (req, res): Promise<void> => {
     // orphaned Clerk identity simply re-provisions an empty account on next login).
     logger.error({ err, userId }, "Clerk user deletion failed after account delete");
   }
-  if (user.email) void sendAccountDeletedEmail(user.email, subscriptionCancelled);
+  if (user.email) void sendAccountDeletedEmail(user.email);
   res.json({ deleted: true });
 });
 
@@ -161,8 +156,6 @@ router.patch("/notifications", async (req, res): Promise<void> => {
     return;
   }
   const updates: Partial<UserRow> = {};
-  if (parsed.data.notifyPaymentReminders !== undefined)
-    updates.notifyPaymentReminders = parsed.data.notifyPaymentReminders;
   if (parsed.data.notifyListExport !== undefined)
     updates.notifyListExport = parsed.data.notifyListExport;
   if (parsed.data.notifyReceiptReminders !== undefined)

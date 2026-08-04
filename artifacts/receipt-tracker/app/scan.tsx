@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -26,14 +26,12 @@ import {
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceipts";
+import { takeSharedFile } from "@/stores/sharedFile";
 import { getApiOrigin } from "@/lib/apiBase";
-import { usePremiumLock } from "@/hooks/usePremiumLock";
-import { PremiumUpsell } from "@/components/PremiumUpsell";
-import { PremiumBadge } from "@/components/PremiumBadge";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface PendingImage {
@@ -63,6 +61,32 @@ interface DuplicateReceipt {
   purchasedAt: string;
 }
 
+// Native and web read files differently: native uses expo-file-system (the
+// blob/FileReader path only works in a browser), which is why PDF upload used to
+// fail on the phone.
+async function readFileAsBase64(uri: string): Promise<string> {
+  if (Platform.OS === "web") {
+    const fileResponse = await expoFetch(uri);
+    const blob = await fileResponse.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const b64 = dataUrl.split(",")[1];
+        if (!b64) reject(new Error("Empty file"));
+        else resolve(b64);
+      };
+      reader.onerror = () => reject(new Error("FileReader error"));
+      reader.readAsDataURL(blob);
+    });
+  }
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  if (!base64) throw new Error("Empty file");
+  return base64;
+}
+
 function toSummary(saved: SavedReceipt): BatchReceiptSummary {
   return {
     id: saved.id,
@@ -79,59 +103,65 @@ export default function ScanScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
-  const locked = usePremiumLock();
   const [scanning, setScanning] = useState(false);
-
-  // Free-tier scan budget. Free (locked) users get a limited number of
-  // single-photo AI scans; this drives the usage line + whether the photo
-  // button is enabled. Refetched after each scan so the count stays current.
-  type ScanUsage = {
-    entitled: boolean;
-    unlimited?: boolean;
-    week?: number;
-    month?: number;
-    weekLimit?: number;
-    monthLimit?: number;
-    canScan?: boolean;
-  };
-  const { data: scanUsage, refetch: refetchScanUsage } = useQuery<ScanUsage>({
-    queryKey: ["scan-usage"],
-    queryFn: async () => {
-      const token = await getToken();
-      const res = await expoFetch(`${getApiOrigin()}/api/receipts/scan-usage`, {
-        headers: {
-          "x-client-platform": Platform.OS,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) throw new Error(`scan-usage ${res.status}`);
-      return (await res.json()) as ScanUsage;
-    },
-  });
-  // Free users can still scan until they hit the cap; default to allowing the
-  // first scan while usage is loading.
-  const freeScansLeft =
-    scanUsage && scanUsage.month != null && scanUsage.monthLimit != null
-      ? Math.max(0, scanUsage.monthLimit - scanUsage.month)
-      : null;
-  const canFreeScan = scanUsage?.canScan ?? true;
   const [scanningLabel, setScanningLabel] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+
+  // "Save & Next" on the review screen routes here with ?autoOpen=1 so the next
+  // receipt can be captured without an extra tap. Fires once per arrival; the
+  // ref guard stops a re-render (or the picker returning) from reopening it.
+  const { autoOpen, shared } = useLocalSearchParams<{ autoOpen?: string; shared?: string }>();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpen !== "1" || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    void handleAddPhoto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
+
+  // A receipt shared in from another app (see useReceiptShareIntent). Routed here
+  // with ?shared=1; the file itself is parked in module state because the intent
+  // arrives outside navigation. `takeSharedFile` clears as it reads, so a remount
+  // can't reprocess it.
+  const sharedHandledRef = useRef(false);
+  useEffect(() => {
+    if (shared !== "1" || sharedHandledRef.current) return;
+    sharedHandledRef.current = true;
+    const file = takeSharedFile();
+    if (!file) return;
+    void (async () => {
+      let base64: string;
+      try {
+        base64 = await readFileAsBase64(file.uri);
+      } catch {
+        showErrorToast(
+          "Couldn't open this file",
+          "We couldn't read the shared file. Try opening TimetoPay and adding it directly.",
+        );
+        return;
+      }
+      if (file.kind === "pdf") {
+        await parsePdf(base64);
+      } else {
+        // Same crop-then-scan path as a picked photo. Dimensions can be absent
+        // from a share intent; the editor needs numbers, so fall back to a square
+        // and let it re-measure.
+        setPendingImage({
+          uri: file.uri,
+          base64,
+          width: file.width ?? 1000,
+          height: file.height ?? 1000,
+        });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shared]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
     // A scan can create a new store — refresh the Stores list so it appears.
     queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
   };
-
-  // Thrown when the server returns 403 (premium feature, free web user). Lets
-  // the call sites show an upsell + route to the paywall instead of a generic
-  // "could not read" error.
-  class PremiumRequiredError extends Error {
-    constructor(message?: string) {
-      super(message ?? "premium_required");
-    }
-  }
 
   // Carries the HTTP status (and any server message) so we can show the user a
   // specific reason for an upload failure + the right recommendation.
@@ -142,15 +172,6 @@ export default function ScanScreen() {
       this.status = status;
     }
   }
-
-  const promptUpgrade = (message?: string) => {
-    const isLimit = !!message && message !== "premium_required";
-    showErrorToast(
-      isLimit ? "Free scans used up" : "Premium required",
-      isLimit ? message! : "AI scanning is a premium feature.",
-    );
-    router.push("/paywall");
-  };
 
   // Turn an upload failure into a plain-language reason + recommendation. Always
   // ends by pointing the user at the manual entry fallback.
@@ -201,19 +222,56 @@ export default function ScanScreen() {
       },
       body: JSON.stringify(body),
     });
-    if (response.status === 403) throw new PremiumRequiredError();
     if (!response.ok) throw new UploadError(response.status);
     return response.json() as Promise<T>;
   };
 
+  // Capture a receipt with the device camera. Same asset shape as the library
+  // picker, so it feeds the identical crop-and-review flow. Camera capture is
+  // inherently one shot at a time — no multi-select branch to handle.
+  const handleTakePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        "Camera access needed",
+        "To take a photo of a receipt, allow camera access for TimetoPay in your device settings.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 1.0 });
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+    if (!asset.base64) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPendingImage({
+      uri: asset.uri,
+      base64: asset.base64,
+      width: asset.width,
+      height: asset.height,
+    });
+  };
+
+  // Entry point for the primary scan button. On native, let the user choose
+  // between the camera and their library; on web there's no in-app camera worth
+  // offering, so go straight to the file picker.
+  const handleAddPhoto = async () => {
+    if (Platform.OS === "web") {
+      await handlePickImage();
+      return;
+    }
+    Alert.alert("Add a receipt", "Take a photo now, or pick one you already have?", [
+      { text: "Take Photo", onPress: () => void handleTakePhoto() },
+      { text: "Choose from Library", onPress: () => void handlePickImage() },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   const handlePickImage = async () => {
-    // Free users are limited to a single photo per scan; only paid users can
-    // select multiple photos (same/different receipt batching).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       base64: true,
       quality: 1.0,
-      allowsMultipleSelection: !locked,
+      allowsMultipleSelection: true,
     });
     if (result.canceled || result.assets.length === 0) return;
 
@@ -265,8 +323,7 @@ export default function ScanScreen() {
       showSuccessToast("Receipt scanned", "Combined photos processed");
       router.replace(`/receipt/${result.id}`);
     } catch (err) {
-      if (err instanceof PremiumRequiredError) promptUpgrade();
-      else showUploadFailure(err, "image", () => parseCombinedReceipt(imagesBase64));
+      showUploadFailure(err, "image", () => parseCombinedReceipt(imagesBase64));
     } finally {
       setScanning(false);
     }
@@ -278,7 +335,6 @@ export default function ScanScreen() {
     setScanning(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const summaries: BatchReceiptSummary[] = [];
-    let premiumBlocked = false;
     let failures = 0;
     try {
       await Promise.all(
@@ -287,22 +343,13 @@ export default function ScanScreen() {
           try {
             const result = await callApi<SavedReceipt>("parse-and-save", { imageBase64: base64 });
             summaries.push(toSummary(result));
-          } catch (err) {
-            if (err instanceof PremiumRequiredError) {
-              premiumBlocked = true;
-            } else {
-              failures++;
-            }
+          } catch {
+            failures++;
           }
         })
       );
     } finally {
       setScanning(false);
-    }
-
-    if (premiumBlocked && summaries.length === 0) {
-      promptUpgrade();
-      return;
     }
 
     if (summaries.length === 0) {
@@ -353,19 +400,12 @@ export default function ScanScreen() {
         },
         body: JSON.stringify({ imageBase64: editedBase64 }),
       });
-      if (response.status === 403) {
-        const body = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
-        throw new PremiumRequiredError(body?.error === "free_scan_limit_reached" ? body?.message : undefined);
-      }
       if (!response.ok) throw new UploadError(response.status);
       const parsed = (await response.json()) as ParsedReceiptData;
-      // A free scan was just consumed — refresh the remaining count.
-      void refetchScanUsage();
       setPendingReceipt(parsed, editedBase64);
       router.push("/review-receipt");
     } catch (err) {
-      if (err instanceof PremiumRequiredError) promptUpgrade(err.message);
-      else showUploadFailure(err, "image", () => parseImage(editedBase64));
+      showUploadFailure(err, "image", () => parseImage(editedBase64));
     } finally {
       setScanning(false);
     }
@@ -388,32 +428,10 @@ export default function ScanScreen() {
     if (result.canceled || !result.assets[0]?.uri) return;
 
     // Read the picked file into base64 first, then hand off to parsePdf so a
-    // failed parse can be retried without re-picking the file. Native and web
-    // read files differently: native uses expo-file-system (the blob/FileReader
-    // path only works in a browser), which is why PDF upload failed on the phone.
+    // failed parse can be retried without re-picking the file.
     let base64: string;
     try {
-      const uri = result.assets[0].uri;
-      if (Platform.OS === "web") {
-        const fileResponse = await expoFetch(uri);
-        const blob = await fileResponse.blob();
-        base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const b64 = dataUrl.split(",")[1];
-            if (!b64) reject(new Error("Empty file"));
-            else resolve(b64);
-          };
-          reader.onerror = () => reject(new Error("FileReader error"));
-          reader.readAsDataURL(blob);
-        });
-      } else {
-        base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        if (!base64) throw new Error("Empty file");
-      }
+      base64 = await readFileAsBase64(result.assets[0].uri);
     } catch {
       showErrorToast(
         "Couldn't open this file",
@@ -430,13 +448,24 @@ export default function ScanScreen() {
     setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const { receipts } = await callApi<{ receipts: (SavedReceipt | DuplicateReceipt)[] }>(
-        "parse-pdf",
-        { pdfBase64: base64 },
-      );
+      const { receipts, pagesSkipped = 0 } = await callApi<{
+        receipts: (SavedReceipt | DuplicateReceipt)[];
+        pagesSkipped?: number;
+      }>("parse-pdf", { pdfBase64: base64 });
 
       const saved = receipts.filter((r): r is SavedReceipt => !r.isDuplicate);
       const dupCount = receipts.length - saved.length;
+
+      // Pages beyond the server's per-PDF cap are never processed. Surface that
+      // explicitly (an Alert, not a toast — the user has to split the file to
+      // get the rest in, so it shouldn't be missable).
+      const warnSkippedPages = () => {
+        if (pagesSkipped <= 0) return;
+        Alert.alert(
+          "Some pages weren't scanned",
+          `This PDF is longer than the per-scan page limit, so ${pagesSkipped} page${pagesSkipped === 1 ? "" : "s"} ${pagesSkipped === 1 ? "was" : "were"} skipped. Split the file and upload the rest as a separate PDF.`,
+        );
+      };
 
       if (saved.length === 0) {
         // Every page matched an existing receipt — nothing new was saved.
@@ -446,6 +475,7 @@ export default function ScanScreen() {
             ? "This receipt looks like one you've already scanned."
             : "These receipts look like ones you've already scanned.",
         );
+        warnSkippedPages();
         return;
       }
 
@@ -464,6 +494,8 @@ export default function ScanScreen() {
         );
       }
 
+      warnSkippedPages();
+
       // One new receipt → go straight to it. Multiple → batch-review so the
       // user can merge pages that belong to the same purchase.
       if (saved.length === 1) {
@@ -473,8 +505,7 @@ export default function ScanScreen() {
         router.replace("/batch-review");
       }
     } catch (err) {
-      if (err instanceof PremiumRequiredError) promptUpgrade();
-      else showUploadFailure(err, "pdf", () => parsePdf(base64));
+      showUploadFailure(err, "pdf", () => parsePdf(base64));
     } finally {
       setScanning(false);
     }
@@ -501,77 +532,44 @@ export default function ScanScreen() {
           <Feather name="upload" size={36} color={colors.primary} />
         </View>
 
-        {locked ? <PremiumBadge style={styles.premiumBadge} /> : null}
-        <Text style={[styles.headline, { color: colors.foreground }]}>
-          {locked ? "Scan a receipt" : "Upload a receipt"}
-        </Text>
+        <Text style={[styles.headline, { color: colors.foreground }]}>Upload a receipt</Text>
         <Text style={[styles.subtext, { color: colors.mutedForeground }]}>
-          {locked
-            ? "Snap a photo and AI pulls out the store, items, and prices. Free accounts get a few scans a month — subscribe for unlimited, plus PDF and multi-receipt uploads."
-            : "AI extracts the store, items, and prices automatically"}
+          AI extracts the store, items, and prices automatically
         </Text>
-
-        {/* Free-tier usage line */}
-        {locked && freeScansLeft != null ? (
-          <Text
-            style={[
-              styles.hint,
-              { color: canFreeScan ? colors.primary : "#dc2626", marginTop: 0, marginBottom: 6, fontFamily: "Inter_600SemiBold" },
-            ]}
-          >
-            {canFreeScan
-              ? `${freeScansLeft} free scan${freeScansLeft === 1 ? "" : "s"} left this month`
-              : "You've used your free scans for now"}
-          </Text>
-        ) : null}
 
         {/* Upload buttons */}
         <View style={styles.buttons}>
           <TouchableOpacity
-            style={[
-              styles.primaryBtn,
-              { backgroundColor: colors.primary },
-              locked && !canFreeScan && { opacity: 0.6 },
-            ]}
-            onPress={locked && !canFreeScan ? () => router.push("/paywall") : handlePickImage}
+            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+            onPress={handleAddPhoto}
             disabled={scanning}
             activeOpacity={0.8}
           >
-            <Feather name={locked && !canFreeScan ? "zap" : "image"} size={20} color="#fff" />
+            <Feather
+              name={Platform.OS === "web" ? "image" : "camera"}
+              size={20}
+              color="#fff"
+            />
             <Text style={styles.primaryBtnText}>
-              {locked && !canFreeScan ? "Subscribe to scan" : "Choose Photo"}
+              {Platform.OS === "web" ? "Choose Photo" : "Scan Receipt"}
             </Text>
           </TouchableOpacity>
 
-          {locked ? (
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/paywall")}
-              disabled={scanning}
-              activeOpacity={0.8}
-            >
-              <Feather name="lock" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>
-                PDF & multi — Premium
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={handlePickPdf}
-              disabled={scanning}
-              activeOpacity={0.8}
-            >
-              <Feather name="file-text" size={20} color={colors.foreground} />
-              <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
-                Upload PDF
-              </Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={handlePickPdf}
+            disabled={scanning}
+            activeOpacity={0.8}
+          >
+            <Feather name="file-text" size={20} color={colors.foreground} />
+            <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
+              Upload PDF
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-          {locked ? "One photo per scan on the free plan" : "PDFs work best for online order confirmations"}
+          PDFs work best for online order confirmations
         </Text>
 
         <View style={[styles.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -581,8 +579,8 @@ export default function ScanScreen() {
           {[
             "Lay the receipt flat and fill the frame, corner to corner.",
             "Use bright, even light — avoid shadows and glare.",
-            "Long receipt? Take a few photos and choose “Same receipt” (Premium).",
-            "For online orders, upload the emailed PDF for the cleanest read (Premium).",
+            "Long receipt? Take a few photos and choose “Same receipt”.",
+            "For online orders, upload the emailed PDF for the cleanest read.",
           ].map((tip, i) => (
             <View key={i} style={styles.tipRow}>
               <Feather name="check" size={13} color={colors.primary} style={{ marginTop: 2 }} />
@@ -683,9 +681,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  premiumBadge: {
-    marginBottom: 10,
-  },
   headline: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
@@ -715,10 +710,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-  },
-  upgradeBtn: {
-    width: "100%",
-    marginTop: 8,
   },
   secondaryBtn: {
     flexDirection: "row",

@@ -19,13 +19,13 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "@clerk/expo";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
-import { usePremiumLock } from "@/hooks/usePremiumLock";
-import { PremiumUpsell } from "@/components/PremiumUpsell";
 import { useDesktop } from "@/hooks/useDesktop";
 import { getApiOrigin } from "@/lib/apiBase";
 import { EmptyState } from "@/components/EmptyState";
 import { useBoardNotification } from "@/contexts/BoardNotification";
-import { showSuccessToast } from "@/lib/toast";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { confirmDestructive } from "@/lib/confirm";
+import { useGetCurrentUser } from "@workspace/api-client-react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const MAX_CHARS = 500;
@@ -47,6 +47,8 @@ interface BoardReply {
   content: string;
   region: string | null;
   createdAt: string;
+  // Replies render anonymously; this is what tells the author which are theirs.
+  isOwn?: boolean;
 }
 
 interface BoardPost {
@@ -74,7 +76,6 @@ interface BoardData {
 }
 
 function missingLabel(req: string): string {
-  if (req === "subscription") return "An active subscription";
   if (req === "account_age") return "At least 2 weeks of using TimetoPay";
   if (req === "upload_count") return "At least 2 receipt uploads";
   return req;
@@ -100,7 +101,6 @@ export default function BoardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isDesktop = useDesktop();
-  const locked = usePremiumLock();
   const { getToken, userId } = useAuth();
   const queryClient = useQueryClient();
   const { setNewCount, clearNew } = useBoardNotification();
@@ -115,6 +115,10 @@ export default function BoardScreen() {
   const [expandedReplies, setExpandedReplies] = useState<Set<number>>(new Set());
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
+  // The post being edited, plus its working text. Null = the editor is closed.
+  const [editingPost, setEditingPost] = useState<{ id: number; content: string } | null>(null);
+  const { data: me } = useGetCurrentUser();
+  const isAdmin = !!me?.isAdmin;
 
   // Tracks IDs of posts submitted this session that are pending approval
   const pendingPostIds = React.useRef<Set<number>>(new Set());
@@ -132,7 +136,6 @@ export default function BoardScreen() {
       if (!res.ok) throw new Error("Failed to load board");
       return res.json() as Promise<BoardData>;
     },
-    enabled: !locked,
     refetchInterval: 60_000, // Auto-refresh every minute
   });
 
@@ -220,6 +223,111 @@ export default function BoardScreen() {
       });
     },
   });
+
+  // Removing a post: admins can remove anyone's, authors only their own (the
+  // server enforces both). Dropped from the cached list rather than refetched so
+  // the card disappears immediately.
+  const deleteMutation = useMutation({
+    mutationFn: async (postId: number) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/${postId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: (_result, postId) => {
+      queryClient.setQueryData<BoardData>(["board"], (old) =>
+        old ? { ...old, posts: old.posts.filter((p) => p.id !== postId) } : old,
+      );
+      showSuccessToast("Post removed", "");
+    },
+    onError: () => showErrorToast("Couldn't remove post", "Please try again."),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ postId, content }: { postId: number; content: string }) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/${postId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ id: number; status: string }>;
+    },
+    onSuccess: (result, { postId, content }) => {
+      // An edit can send the post back to the moderation queue; when it does it
+      // leaves the public list until it's approved again.
+      if (result.status !== "approved") {
+        queryClient.setQueryData<BoardData>(["board"], (old) =>
+          old ? { ...old, posts: old.posts.filter((p) => p.id !== postId) } : old,
+        );
+        setEditingPost(null);
+        showSuccessToast("Edit submitted", "Your edited post is back in review.");
+        return;
+      }
+      queryClient.setQueryData<BoardData>(["board"], (old) =>
+        old
+          ? { ...old, posts: old.posts.map((p) => (p.id === postId ? { ...p, content } : p)) }
+          : old,
+      );
+      setEditingPost(null);
+      showSuccessToast("Post updated", "");
+    },
+    onError: () => showErrorToast("Couldn't save edit", "Please try again."),
+  });
+
+  const deleteReplyMutation = useMutation({
+    mutationFn: async ({ replyId }: { replyId: number; postId: number }) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/reply/${replyId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: (_result, { replyId, postId }) => {
+      queryClient.setQueryData<BoardReply[]>(["board-replies", postId], (old) =>
+        old ? old.filter((r) => r.id !== replyId) : old,
+      );
+      // replyCount lives on the post, so the card's "N replies" label has to be
+      // decremented alongside the reply itself.
+      queryClient.setQueryData<BoardData>(["board"], (old) =>
+        old
+          ? {
+              ...old,
+              posts: old.posts.map((p) =>
+                p.id === postId ? { ...p, replyCount: Math.max(0, p.replyCount - 1) } : p,
+              ),
+            }
+          : old,
+      );
+      showSuccessToast("Reply removed", "");
+    },
+    onError: () => showErrorToast("Couldn't remove reply", "Please try again."),
+  });
+
+  const confirmDeleteReply = (replyId: number, postId: number) => {
+    confirmDestructive({
+      title: "Remove reply",
+      message: "This permanently removes the reply. This can't be undone.",
+      confirmLabel: "Remove",
+      onConfirm: () => deleteReplyMutation.mutate({ replyId, postId }),
+    });
+  };
+
+  const confirmDeletePost = (postId: number) => {
+    confirmDestructive({
+      title: "Remove post",
+      message: "This permanently removes the post and its replies. This can't be undone.",
+      confirmLabel: "Remove",
+      onConfirm: () => deleteMutation.mutate(postId),
+    });
+  };
 
   const thanksMutation = useMutation({
     mutationFn: async (postId: number) => {
@@ -327,20 +435,6 @@ export default function BoardScreen() {
     setWelcomeVisible(false);
     if (userId) AsyncStorage.setItem(`boardWelcomeSeen:v1:${userId}`, "1").catch(() => {});
   };
-
-  if (locked) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { paddingTop }]}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Community</Text>
-        </View>
-        <PremiumUpsell
-          title="Community is a premium feature"
-          subtitle="Upgrade to share tips, feedback, and ideas with other shoppers."
-        />
-      </View>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -587,6 +681,12 @@ export default function BoardScreen() {
               onCancelReply={() => { setReplyingTo(null); setReplyText(""); }}
               onReplyTextChange={setReplyText}
               onReplySubmit={() => handleReplySubmit(item.id)}
+              canEdit={!!item.isOwn}
+              canDelete={!!item.isOwn || isAdmin}
+              canModerate={isAdmin}
+              onEdit={() => setEditingPost({ id: item.id, content: item.content })}
+              onDelete={() => confirmDeletePost(item.id)}
+              onDeleteReply={(replyId) => confirmDeleteReply(replyId, item.id)}
             />
           );
         }}
@@ -670,6 +770,80 @@ export default function BoardScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Edit own post */}
+      <Modal
+        visible={editingPost !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditingPost(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={[styles.composeSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.composeHeader, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={() => setEditingPost(null)}>
+                <Text style={[styles.composeCancel, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.composeTitle, { color: colors.foreground }]}>Edit Post</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  const text = editingPost?.content.trim() ?? "";
+                  if (!editingPost || !text || text.length > MAX_CHARS) return;
+                  editMutation.mutate({ postId: editingPost.id, content: text });
+                }}
+                disabled={
+                  !editingPost?.content.trim() ||
+                  (editingPost?.content.trim().length ?? 0) > MAX_CHARS ||
+                  editMutation.isPending
+                }
+              >
+                {editMutation.isPending ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.composeSend,
+                      { color: editingPost?.content.trim() ? colors.primary : colors.mutedForeground },
+                    ]}
+                  >
+                    Save
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={[styles.composeInput, { color: colors.foreground }]}
+              placeholder="Update your post…"
+              placeholderTextColor={colors.mutedForeground}
+              value={editingPost?.content ?? ""}
+              onChangeText={(t) => setEditingPost((p) => (p ? { ...p, content: t } : p))}
+              multiline
+              maxLength={MAX_CHARS + 10}
+              autoFocus
+            />
+
+            <Text
+              style={[
+                styles.charCount,
+                {
+                  color:
+                    (editingPost?.content.length ?? 0) > MAX_CHARS ? "#EF4444" : colors.mutedForeground,
+                },
+              ]}
+            >
+              {editingPost?.content.length ?? 0}/{MAX_CHARS}
+            </Text>
+
+            <Text style={[styles.composeDisclaimer, { color: colors.mutedForeground }]}>
+              Edited posts go back to admin review before appearing again.
+            </Text>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -693,12 +867,21 @@ interface PostCardProps {
   onCancelReply: () => void;
   onReplyTextChange: (t: string) => void;
   onReplySubmit: () => void;
+  // Authors can edit and remove their own posts; admins can remove any post but
+  // not reword someone else's.
+  canEdit: boolean;
+  canDelete: boolean;
+  canModerate: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onDeleteReply: (replyId: number) => void;
 }
 
 function PostCard({
   item, tag, colors, repliesExpanded, isReplying, replyText,
   replyMutationPending, getToken, onAgree, onThank, onToggleReplies,
   onStartReply, onCancelReply, onReplyTextChange, onReplySubmit,
+  canEdit, canDelete, canModerate, onEdit, onDelete, onDeleteReply,
 }: PostCardProps) {
   const { data: replies, isLoading: repliesLoading } = useQuery({
     queryKey: ["board-replies", item.id],
@@ -804,6 +987,33 @@ function PostCard({
             </Text>
           </TouchableOpacity>
         )}
+
+        {/* Moderation / author controls, pushed to the right so they read as a
+            separate group from the reactions. */}
+        {(canEdit || canDelete) && (
+          <View style={postStyles.ownerActions}>
+            {canEdit && (
+              <TouchableOpacity
+                style={postStyles.actionBtn}
+                onPress={onEdit}
+                activeOpacity={0.7}
+                accessibilityLabel="Edit your post"
+              >
+                <Feather name="edit-2" size={14} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+            {canDelete && (
+              <TouchableOpacity
+                style={postStyles.actionBtn}
+                onPress={onDelete}
+                activeOpacity={0.7}
+                accessibilityLabel={item.isOwn ? "Delete your post" : "Remove this post"}
+              >
+                <Feather name="trash-2" size={14} color={colors.destructive} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Inline reply input */}
@@ -853,9 +1063,20 @@ function PostCard({
             replies.map((r) => (
               <View key={r.id} style={[postStyles.replyCard, { borderLeftColor: colors.border }]}>
                 <Text style={[postStyles.replyContent, { color: colors.foreground }]}>{r.content}</Text>
-                <Text style={[postStyles.replyMeta, { color: colors.mutedForeground }]}>
-                  Anonymous{r.region ? ` · ${r.region}` : ""}{"  ·  "}{timeAgo(r.createdAt)}
-                </Text>
+                <View style={postStyles.replyFooter}>
+                  <Text style={[postStyles.replyMeta, { color: colors.mutedForeground }]}>
+                    Anonymous{r.region ? ` · ${r.region}` : ""}{"  ·  "}{timeAgo(r.createdAt)}
+                  </Text>
+                  {(r.isOwn || canModerate) && (
+                    <TouchableOpacity
+                      onPress={() => onDeleteReply(r.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityLabel={r.isOwn ? "Delete your reply" : "Remove this reply"}
+                    >
+                      <Feather name="trash-2" size={12} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             ))
           )}
@@ -972,12 +1193,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     padding: 0,
   },
-  filterScroll: { marginBottom: 6 },
+  // A horizontal ScrollView in a flex column has no intrinsic height, so it can
+  // be squeezed to nothing (or clipped mid-pill) by the surrounding layout —
+  // react-native-web is the usual offender. Pinning a minHeight that clears the
+  // pills, and opting out of flex grow/shrink, keeps the row fully visible.
+  filterScroll: { marginBottom: 6, flexGrow: 0, flexShrink: 0, minHeight: 40 },
   filterRow: {
     paddingHorizontal: 16,
     gap: 6,
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 40,
   },
   filterPill: {
     flexDirection: "row",
@@ -1098,8 +1324,9 @@ const postStyles = StyleSheet.create({
   thanksEmoji: { fontSize: 13 },
   content: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  actions: { flexDirection: "row", gap: 16, marginTop: 2 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 2 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
+  ownerActions: { flexDirection: "row", alignItems: "center", gap: 14, marginLeft: "auto" },
   actionLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   replyBox: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -1131,5 +1358,6 @@ const postStyles = StyleSheet.create({
     gap: 4,
   },
   replyContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  replyMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  replyMeta: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular" },
+  replyFooter: { flexDirection: "row", alignItems: "center", gap: 8 },
 });

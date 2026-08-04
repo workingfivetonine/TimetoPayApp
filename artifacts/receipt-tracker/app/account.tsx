@@ -25,8 +25,6 @@ import {
   getGetMyNotificationPreferencesQueryKey,
   useGetCurrentUser,
   useGetMyNotificationPreferences,
-  useManageBillingSubscription,
-  useStartFreeTrial,
   useUpdateMyNotificationPreferences,
   type NotificationPreferences,
 } from "@workspace/api-client-react";
@@ -37,7 +35,7 @@ import { ShareInvite } from "@/components/ShareInvite";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { notify, confirmAction } from "@/lib/confirm";
+import { notify } from "@/lib/confirm";
 import { showSuccessToast } from "@/lib/toast";
 
 // Optional donation link (a Stripe Payment Link) for the "Support us" button.
@@ -45,42 +43,6 @@ import { showSuccessToast } from "@/lib/toast";
 // ever changes. Works on web and native (opens in the browser).
 const DONATE_URL =
   process.env.EXPO_PUBLIC_DONATE_URL ?? "https://donate.stripe.com/9B6eVed6D3DUh19e2TdfG00";
-
-type EntitlementStatus =
-  | "trialing"
-  | "active"
-  | "past_due"
-  | "canceled"
-  | "comped"
-  | "none";
-
-function subscriptionLabel(
-  status: EntitlementStatus | undefined,
-  currentPeriodEnd: string | null | undefined,
-  cancelAtPeriodEnd?: boolean,
-): string {
-  const end = currentPeriodEnd
-    ? new Date(currentPeriodEnd).toLocaleDateString()
-    : null;
-  switch (status) {
-    case "trialing":
-      return end ? `Free trial · ends ${end}` : "Free trial";
-    case "active":
-      // Cancelled but still in the paid period: access lapses at period end
-      // instead of renewing.
-      if (cancelAtPeriodEnd)
-        return end ? `Premium access ends ${end}` : "Cancels at period end";
-      return end ? `Active · renews ${end}` : "Active";
-    case "past_due":
-      return "Payment past due";
-    case "comped":
-      return "Complimentary access";
-    case "canceled":
-      return "Canceled";
-    default:
-      return "No subscription";
-  }
-}
 
 export default function AccountScreen() {
   const colors = useColors();
@@ -92,52 +54,7 @@ export default function AccountScreen() {
   const { getToken } = useAuth();
   const { data: me, isLoading, dataUpdatedAt } = useGetCurrentUser();
   const isOnline = useOnlineStatus();
-  const manage = useManageBillingSubscription();
-  const startTrial = useStartFreeTrial();
-  const [trialError, setTrialError] = React.useState<string | null>(null);
   const [showSupport, setShowSupport] = React.useState(false);
-
-  const entitlement = me?.entitlement ?? null;
-  // Email reminders only go to subscription-related users (entitled, or past_due),
-  // so only surface the toggles to them.
-  const showNotifications =
-    !!entitlement && (entitlement.entitled || entitlement.status === "past_due");
-  const isWeb = Platform.OS === "web";
-  // Only show the billing UI to web users with a real provider subscription
-  // (native is never paywalled; admins/comped users have no provider record).
-  const hasProviderSub =
-    entitlement?.provider === "stripe" || entitlement?.provider === "paypal";
-  // Offer the Start-trial / Subscribe actions whenever the user has no
-  // provider-backed subscription and isn't comped or already active (admins).
-  const showSubActions =
-    !!entitlement &&
-    !hasProviderSub &&
-    entitlement.status !== "comped" &&
-    entitlement.status !== "active";
-
-  // Reconcile subscription state straight from the provider once when the account
-  // screen opens for a provider-backed user. This is a safety net for a delayed or
-  // missed billing webhook: without it, a subscription cancelled in the provider's
-  // portal could keep showing "Active · renews …" until the next webhook lands.
-  const syncedRef = React.useRef(false);
-  React.useEffect(() => {
-    if (syncedRef.current || !hasProviderSub || !isOnline) return;
-    syncedRef.current = true;
-    (async () => {
-      try {
-        const token = await getToken();
-        const res = await fetch(`${getApiOrigin()}/api/billing/sync`, {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
-        }
-      } catch {
-        // Non-fatal — the stored entitlement still renders.
-      }
-    })();
-  }, [hasProviderSub, isOnline, getToken, queryClient]);
 
   // Optional home address → geocoded server-side so Stores can show distance.
   // address/hasLocation are drifted fields not in the generated type (read via cast).
@@ -180,61 +97,6 @@ export default function AccountScreen() {
     } finally {
       setSavingAddress(false);
     }
-  };
-
-  const handleStartTrial = () => {
-    if (!isOnline) {
-      notify("You're offline", "Connect to the internet to start your trial.");
-      return;
-    }
-    confirmAction({
-      title: "Start your 30-day free trial?",
-      message:
-        "You'll get full premium access for 30 days. No charge now, and you can subscribe anytime. This one-time trial can't be restarted later.",
-      confirmLabel: "Start free trial",
-      onConfirm: () => {
-        setTrialError(null);
-        startTrial.mutate(undefined, {
-          onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
-            showSuccessToast("Welcome to your free trial!", "30 days of full premium access");
-          },
-          onError: () => setTrialError("Couldn't start your free trial. Please try again."),
-        });
-      },
-    });
-  };
-
-  const handleManage = () => {
-    if (!isOnline) {
-      notify("You're offline", "Connect to the internet to manage your subscription.");
-      return;
-    }
-    manage.mutate(
-      undefined,
-      {
-        onSuccess: (res) => {
-          if (res.url) {
-            if (Platform.OS === "web") {
-              window.location.assign(res.url);
-            } else {
-              void Linking.openURL(res.url);
-            }
-          }
-        },
-        onError: () => {
-          Alert.alert("Error", "Couldn't open subscription management. Please try again.");
-        },
-      },
-    );
-  };
-
-  const handleSubscribe = () => {
-    if (!isOnline) {
-      notify("You're offline", "Connect to the internet to subscribe.");
-      return;
-    }
-    router.push("/paywall");
   };
 
   const email =
@@ -406,15 +268,15 @@ export default function AccountScreen() {
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
 
-        {/* Support TimetoPay — optional donation. Replaces the old subscription
-            paywall now that every feature is free (see computeEntitlement). */}
+        {/* Support TimetoPay — an optional donation, and the only place money is
+            ever mentioned. Every feature is free; nothing here unlocks anything. */}
         <View style={[styles.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.subHeader}>
             <Feather name="heart" size={18} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowText, { color: colors.foreground }]}>Support TimetoPay</Text>
               <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-                TimetoPay is free — every feature, no subscription. If it helps you save, a small
+                TimetoPay is free — every feature, always. If it helps you save, a small
                 donation keeps it running. Totally optional.
               </Text>
             </View>
@@ -429,26 +291,9 @@ export default function AccountScreen() {
               <Text style={[styles.subActionText, { color: colors.primaryForeground }]}>Support us 💛</Text>
             </TouchableOpacity>
           ) : null}
-
-          {isWeb && hasProviderSub ? (
-            <TouchableOpacity
-              onPress={handleManage}
-              disabled={manage.isPending}
-              style={[styles.manageBtn, { backgroundColor: colors.accent, alignSelf: "flex-start", marginTop: 12 }]}
-              activeOpacity={0.8}
-            >
-              {manage.isPending ? (
-                <ActivityIndicator size="small" color={colors.accentForeground} />
-              ) : (
-                <Text style={[styles.manageBtnText, { color: colors.accentForeground }]}>
-                  Manage / cancel old subscription
-                </Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
         </View>
 
-        {showNotifications ? <NotificationsSection /> : null}
+        <NotificationsSection />
 
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -461,15 +306,6 @@ export default function AccountScreen() {
             >
               <Feather name="users" size={18} color={colors.primary} />
               <Text style={[styles.rowText, { color: colors.foreground }]}>Admin: all users</Text>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/admin/subscriptions")}
-              activeOpacity={0.7}
-            >
-              <Feather name="credit-card" size={18} color={colors.primary} />
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Subscriptions</Text>
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
             <TouchableOpacity
@@ -567,13 +403,6 @@ const NOTIFICATION_TOGGLES: {
   icon: keyof typeof Feather.glyphMap;
   frequencyKey?: string;
 }[] = [
-  {
-    key: "notifyPaymentReminders",
-    label: "Payment alerts",
-    description: "Notify me if a subscription payment fails (trial-ending reminders are always sent)",
-    icon: "credit-card",
-    // No frequency setting — billing alerts fire on events, not a schedule
-  },
   {
     key: "notifyListExport",
     label: "Grocery list nudge",
@@ -1015,15 +844,6 @@ const styles = StyleSheet.create({
   },
   addressSaveBtn: { marginTop: 10, borderRadius: 10, paddingVertical: 11, alignItems: "center" },
   addressSaveText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  manageBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 76,
-  },
-  manageBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   subCard: {
     borderWidth: 1,
     borderRadius: 14,
