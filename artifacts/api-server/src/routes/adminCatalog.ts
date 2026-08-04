@@ -29,6 +29,7 @@ import {
   looseKey,
   computeGlobalPrices,
 } from "../lib/catalog";
+import { similarity, tokenSortKey, SIMILARITY_THRESHOLD } from "../lib/textSimilarity";
 import {
   FIXED_CATEGORIES,
   isValidCategory,
@@ -70,41 +71,6 @@ function normalizeWebsiteUrl(raw: string | null): string | null | false {
   return normalized;
 }
 type Suggestion = { ids: number[]; names: string[]; reason: string };
-
-// Order-independent key: lowercase, split on non-alphanumerics, sort tokens.
-// Groups "corn & wheat tortillas" with "tortillas corn wheat".
-function tokenSortKey(name: string): string {
-  return name
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean)
-    .sort()
-    .join(" ");
-}
-
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  let prev = new Array<number>(b.length + 1);
-  let curr = new Array<number>(b.length + 1);
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    curr[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
-    }
-    [prev, curr] = [curr, prev];
-  }
-  return prev[b.length];
-}
-
-function similarity(a: string, b: string): number {
-  const max = Math.max(a.length, b.length);
-  if (max === 0) return 1;
-  return 1 - levenshtein(a, b) / max;
-}
 
 // Clusters catalog entries whose canonical names look like the same thing using
 // a union-find over three signals: identical loose key (alphanumerics only),
@@ -160,7 +126,7 @@ function buildSuggestions(entries: Entry[]): Suggestion[] {
         const min = Math.min(a.length, b.length);
         const max = Math.max(a.length, b.length);
         if (min / max < 0.6) continue; // very different lengths -> skip
-        if (similarity(a, b) >= 0.85) union(i, j);
+        if (similarity(a, b) >= SIMILARITY_THRESHOLD) union(i, j);
       }
     }
   }

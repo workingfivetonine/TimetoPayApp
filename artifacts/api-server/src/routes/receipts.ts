@@ -17,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { iconForItemName } from "../lib/itemIcon.js";
+import { bestFuzzyMatch } from "../lib/textSimilarity.js";
 import { categoryForItemName, isValidCategory } from "../lib/categories.js";
 import { aiAbuseGuard, chargeGlobalAiBudget } from "../middlewares/aiRateLimit.js";
 import { requirePremium, allowFreeSingleScan } from "../middlewares/requireEntitlement.js";
@@ -995,10 +996,35 @@ async function persistParsedReceipt(userId: string, parsed: {
       })
       .returning();
 
+    // Items this user has bought at THIS store before. Used as the candidate set
+    // for fuzzy-matching scanned names, loaded once for the whole receipt rather
+    // than per line item. Scoped to the store on purpose: "Bread" at one shop
+    // shouldn't absorb a differently-branded "Bread" only ever bought elsewhere.
+    const storeHistory = await tx
+      .selectDistinct({ id: itemsTable.id, name: itemsTable.name })
+      .from(lineItemsTable)
+      .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+      .innerJoin(itemsTable, eq(lineItemsTable.itemId, itemsTable.id))
+      .where(and(eq(receiptsTable.userId, userId), eq(receiptsTable.storeId, store.id)));
+
     // Create line items
     const savedLineItems = [];
     for (const li of parsed.lineItems) {
       let item = (await tx.select().from(itemsTable).where(and(eq(itemsTable.userId, userId), sql`LOWER(${itemsTable.name}) = LOWER(${li.name})`)))[0];
+      // No exact name match: before minting a near-duplicate item, check for a
+      // near-miss against what's been bought here — OCR typos, punctuation and
+      // spacing differences, word reordering, plurals ("Sourdough Bred",
+      // "Whole Milk 2 L", "Banana"). Deliberately conservative: the threshold is
+      // tight enough that heavy abbreviations ("CHKN BRST") and brand synonyms
+      // ("Coke" for "Coca Cola") still create separate items, because a wrong
+      // merge here silently corrupts an item's price history with no user
+      // confirmation step, and that's worse than a duplicate the user can merge.
+      if (!item) {
+        const match = bestFuzzyMatch(li.name, storeHistory, (c) => c.name);
+        if (match) {
+          item = (await tx.select().from(itemsTable).where(and(eq(itemsTable.id, match.id), eq(itemsTable.userId, userId))))[0];
+        }
+      }
       const liCategory = isValidCategory(li.category) ? li.category : categoryForItemName(li.name);
       if (!item) {
         const icon = li.icon || iconForItemName(li.name);
