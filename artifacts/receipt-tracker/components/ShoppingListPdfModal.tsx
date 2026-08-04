@@ -38,14 +38,29 @@ interface Props {
   // Rendered as a sub-tab of the shopping screen rather than a modal: no
   // overlay, no sheet chrome, no close button (switching tabs is the way out).
   inline?: boolean;
-  // Selection is owned by the parent when inline, so it survives switching
-  // sub-tabs and so Shopping Mode can read the ticked set. `excluded` holds the
-  // DEselected item ids — empty means everything is included.
+  // Everything the user builds up here is owned by the parent when inline. As a
+  // sub-tab this component is unmounted whenever another sub-tab is showing, so
+  // any state kept locally would be destroyed on every tab switch — the parent
+  // holding it is what makes the selection survive, and what lets Shopping Mode
+  // read the ticked set. Each of these is controlled iff the value prop is
+  // passed; the modal path passes none of them and keeps owning them locally.
+  //
+  // The change handlers take a SetStateAction rather than a plain value so the
+  // parent's raw useState setter can be passed straight through and React's
+  // update queueing is preserved — otherwise two taps landing in one batch would
+  // both read the same stale value and one would be dropped.
+  //
+  // `excluded` holds the DEselected item ids — empty means everything included.
   excluded?: Set<number>;
-  onExcludedChange?: (next: Set<number>) => void;
-  // Free-text extras, reported up so Shopping Mode can show them alongside the
-  // real items. They have no item id, so they travel as names.
-  onCustomItemsChange?: (next: string[]) => void;
+  onExcludedChange?: React.Dispatch<React.SetStateAction<Set<number>>>;
+  // Free-text extras so Shopping Mode can show them alongside the real items.
+  // They have no item id, so they travel as names.
+  customItems?: string[];
+  onCustomItemsChange?: React.Dispatch<React.SetStateAction<string[]>>;
+  // Per-item quantity overrides; absent id means 1. Only feeds the PDF/share
+  // output, but it is lost on a tab switch for the same reason if not lifted.
+  quantities?: Map<number, number>;
+  onQuantitiesChange?: React.Dispatch<React.SetStateAction<Map<number, number>>>;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -129,30 +144,35 @@ export function ShoppingListPdfModal({
   inline = false,
   excluded: excludedProp,
   onExcludedChange,
+  customItems: customItemsProp,
   onCustomItemsChange,
+  quantities: quantitiesProp,
+  onQuantitiesChange,
 }: Props) {
   const colors = useColors();
   const { symbol } = useCurrency();
 
-  // Core selection state. Controlled by the parent when it passes `excluded`
-  // (the inline/sub-tab case); otherwise owned locally, as the modal always did.
+  // Core builder state. Each piece is controlled by the parent when the matching
+  // value prop is passed (the inline/sub-tab case); otherwise owned locally, as
+  // the modal always did. Deliberately NOT a local-state-plus-mirror-effect: as
+  // a sub-tab this component unmounts on every tab switch, so a mirror effect
+  // would refire on remount with the empty initial value and clobber the
+  // parent's copy — wiping exactly the state the lift was meant to preserve.
   const [excludedLocal, setExcludedLocal] = useState<Set<number>>(new Set());
-  const controlled = excludedProp !== undefined;
-  const excluded = controlled ? excludedProp : excludedLocal;
-  const setExcluded = (updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
-    const next = typeof updater === "function" ? updater(excluded) : updater;
-    if (controlled) onExcludedChange?.(next);
-    else setExcludedLocal(next);
-  };
-  const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
-  const [customItems, setCustomItems] = useState<string[]>([]);
-  // Mirror custom items up to the parent (inline/sub-tab case) so Shopping Mode
-  // can list them. Effect rather than wrapping the setter, so every path that
-  // mutates them — add, remove, reset — reports without needing to remember to.
-  useEffect(() => {
-    onCustomItemsChange?.(customItems);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customItems]);
+  const excluded = excludedProp ?? excludedLocal;
+  const setExcluded =
+    excludedProp !== undefined && onExcludedChange ? onExcludedChange : setExcludedLocal;
+
+  const [quantitiesLocal, setQuantitiesLocal] = useState<Map<number, number>>(new Map());
+  const quantities = quantitiesProp ?? quantitiesLocal;
+  const setQuantities =
+    quantitiesProp !== undefined && onQuantitiesChange ? onQuantitiesChange : setQuantitiesLocal;
+
+  const [customItemsLocal, setCustomItemsLocal] = useState<string[]>([]);
+  const customItems = customItemsProp ?? customItemsLocal;
+  const setCustomItems =
+    customItemsProp !== undefined && onCustomItemsChange ? onCustomItemsChange : setCustomItemsLocal;
+
   const [customInput, setCustomInput] = useState("");
   const [generating, setGenerating] = useState(false);
 

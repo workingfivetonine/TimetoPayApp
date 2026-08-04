@@ -91,11 +91,14 @@ export default function ShoppingScreen() {
   // Which sub-tab is showing. The three views share the screen rather than the
   // list-builder being a modal, so building a list and shopping it are one flow.
   const [view, setView] = useState<ShoppingView>("items");
-  // Selection lives here, not in the builder, so it survives switching sub-tabs
-  // and so Shopping Mode can read what was ticked. Holds DEselected ids —
-  // empty means everything is included, matching the builder's own convention.
+  // Everything the list builder accumulates lives here, not inside it. Switching
+  // sub-tabs UNMOUNTS the builder, so anything it held locally would be gone on
+  // the way back — and Shopping Mode needs to read what was ticked. `excluded`
+  // holds DEselected ids: empty means everything is included, matching the
+  // builder's own convention.
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [customItems, setCustomItems] = useState<string[]>([]);
+  const [quantities, setQuantities] = useState<Map<number, number>>(new Map());
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -355,7 +358,10 @@ export default function ShoppingScreen() {
           preparedFor={preparedFor}
           excluded={excluded}
           onExcludedChange={setExcluded}
+          customItems={customItems}
           onCustomItemsChange={setCustomItems}
+          quantities={quantities}
+          onQuantitiesChange={setQuantities}
         />
       ) : view === "shop" ? (
         <ShoppingModeView
