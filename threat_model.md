@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Receipt Tracker is a public, production-deployed Expo/React Native + web application backed by an Express API and PostgreSQL. Auth uses Replit-managed Clerk. Core user data includes receipts, line items, stores, shopping lists, and per-user analytics. The API also exposes admin-only cross-user catalog and user-management features, plus AI-backed receipt parsing that sends uploaded receipt images/PDFs to OpenAI and, for scanned PDFs, local PDF rendering tools.
+Receipt Tracker is a public, production-deployed Expo/React Native + web application backed by an Express API and PostgreSQL. Auth uses Clerk (`@clerk/express` server-side, `@clerk/expo` client-side). Core user data includes receipts, line items, stores, shopping lists, and per-user analytics. The API also exposes admin-only cross-user catalog and user-management features, plus AI-backed receipt parsing that sends uploaded receipt images/PDFs to OpenAI and, for scanned PDFs, local PDF rendering tools.
 
 Production assumptions for this repo:
 - `NODE_ENV=production` in deployed environments.
-- Replit provides TLS for deployed traffic.
+- TLS for deployed traffic is terminated by the hosting providers (Railway for the API, Vercel for the web app).
 - `artifacts/mockup-sandbox/` is dev-only and should be ignored unless separately proven production-reachable.
 - This deployment is public, so internet users can reach public pages and any API path that does not require auth.
 
@@ -17,7 +17,7 @@ Production assumptions for this repo:
 - **Administrative authority** — the single `master_admin` role can list users, inspect cross-user receipts, merge or delete users, and manage the global catalog.
 - **Global catalog data** — canonicalized cross-user item/store names, global price snapshots, and store logos. Even when intended to be aggregated, it is derived from private user activity and can still leak sensitive information if exposed too precisely.
 - **Application spend and compute capacity** — OpenAI-backed parsing and local PDF conversion are billable and CPU-intensive. Abuse can create financial loss and degrade availability.
-- **Application secrets** — database credentials, Clerk secret key, and OpenAI integration credentials held in environment variables.
+- **Application secrets** — database credentials, Clerk secret key, and the OpenAI API key held in environment variables.
 
 ## Trust Boundaries
 

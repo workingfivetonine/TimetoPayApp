@@ -49,7 +49,6 @@ isValidation = true
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
-integrations = ["stripe:1.0.0", "google-mail:1.0.0", "resend:1.0.0", "sendgrid:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -93,19 +92,3 @@ externalPort = 6000
 
 [nix]
 channel = "stable-25_05"
-
-[userenv]
-
-[userenv.shared]
-PAYPAL_API_BASE = "https://api-m.paypal.com"
-PAYPAL_PLAN_ID = "P-3A129630RR8921826NIO2U3I"
-STRIPE_ANNUAL_PRICE_ID = "price_1TdgraAJLMeP925Si9qMwcFY"
-STRIPE_ANNUAL_COUPON_ID = "POBLHNX0"
-RESEND_FROM_EMAIL = "noreply@fivetoninesolutions.com"
-RESEND_FROM_NAME = "Receipt Tracker"
-
-[userenv.development]
-STRIPE_PRICE_ID = "price_1TdZ90AJLMeP925SHBnxlXuf"
-
-[userenv.production]
-STRIPE_PRICE_ID = "price_1TdZlOBgc1wgbUk5Dm9KewHU"

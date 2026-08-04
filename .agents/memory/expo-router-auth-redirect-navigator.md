@@ -9,7 +9,7 @@ On an Expo SDK54 / expo-router v6 RN-web app, the app root `/` resolves to the
 protected `(tabs)` group (there is no `app/index.tsx`). A **signed-out** user
 hitting `/` blanked the page on production web — read by the user as "the app
 won't load / the Sign in button does nothing" (the only visible "Sign in" was
-Replit's injected feedback widget, NOT the app's auth).
+an injected dev widget, NOT the app's auth).
 
 **Why:** the protected tab screens mounted for the signed-out user and fired
 authed queries before the redirect ran, blanking the route.
