@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { lineItemsTable, receiptsTable, storesTable, itemsTable } from "@workspace/db";
+import { lineItemsTable, receiptsTable, storesTable, itemsTable, shoppingTripsTable } from "@workspace/db";
 
 const router = Router();
 
@@ -122,6 +122,36 @@ router.get("/", async (req, res): Promise<void> => {
   const oneOff = result.filter((r) => !r.isRecurring).sort((a, b) => a.itemName.localeCompare(b.itemName));
 
   res.json({ recurring, oneOff });
+});
+
+// POST /shopping-list/trips — record a finished shopping trip.
+//
+// Called when the user taps "Done shopping" in Shopping Mode. Only closed trips
+// are stored: an abandoned trip never reaches the server, so it can never turn
+// into a reminder for shopping that didn't happen.
+router.post("/trips", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const { itemsPicked, itemsPlanned } = req.body as {
+    itemsPicked?: unknown;
+    itemsPlanned?: unknown;
+  };
+
+  // Counts are cosmetic (they only colour the reminder copy), so a bad value is
+  // clamped rather than 400'd — losing the trip record would cost the user their
+  // reminder over a detail that doesn't matter.
+  const toCount = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.floor(v), 10_000) : 0;
+
+  const [trip] = await db
+    .insert(shoppingTripsTable)
+    .values({
+      userId,
+      itemsPicked: toCount(itemsPicked),
+      itemsPlanned: toCount(itemsPlanned),
+    })
+    .returning({ id: shoppingTripsTable.id, closedAt: shoppingTripsTable.closedAt });
+
+  res.status(201).json({ id: trip!.id, closedAt: trip!.closedAt.toISOString() });
 });
 
 export default router;

@@ -219,7 +219,7 @@ export default function ShoppingScreen() {
 
   // Ending a trip is deliberate — only this fires the upload reminder, never a
   // tab switch or backgrounding, both of which happen constantly mid-shop.
-  const handleDoneShopping = ({ picked }: { picked: number; total: number }) => {
+  const handleDoneShopping = async ({ picked }: { picked: number; total: number }) => {
     setView("items");
     notify(
       picked > 0 ? "Trip finished" : "Trip closed",
@@ -227,6 +227,24 @@ export default function ShoppingScreen() {
         ? `${picked} item${picked === 1 ? "" : "s"} picked up. Scan your receipt to log what you spent.`
         : "Scan your receipt when you have it to log what you spent.",
     );
+
+    // Record the trip so the week-later "still no receipt" reminder can fire.
+    // Deliberately not awaited into the UI and failures are swallowed: the trip
+    // record only drives an optional email, and losing it must never make
+    // finishing a trip look broken.
+    try {
+      const token = await getToken();
+      await fetch(`${getApiOrigin()}/api/shopping-list/trips`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ itemsPicked: picked, itemsPlanned: selectedItems.length + customItems.length }),
+      });
+    } catch {
+      // Non-fatal by design — see above.
+    }
   };
 
   const recurring = useMemo(

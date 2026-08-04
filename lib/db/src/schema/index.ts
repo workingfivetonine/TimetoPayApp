@@ -12,3 +12,4 @@ export * from "./boardReplies";
 export * from "./boardAgrees";
 export * from "./boardThanks";
 export * from "./freeScanEvents";
+export * from "./shoppingTrips";

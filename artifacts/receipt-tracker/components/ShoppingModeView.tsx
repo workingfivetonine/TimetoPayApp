@@ -13,7 +13,7 @@ interface Props {
   // Free-text extras added in Create list; they have no item id, so they're
   // tracked separately by name.
   customItems: string[];
-  onDoneShopping: (summary: { picked: number; total: number }) => void;
+  onDoneShopping: (summary: { picked: number; total: number }) => void | Promise<void>;
 }
 
 // The in-trip view: only what you chose to buy, with empty boxes to tick off as
