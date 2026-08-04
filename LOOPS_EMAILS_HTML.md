@@ -1,4 +1,4 @@
-# TimetoPay — ready-to-paste branded HTML for all 10 emails
+# TimetoPay — ready-to-paste branded HTML for every email
 
 Each block below is a **complete, standalone HTML email**. In Loops, open the
 email editor, choose the **Custom HTML / code** option, and paste the matching
@@ -17,6 +17,15 @@ body, a real button, and a footer.
    automatically — you don't need to add one.
 
 Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
+
+**The two unnumbered blocks at the bottom** (`password_reset_required`,
+`trip_receipt_missing`) are the ones that **don't exist in Loops yet** — the app
+already fires both, so until you build them they're silent no-ops. Build
+`password_reset_required` first: an admin can force a reset today, and without it
+the user is signed out of every device with no explanation.
+
+`subscription_started`, `trial_ending` and `payment_past_due` were removed —
+TimetoPay is free. Unpublish those Loops if you built them.
 
 ---
 
@@ -41,68 +50,7 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 
 ---
 
-## 2. `subscription_started`
-
-```html
-<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Unlimited AI scanning is now unlocked.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F4F7;"><tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-<tr><td style="height:6px;background:#7C3AED;font-size:6px;line-height:6px;">&nbsp;</td></tr>
-<tr><td align="center" style="padding:28px 32px 4px;"><img src="https://5to9shopping.com/icon-512.png" width="44" height="44" alt="TimetoPay" style="border-radius:10px;display:block;border:0;"/></td></tr>
-<tr><td style="padding:16px 32px 0;"><h1 style="margin:0;font-size:23px;line-height:1.3;color:#18181B;font-weight:700;">You're in — welcome to Premium 🎉</h1></td></tr>
-<tr><td style="padding:14px 32px 0;">
-<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3F3F46;">Thanks for subscribing, {{ firstName }}! Your {{ plan }} plan is active.</p>
-<p style="margin:0;font-size:16px;line-height:1.6;color:#3F3F46;">You now have <strong>unlimited AI receipt scanning</strong>, PDF &amp; multi-receipt uploads, and the full price-history and analytics tools.</p></td></tr>
-<tr><td align="center" style="padding:26px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#7C3AED" style="border-radius:10px;"><a href="https://5to9shopping.com/scan" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;color:#fff;text-decoration:none;">Scan a receipt →</a></td></tr></table></td></tr>
-<tr><td style="padding:22px 32px 0;"><div style="border-top:1px solid #ECECEF;font-size:1px;line-height:1px;">&nbsp;</div></td></tr>
-<tr><td style="padding:14px 32px 30px;font-size:12px;line-height:1.5;color:#B4B4BB;">Thank you for supporting TimetoPay 💜<br/>FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518 · <a href="https://5to9shopping.com" style="color:#9CA3AF;">5to9shopping.com</a></td></tr>
-</table></td></tr></table></body></html>
-```
-
----
-
-## 3. `trial_ending`
-
-```html
-<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Subscribe to keep unlimited scanning.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F4F7;"><tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-<tr><td style="height:6px;background:#7C3AED;font-size:6px;line-height:6px;">&nbsp;</td></tr>
-<tr><td align="center" style="padding:28px 32px 4px;"><img src="https://5to9shopping.com/icon-512.png" width="44" height="44" alt="TimetoPay" style="border-radius:10px;display:block;border:0;"/></td></tr>
-<tr><td style="padding:16px 32px 0;"><h1 style="margin:0;font-size:23px;line-height:1.3;color:#18181B;font-weight:700;">Your trial ends in {{ daysLeft }} days</h1></td></tr>
-<tr><td style="padding:14px 32px 0;">
-<p style="margin:0;font-size:16px;line-height:1.6;color:#3F3F46;">Hi {{ firstName }}, heads up — your TimetoPay free trial is ending soon. Subscribe now to keep your price history, unlimited scanning, and analytics running without interruption.</p></td></tr>
-<tr><td align="center" style="padding:26px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#7C3AED" style="border-radius:10px;"><a href="https://5to9shopping.com/paywall" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;color:#fff;text-decoration:none;">See plans →</a></td></tr></table></td></tr>
-<tr><td style="padding:22px 32px 0;"><div style="border-top:1px solid #ECECEF;font-size:1px;line-height:1px;">&nbsp;</div></td></tr>
-<tr><td style="padding:14px 32px 30px;font-size:12px;line-height:1.5;color:#B4B4BB;">Questions? Just reply — we're happy to help.<br/>FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518 · <a href="https://5to9shopping.com" style="color:#9CA3AF;">5to9shopping.com</a></td></tr>
-</table></td></tr></table></body></html>
-```
-
----
-
-## 4. `payment_past_due`
-
-```html
-<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Update your payment method to keep Premium.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F4F7;"><tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-<tr><td style="height:6px;background:#DC2626;font-size:6px;line-height:6px;">&nbsp;</td></tr>
-<tr><td align="center" style="padding:28px 32px 4px;"><img src="https://5to9shopping.com/icon-512.png" width="44" height="44" alt="TimetoPay" style="border-radius:10px;display:block;border:0;"/></td></tr>
-<tr><td style="padding:16px 32px 0;"><h1 style="margin:0;font-size:23px;line-height:1.3;color:#18181B;font-weight:700;">Your payment didn't go through</h1></td></tr>
-<tr><td style="padding:14px 32px 0;">
-<p style="margin:0;font-size:16px;line-height:1.6;color:#3F3F46;">Hi {{ firstName }}, we had trouble processing your latest TimetoPay payment, so your Premium access is at risk. Please update your payment method to keep unlimited scanning and your analytics.</p></td></tr>
-<tr><td align="center" style="padding:26px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#DC2626" style="border-radius:10px;"><a href="https://5to9shopping.com/account" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;color:#fff;text-decoration:none;">Update billing →</a></td></tr></table></td></tr>
-<tr><td style="padding:22px 32px 0;"><div style="border-top:1px solid #ECECEF;font-size:1px;line-height:1px;">&nbsp;</div></td></tr>
-<tr><td style="padding:14px 32px 30px;font-size:12px;line-height:1.5;color:#B4B4BB;">Already fixed it? You can ignore this — thanks!<br/>FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518 · <a href="https://5to9shopping.com" style="color:#9CA3AF;">5to9shopping.com</a></td></tr>
-</table></td></tr></table></body></html>
-```
-
----
-
-## 5. `account_deleted`
+## 2. `account_deleted`
 
 ```html
 <!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
@@ -122,7 +70,7 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 
 ---
 
-## 6. `list_export_ready`
+## 3. `list_export_ready`
 
 ```html
 <!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
@@ -142,7 +90,7 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 
 ---
 
-## 7. `receipt_inactivity`
+## 4. `receipt_inactivity`
 *(The app writes the `headline` + `body` text for this one — use those variables. Set the email Subject in Loops to `{{ headline }}`.)*
 
 ```html
@@ -163,7 +111,7 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 
 ---
 
-## 8. `weekly_summary`
+## 5. `weekly_summary`
 
 ```html
 <!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
@@ -185,7 +133,7 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 
 ---
 
-## 9. `monthly_summary`
+## 6. `monthly_summary`
 
 ```html
 <!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
@@ -207,7 +155,7 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 
 ---
 
-## 10. `preferences_updated`
+## 7. `preferences_updated`
 
 ```html
 <!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
@@ -224,3 +172,59 @@ Brand: violet `#7C3AED`, ink `#18181B`, muted `#6B7280`, font Inter.
 <tr><td style="padding:14px 32px 30px;font-size:12px;line-height:1.5;color:#B4B4BB;">FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518 · <a href="https://5to9shopping.com" style="color:#9CA3AF;">5to9shopping.com</a></td></tr>
 </table></td></tr></table></body></html>
 ```
+
+---
+
+## `password_reset_required`
+**Variables:** `firstName` · **Subject:** Action needed: reset your TimetoPay password
+
+Security email, so it deliberately carries **no reset link and no login token** — the button just opens the sign-in screen, where the user taps *Forgot password* themselves. That makes it harmless if forwarded and useless to a phisher. Don't "improve" it by adding a one-click reset link.
+
+```html
+<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">You&rsquo;ll be asked for a new password next time you sign in.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F4F7;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+<tr><td style="height:6px;background:#7C3AED;font-size:6px;line-height:6px;">&nbsp;</td></tr>
+<tr><td align="center" style="padding:28px 32px 4px;"><img src="https://5to9shopping.com/icon-512.png" width="44" height="44" alt="TimetoPay" style="border-radius:10px;display:block;border:0;"/></td></tr>
+<tr><td style="padding:16px 32px 0;"><h1 style="margin:0;font-size:23px;line-height:1.3;color:#18181B;font-weight:700;">Hi {{ firstName }}, action needed on your account</h1></td></tr>
+<tr><td style="padding:14px 32px 0;">
+<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3F3F46;">For security, an administrator has required a new password on your TimetoPay account. You&rsquo;ve been signed out on all your devices.</p>
+<p style="margin:0 0 6px;font-size:16px;line-height:1.6;color:#18181B;font-weight:600;">To get back in:</p>
+<p style="margin:0;font-size:16px;line-height:1.7;color:#3F3F46;">1. Open TimetoPay and go to the sign-in screen.<br/>2. Tap <strong>Forgot password</strong>.<br/>3. Follow the emailed link to set a new password.</p>
+<p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6B7280;">We&rsquo;ll never email you a password or ask you to reply with one. If you weren&rsquo;t expecting this, contact us before signing in.</p>
+</td></tr>
+<tr><td align="center" style="padding:26px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#7C3AED" style="border-radius:10px;"><a href="https://5to9shopping.com/sign-in" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;color:#fff;text-decoration:none;">Go to sign in &rarr;</a></td></tr></table></td></tr>
+<tr><td style="padding:22px 32px 0;"><div style="border-top:1px solid #ECECEF;font-size:1px;line-height:1px;">&nbsp;</div></td></tr>
+<tr><td style="padding:14px 32px 30px;font-size:12px;line-height:1.5;color:#B4B4BB;">The TimetoPay team<br/>FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518 · <a href="https://5to9shopping.com" style="color:#9CA3AF;">5to9shopping.com</a></td></tr>
+</table></td></tr></table></body></html>
+```
+
+---
+
+## `trip_receipt_missing`
+**Variables:** `firstName`, `itemsPicked`, `daysSince` · **Subject:** Did you keep the receipt? 🧾
+
+Both numbers are plain integers, so "1 items" / "1 days" are possible — branch on the value in Loops if you want singular variants.
+
+```html
+<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F4F7;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your prices only update when the receipt does.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F4F7;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+<tr><td style="height:6px;background:#7C3AED;font-size:6px;line-height:6px;">&nbsp;</td></tr>
+<tr><td align="center" style="padding:28px 32px 4px;"><img src="https://5to9shopping.com/icon-512.png" width="44" height="44" alt="TimetoPay" style="border-radius:10px;display:block;border:0;"/></td></tr>
+<tr><td style="padding:16px 32px 0;"><h1 style="margin:0;font-size:23px;line-height:1.3;color:#18181B;font-weight:700;">Did you keep the receipt, {{ firstName }}? 🧾</h1></td></tr>
+<tr><td style="padding:14px 32px 0;">
+<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#3F3F46;">You ticked off <strong>{{ itemsPicked }} items</strong> on your last shop {{ daysSince }} days ago &mdash; but we haven&rsquo;t seen the receipt yet.</p>
+<p style="margin:0;font-size:16px;line-height:1.6;color:#3F3F46;">Adding it takes about ten seconds, and it&rsquo;s what keeps the good stuff working: your price history, the best-store suggestions and your spend totals all come from receipts.</p>
+<p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6B7280;">Already added it? Then you&rsquo;re all set &mdash; we&rsquo;ll stop asking about this trip.</p>
+</td></tr>
+<tr><td align="center" style="padding:26px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#7C3AED" style="border-radius:10px;"><a href="https://5to9shopping.com/scan" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;color:#fff;text-decoration:none;">Add that receipt &rarr;</a></td></tr></table></td></tr>
+<tr><td style="padding:22px 32px 0;"><div style="border-top:1px solid #ECECEF;font-size:1px;line-height:1px;">&nbsp;</div></td></tr>
+<tr><td style="padding:14px 32px 30px;font-size:12px;line-height:1.5;color:#B4B4BB;">Happy saving, the TimetoPay team<br/>FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518 · <a href="https://5to9shopping.com" style="color:#9CA3AF;">5to9shopping.com</a></td></tr>
+</table></td></tr></table></body></html>
+```
+
+---
+
