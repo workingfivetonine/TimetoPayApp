@@ -41,12 +41,12 @@ const execFileAsync = promisify(execFile);
 
 // Abuse-control limits for the AI-backed endpoints. Base64 expands ~33% over
 // raw bytes, so these char caps bound the decoded image/PDF the model and
-// pdftoppm have to process well below the global 20mb body cap.
+// pdftoppm have to process well below the global 28mb body cap.
 const MAX_IMAGE_B64_CHARS = 10 * 1024 * 1024; // ~7.5 MB decoded image
-const MAX_PDF_B64_CHARS = 15 * 1024 * 1024; // ~11 MB decoded PDF
+const MAX_PDF_B64_CHARS = 24 * 1024 * 1024; // ~18 MB decoded PDF
 // Only the first few pages are ever sent to the model; bound the expensive
 // local work (text extraction + rasterization) to the same cap.
-const PDF_MAX_PAGES = 4;
+const PDF_MAX_PAGES = 10;
 // Hard wall-clock cap on the pdftoppm subprocess so a crafted PDF cannot
 // monopolize a worker; SIGKILL guarantees the child is reaped even if it
 // ignores SIGTERM.
@@ -1159,19 +1159,25 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
     await writeFile(pdfPath, buffer);
 
     // Determine page count: prefer pdfinfo (fast, no rendering), fall back to
-    // pdf-parse (slower but works without poppler tools), then assume 1.
-    let pageCount = 1;
+    // pdf-parse (slower but works without poppler tools), then assume 1. Keep
+    // the UNCAPPED total separately so we can tell the client how many pages
+    // (if any) were skipped, instead of silently truncating.
+    let totalPages = 1;
     const dims = await readPdfDims(pdfPath);
     if (dims) {
-      pageCount = Math.min(dims.pages, PDF_MAX_PAGES);
+      totalPages = dims.pages;
     } else {
       try {
-        const { numpages } = await pdfParse(buffer, { max: PDF_MAX_PAGES });
-        pageCount = Math.min(numpages, PDF_MAX_PAGES);
+        // No `max` here — this call only counts pages (rendering still happens
+        // per-page via pdftoppm below), so we want the real, uncapped total.
+        const { numpages } = await pdfParse(buffer);
+        totalPages = numpages;
       } catch {
-        pageCount = 1;
+        totalPages = 1;
       }
     }
+    const pageCount = Math.min(totalPages, PDF_MAX_PAGES);
+    const pagesSkipped = Math.max(0, totalPages - pageCount);
 
     // Charge the shared AI budget once for this request before any model call.
     if (!chargeGlobalAiBudget(res)) return;
@@ -1264,7 +1270,7 @@ router.post("/parse-pdf", requirePremium, pdfGuard, async (req, res): Promise<vo
       return;
     }
 
-    res.status(201).json({ receipts: results });
+    res.status(201).json({ receipts: results, pagesSkipped });
   } catch (err) {
     req.log.error({ err }, "Failed to parse PDF receipt");
     res.status(500).json({ error: "Failed to process PDF receipt" });

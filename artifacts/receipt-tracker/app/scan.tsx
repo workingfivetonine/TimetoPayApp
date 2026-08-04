@@ -430,13 +430,24 @@ export default function ScanScreen() {
     setScanningLabel("Analyzing receipt with AI…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const { receipts } = await callApi<{ receipts: (SavedReceipt | DuplicateReceipt)[] }>(
-        "parse-pdf",
-        { pdfBase64: base64 },
-      );
+      const { receipts, pagesSkipped = 0 } = await callApi<{
+        receipts: (SavedReceipt | DuplicateReceipt)[];
+        pagesSkipped?: number;
+      }>("parse-pdf", { pdfBase64: base64 });
 
       const saved = receipts.filter((r): r is SavedReceipt => !r.isDuplicate);
       const dupCount = receipts.length - saved.length;
+
+      // Pages beyond the server's per-PDF cap are never processed. Surface that
+      // explicitly (an Alert, not a toast — the user has to split the file to
+      // get the rest in, so it shouldn't be missable).
+      const warnSkippedPages = () => {
+        if (pagesSkipped <= 0) return;
+        Alert.alert(
+          "Some pages weren't scanned",
+          `This PDF is longer than the per-scan page limit, so ${pagesSkipped} page${pagesSkipped === 1 ? "" : "s"} ${pagesSkipped === 1 ? "was" : "were"} skipped. Split the file and upload the rest as a separate PDF.`,
+        );
+      };
 
       if (saved.length === 0) {
         // Every page matched an existing receipt — nothing new was saved.
@@ -446,6 +457,7 @@ export default function ScanScreen() {
             ? "This receipt looks like one you've already scanned."
             : "These receipts look like ones you've already scanned.",
         );
+        warnSkippedPages();
         return;
       }
 
@@ -463,6 +475,8 @@ export default function ScanScreen() {
           `${saved.length} receipt${saved.length === 1 ? "" : "s"} extracted`,
         );
       }
+
+      warnSkippedPages();
 
       // One new receipt → go straight to it. Multiple → batch-review so the
       // user can merge pages that belong to the same purchase.

@@ -57,8 +57,8 @@ app.post(
   clerkWebhookHandler,
 );
 
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+app.use(express.json({ limit: "28mb" }));
+app.use(express.urlencoded({ extended: true, limit: "28mb" }));
 
 // Resolve the publishable key from the incoming request host so the same server
 // can serve multiple Clerk custom domains. Falls back to CLERK_PUBLISHABLE_KEY.
