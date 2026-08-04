@@ -125,14 +125,25 @@ export async function computeAdminDigest(
     .from(usersTable)
     .where(userWindow);
   const userRows = await db
-    .select({ id: usersTable.id, email: usersTable.email })
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      username: usersTable.username,
+      countryCode: usersTable.countryCode,
+    })
     .from(usersTable)
     .where(userWindow)
     .orderBy(desc(usersTable.createdAt))
     .limit(SAMPLE_LIMIT);
   const users: DigestSection = {
     count: userCount,
-    samples: userRows.map((u) => u.email ?? u.id),
+    // Username first — it's the handle the admin sees on community posts, so it's
+    // what makes a new signup identifiable. Both are optional: username isn't set
+    // until profile setup, and email can be absent, so the id is the last resort.
+    samples: userRows.map((u) => {
+      const label = u.username ? `${u.username} (${u.email ?? "no email"})` : u.email ?? u.id;
+      return u.countryCode ? `${label} · ${u.countryCode}` : label;
+    }),
   };
 
   return {

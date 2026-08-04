@@ -4100,6 +4100,77 @@ export const useAdminDeleteUser = <TError = ErrorType<void>,
       return useMutation(getAdminDeleteUserMutationOptions(options));
     }
 
+export const getAdminForcePasswordResetUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/force-password-reset`
+}
+
+/**
+ * Flags the user's current password as compromised in Clerk and revokes their sessions, so Clerk requires a reset before they can sign in again. Clerk exposes no admin "send a reset email" API, so no email is sent — tell the user out of band. No-op for users who sign in with Google and have no password.
+ * @summary Require a user to set a new password at next sign-in (admin only)
+ */
+export const adminForcePasswordReset = async (userId: string, options?: RequestInit): Promise<AdminActionResult> => {
+
+  return customFetch<AdminActionResult>(getAdminForcePasswordResetUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminForcePasswordResetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminForcePasswordReset>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminForcePasswordReset>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['adminForcePasswordReset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminForcePasswordReset>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  adminForcePasswordReset(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminForcePasswordResetMutationResult = NonNullable<Awaited<ReturnType<typeof adminForcePasswordReset>>>
+
+    export type AdminForcePasswordResetMutationError = ErrorType<void>
+
+    /**
+ * @summary Require a user to set a new password at next sign-in (admin only)
+ */
+export const useAdminForcePasswordReset = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminForcePasswordReset>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminForcePasswordReset>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getAdminForcePasswordResetMutationOptions(options));
+    }
+
 export const getAdminGetUserReceiptsUrl = (userId: string,) => {
 
 

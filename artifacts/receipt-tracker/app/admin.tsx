@@ -21,6 +21,18 @@ function roleLabel(role: string): string {
   return "General";
 }
 
+function formatJoined(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 export default function AdminScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -67,9 +79,20 @@ export default function AdminScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.cardTop}>
-                <Text style={[styles.email, { color: colors.foreground }]} numberOfLines={1}>
-                  {item.email ?? "(no email)"}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  {/* Username leads — it's the handle shown on community posts,
+                      so it's how an admin actually recognises someone. Falls
+                      back to the email when profile setup isn't done yet. */}
+                  <Text style={[styles.email, { color: colors.foreground }]} numberOfLines={1}>
+                    {item.username ?? item.email ?? "(no email)"}
+                  </Text>
+                  <Text style={[styles.subline, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {item.username ? `${item.email ?? "(no email)"} · ` : ""}
+                    Joined {formatJoined(item.createdAt)}
+                    {item.countryCode ? ` · ${item.countryCode}` : ""}
+                    {item.planSelectedAt ? "" : " · setup incomplete"}
+                  </Text>
+                </View>
                 <View style={[styles.badge, { backgroundColor: colors.accent }]}>
                   <Text style={[styles.badgeText, { color: colors.accentForeground }]}>{roleLabel(item.role)}</Text>
                 </View>
@@ -129,7 +152,8 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
   card: { borderWidth: 1, borderRadius: 14, padding: 16 },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  email: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  email: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  subline: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   stats: { flexDirection: "row", marginTop: 14, gap: 20 },

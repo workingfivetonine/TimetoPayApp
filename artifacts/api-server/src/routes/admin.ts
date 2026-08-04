@@ -100,9 +100,15 @@ router.get("/users", async (_req, res): Promise<void> => {
     users.map((u) => ({
       id: u.id,
       email: u.email,
+      username: u.username,
       isAdmin: u.isAdmin,
       role: u.role,
       createdAt: u.createdAt.toISOString(),
+      countryCode: u.countryCode,
+      stateCode: u.stateCode,
+      // Null until onboarding's plan step is reached — doubles as a signal for
+      // "signed up but never finished setting up".
+      planSelectedAt: u.planSelectedAt?.toISOString() ?? null,
       storeCount: storeMap.get(u.id) ?? 0,
       itemCount: itemMap.get(u.id) ?? 0,
       receiptCount: receiptMap.get(u.id)?.receiptCount ?? 0,
@@ -395,6 +401,40 @@ router.delete("/users/:userId", async (req, res): Promise<void> => {
   if (target.email) void sendAccountDeletedEmail(target.email, subscriptionCancelled);
 
   res.json({ success: true });
+});
+
+// Force a user to set a new password before they can sign in again.
+//
+// Clerk has no admin "send a reset email" API, so this uses the primitive it does
+// expose: flagging the current password as compromised, which makes Clerk demand a
+// reset at next sign-in. Sessions are revoked at the same time, otherwise an
+// already-signed-in device would keep working and the reset wouldn't bite.
+//
+// Only meaningful for password accounts — a user who signs in with Google has no
+// password to reset, so this is a no-op for them beyond the sign-out.
+router.post("/users/:userId/force-password-reset", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+
+  // Locking yourself out of the only admin account is unrecoverable from inside
+  // the app, so it's refused rather than confirmed.
+  if (userId === req.userId) {
+    res.status(400).json({ error: "You can't force a password reset on your own account" });
+    return;
+  }
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  try {
+    await clerkClient.users.setPasswordCompromised(userId, { revokeAllSessions: true });
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err, userId }, "Failed to force password reset");
+    res.status(502).json({ error: "Clerk rejected the password reset request" });
+  }
 });
 
 // Read-only view of a specific user's receipts.

@@ -1175,9 +1175,14 @@ export const RedeemPromoCodeResponse = zod.object({
 export const AdminListUsersResponseItem = zod.object({
   "id": zod.string(),
   "email": zod.string().nullish(),
+  "username": zod.string().nullish().describe('Public handle shown on community posts; null until profile setup'),
   "isAdmin": zod.boolean(),
   "role": zod.enum(['master_admin', 'family', 'general']),
   "createdAt": zod.string(),
+  "countryCode": zod.string().nullish(),
+  "stateCode": zod.string().nullish(),
+  "planSelectedAt": zod.string().nullish().describe('Null when the user never finished the onboarding plan step'),
+  "boardAutoApprove": zod.boolean().optional(),
   "storeCount": zod.number(),
   "itemCount": zod.number(),
   "receiptCount": zod.number(),
@@ -1216,9 +1221,14 @@ export const AdminSetUserRoleBody = zod.object({
 export const AdminSetUserRoleResponse = zod.object({
   "id": zod.string(),
   "email": zod.string().nullish(),
+  "username": zod.string().nullish().describe('Public handle shown on community posts; null until profile setup'),
   "isAdmin": zod.boolean(),
   "role": zod.enum(['master_admin', 'family', 'general']),
   "createdAt": zod.string(),
+  "countryCode": zod.string().nullish(),
+  "stateCode": zod.string().nullish(),
+  "planSelectedAt": zod.string().nullish().describe('Null when the user never finished the onboarding plan step'),
+  "boardAutoApprove": zod.boolean().optional(),
   "storeCount": zod.number(),
   "itemCount": zod.number(),
   "receiptCount": zod.number(),
@@ -1250,6 +1260,19 @@ export const AdminDeleteUserParams = zod.object({
 })
 
 export const AdminDeleteUserResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * Flags the user's current password as compromised in Clerk and revokes their sessions, so Clerk requires a reset before they can sign in again. Clerk exposes no admin "send a reset email" API, so no email is sent — tell the user out of band. No-op for users who sign in with Google and have no password.
+ * @summary Require a user to set a new password at next sign-in (admin only)
+ */
+export const AdminForcePasswordResetParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminForcePasswordResetResponse = zod.object({
   "success": zod.boolean()
 })
 

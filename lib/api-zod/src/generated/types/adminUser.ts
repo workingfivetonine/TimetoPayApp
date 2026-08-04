@@ -11,9 +11,24 @@ export interface AdminUser {
   id: string;
   /** @nullable */
   email?: string | null;
+  /**
+     * Public handle shown on community posts; null until profile setup
+     * @nullable
+     */
+  username?: string | null;
   isAdmin: boolean;
   role: UserRole;
   createdAt: string;
+  /** @nullable */
+  countryCode?: string | null;
+  /** @nullable */
+  stateCode?: string | null;
+  /**
+     * Null when the user never finished the onboarding plan step
+     * @nullable
+     */
+  planSelectedAt?: string | null;
+  boardAutoApprove?: boolean;
   storeCount: number;
   itemCount: number;
   receiptCount: number;

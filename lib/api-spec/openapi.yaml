@@ -1025,6 +1025,36 @@ paths:
         "404":
           description: User not found
 
+  /admin/users/{userId}/force-password-reset:
+    post:
+      operationId: adminForcePasswordReset
+      tags: [admin]
+      summary: Require a user to set a new password at next sign-in (admin only)
+      description: >
+        Flags the user's current password as compromised in Clerk and revokes their
+        sessions, so Clerk requires a reset before they can sign in again. Clerk
+        exposes no admin "send a reset email" API, so no email is sent — tell the
+        user out of band. No-op for users who sign in with Google and have no password.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reset required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActionResult"
+        "400":
+          description: Invalid request
+        "404":
+          description: User not found
+        "502":
+          description: Clerk rejected the request
+
   /admin/users/{userId}/receipts:
     get:
       operationId: adminGetUserReceipts
@@ -1678,12 +1708,24 @@ components:
           type: string
         email:
           type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+          description: Public handle shown on community posts; null until profile setup
         isAdmin:
           type: boolean
         role:
           $ref: "#/components/schemas/UserRole"
         createdAt:
           type: string
+        countryCode:
+          type: ["string", "null"]
+        stateCode:
+          type: ["string", "null"]
+        planSelectedAt:
+          type: ["string", "null"]
+          description: Null when the user never finished the onboarding plan step
+        boardAutoApprove:
+          type: boolean
         storeCount:
           type: integer
         itemCount:
