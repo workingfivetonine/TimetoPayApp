@@ -243,6 +243,30 @@ export function ShoppingListPdfModal({
     });
   };
 
+  // Bulk select/deselect acts on the CURRENTLY VISIBLE items only, so it
+  // composes with the category/store filters instead of silently reaching
+  // items the user has filtered out of view.
+  const visibleIds = useMemo(
+    () => [...filtered.regular, ...filtered.oneOff].map((it) => it.itemId),
+    [filtered],
+  );
+
+  const selectAllVisible = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) next.delete(id);
+      return next;
+    });
+  };
+
+  const deselectAllVisible = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) next.add(id);
+      return next;
+    });
+  };
+
   const toggleCat = (cat: string) => {
     setActiveCats((prev) => {
       const next = new Set(prev);
@@ -637,6 +661,70 @@ export function ShoppingListPdfModal({
             contentContainerStyle={{ paddingBottom: 16 }}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Custom items — kept at the top so anything not already tracked
+                can be added before working down the list. */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Add a custom item</Text>
+              <View style={styles.customInputRow}>
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                  placeholder="e.g. Birthday candles"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={customInput}
+                  onChangeText={setCustomInput}
+                  onSubmitEditing={addCustom}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: colors.accent }]}
+                  onPress={addCustom}
+                  accessibilityLabel="Add custom item"
+                >
+                  <Feather name="plus" size={20} color={colors.accentForeground} />
+                </TouchableOpacity>
+              </View>
+              {customItems.map((name, index) => (
+                <View key={`${name}-${index}`} style={[styles.row, { borderBottomColor: colors.border }]}>
+                  <Text style={styles.rowIcon}>📝</Text>
+                  <Text style={[styles.rowName, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => removeCustom(index)}
+                    accessibilityLabel="Remove custom item"
+                    style={styles.removeBtn}
+                  >
+                    <Feather name="x" size={18} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            {/* Bulk selection */}
+            {visibleIds.length > 0 && (
+              <View style={styles.bulkRow}>
+                <TouchableOpacity
+                  style={[styles.bulkBtn, { borderColor: colors.border }]}
+                  onPress={selectAllVisible}
+                  accessibilityLabel="Select all shown items"
+                >
+                  <Feather name="check-square" size={14} color={colors.primary} />
+                  <Text style={[styles.bulkBtnText, { color: colors.primary }]}>Select all</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.bulkBtn, { borderColor: colors.border }]}
+                  onPress={deselectAllVisible}
+                  accessibilityLabel="Deselect all shown items"
+                >
+                  <Feather name="square" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.bulkBtnText, { color: colors.mutedForeground }]}>Deselect all</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Merge suggestions */}
             {activePairs.length > 0 && (
               <View style={[styles.mergeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -691,46 +779,6 @@ export function ShoppingListPdfModal({
               </View>
             )}
 
-            {/* Custom items */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Add a custom item</Text>
-              <View style={styles.customInputRow}>
-                <TextInput
-                  style={[
-                    styles.customInput,
-                    { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border },
-                  ]}
-                  placeholder="e.g. Birthday candles"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={customInput}
-                  onChangeText={setCustomInput}
-                  onSubmitEditing={addCustom}
-                  returnKeyType="done"
-                />
-                <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: colors.accent }]}
-                  onPress={addCustom}
-                  accessibilityLabel="Add custom item"
-                >
-                  <Feather name="plus" size={20} color={colors.accentForeground} />
-                </TouchableOpacity>
-              </View>
-              {customItems.map((name, index) => (
-                <View key={`${name}-${index}`} style={[styles.row, { borderBottomColor: colors.border }]}>
-                  <Text style={styles.rowIcon}>📝</Text>
-                  <Text style={[styles.rowName, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
-                    {name}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => removeCustom(index)}
-                    accessibilityLabel="Remove custom item"
-                    style={styles.removeBtn}
-                  >
-                    <Feather name="x" size={18} color={colors.mutedForeground} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
           </ScrollView>
 
           {/* Footer */}
@@ -887,6 +935,17 @@ const styles = StyleSheet.create({
   // Body
   body: { paddingHorizontal: 20 },
   section: { marginTop: 16 },
+  bulkRow: { flexDirection: "row", gap: 8, marginTop: 16 },
+  bulkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  bulkBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   sectionTitle: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",

@@ -236,11 +236,11 @@ export default function ShoppingScreen() {
             <TouchableOpacity
               style={[styles.downloadButton, { backgroundColor: colors.accent }]}
               onPress={handleOpenPdfModal}
-              accessibilityLabel="generate printable shopping list"
+              accessibilityLabel="create a shopping list"
             >
-              <Feather name="download" size={16} color={colors.accentForeground} />
+              <Feather name="check-square" size={16} color={colors.accentForeground} />
               <Text style={[styles.downloadButtonText, { color: colors.accentForeground }]}>
-                Download
+                Create List
               </Text>
             </TouchableOpacity>
           )}
