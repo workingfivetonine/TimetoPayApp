@@ -1,85 +1,93 @@
 const colors = {
   light: {
-    text: "#1e1b2e",
-    tint: "#7c3aed",
+    text: "#17242b",
+    tint: "#04576a",
 
-    background: "#faf8ff",
-    foreground: "#1e1b2e",
+    background: "#f7f6f9",
+    foreground: "#17242b",
 
     card: "#ffffff",
-    cardForeground: "#1e1b2e",
+    cardForeground: "#17242b",
 
-    primary: "#7c3aed",
+    primary: "#04576a",
     primaryForeground: "#ffffff",
 
-    secondary: "#f3f0ff",
-    secondaryForeground: "#5b21b6",
+    secondary: "#ececef",
+    secondaryForeground: "#17242b",
 
-    muted: "#f3f0ff",
-    mutedForeground: "#6b6385",
+    muted: "#ececef",
+    mutedForeground: "#4c6b66",
 
-    accent: "#ede9fe",
-    accentForeground: "#6d28d9",
+    accent: "#e3ede9",
+    accentForeground: "#04576a",
 
-    destructive: "#f43f5e",
+    destructive: "#c13e77",
     destructiveForeground: "#ffffff",
 
-    border: "#e7e1f5",
-    input: "#e7e1f5",
+    border: "#e6e4ec",
+    input: "#e6e4ec",
 
     // Spend analytics colors
-    spendHigh: "#fff1f2",
-    spendHighText: "#e11d48",
-    spendLow: "#ecfdf5",
-    spendLowText: "#059669",
-    spendNormal: "#faf8ff",
-    spendNormalText: "#6b6385",
+    spendHigh: "#f7dbe6",
+    spendHighText: "#c13e77",
+    spendLow: "#e3ede9",
+    spendLowText: "#1e4d40",
+    spendNormal: "#f7f6f9",
+    spendNormalText: "#4c6b66",
 
     // Price comparison
-    priceGood: "#059669",
-    priceBad: "#e11d48",
-    priceNeutral: "#6b6385",
+    priceGood: "#1e4d40",
+    priceBad: "#c13e77",
+    priceNeutral: "#4c6b66",
+
+    // Warning / caution
+    warning: "#935a00",
+    warningBackground: "#fdecd0",
   },
   dark: {
-    text: "#f0edff",
-    tint: "#9d6aff",
+    text: "#eef1f5",
+    tint: "#4fb3c9",
 
-    background: "#0f0d1a",
-    foreground: "#f0edff",
+    background: "#1c1b30",
+    foreground: "#eef1f5",
 
-    card: "#1a1628",
-    cardForeground: "#f0edff",
+    card: "#272643",
+    cardForeground: "#eef1f5",
 
-    primary: "#9d6aff",
-    primaryForeground: "#ffffff",
+    primary: "#4fb3c9",
+    primaryForeground: "#0a2830",
 
-    secondary: "#1e1832",
-    secondaryForeground: "#c4aaff",
+    secondary: "#221f3d",
+    secondaryForeground: "#eef1f5",
 
-    muted: "#1e1832",
-    mutedForeground: "#9b92b8",
+    muted: "#221f3d",
+    mutedForeground: "#9c9ab8",
 
-    accent: "#2a2245",
-    accentForeground: "#c4aaff",
+    accent: "#24463c",
+    accentForeground: "#bbd4ce",
 
-    destructive: "#fb7185",
-    destructiveForeground: "#ffffff",
+    destructive: "#e8709e",
+    destructiveForeground: "#0a2830",
 
-    border: "#2e2648",
-    input: "#2e2648",
+    border: "#363458",
+    input: "#363458",
 
     // Spend analytics colors
-    spendHigh: "#3b0d1a",
-    spendHighText: "#fb7185",
-    spendLow: "#0d2e1f",
-    spendLowText: "#34d399",
-    spendNormal: "#1a1628",
-    spendNormalText: "#9b92b8",
+    spendHigh: "#3d1f30",
+    spendHighText: "#e8709e",
+    spendLow: "#24463c",
+    spendLowText: "#bbd4ce",
+    spendNormal: "#272643",
+    spendNormalText: "#9c9ab8",
 
     // Price comparison
-    priceGood: "#34d399",
-    priceBad: "#fb7185",
-    priceNeutral: "#9b92b8",
+    priceGood: "#bbd4ce",
+    priceBad: "#e8709e",
+    priceNeutral: "#9c9ab8",
+
+    // Warning / caution
+    warning: "#f5a623",
+    warningBackground: "#332204",
   },
   radius: 12,
 };

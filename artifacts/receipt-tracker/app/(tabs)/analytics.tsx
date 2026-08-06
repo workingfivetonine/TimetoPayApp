@@ -109,7 +109,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: "#dc2626" }]}>
+          <Text style={[styles.statValue, { color: colors.priceBad }]}>
             {format(data.highestPrice)}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Highest</Text>

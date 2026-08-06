@@ -17,8 +17,20 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+// Decomposes a "#rrggbb" token into an "r, g, b" triplet for use inside an
+// opacity-varying rgba() string (colors.ts only stores hex, and the heatmap
+// needs to scale opacity per-cell rather than pick from a fixed set of tones).
+function hexToRgbTriplet(hex: string): string {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
 export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
   const colors = useColors();
+  const primaryRgb = useMemo(() => hexToRgbTriplet(colors.primary), [colors.primary]);
   const { symbol, format } = useCurrency();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -99,9 +111,9 @@ export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
             const isToday = dateStr === todayStr;
             const intensity = spend && monthMax > 0 ? spend.total / monthMax : 0;
 
-            // violet fill: opacity 0.12 → 0.7 based on intensity
+            // primary-tinted fill: opacity 0.12 → 0.7 based on intensity
             const bgOpacity = intensity > 0 ? 0.12 + intensity * 0.58 : 0;
-            const spendColor = `rgba(124, 58, 237, ${bgOpacity})`;
+            const spendColor = `rgba(${primaryRgb}, ${bgOpacity})`;
 
             const handlePress = () => {
               if (spend) onDayPress?.(spend);
@@ -164,7 +176,7 @@ export function SpendCalendar({ data, onDayPress, onAddReceipt }: Props) {
           {[0.12, 0.3, 0.48, 0.65, 0.7].map((op, i) => (
             <View
               key={i}
-              style={[styles.legendDot, { backgroundColor: `rgba(124, 58, 237, ${op})` }]}
+              style={[styles.legendDot, { backgroundColor: `rgba(${primaryRgb}, ${op})` }]}
             />
           ))}
         </View>

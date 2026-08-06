@@ -385,7 +385,7 @@ export default function ItemHistoryScreen() {
   const lastPrice = chronoPts[chronoPts.length - 1]?.price ?? 0;
   const trendDelta = data.history.length >= 2 ? lastPrice - firstPrice : 0;
   const trendColor =
-    trendDelta < -0.005 ? "#16a34a" : trendDelta > 0.005 ? "#dc2626" : colors.primary;
+    trendDelta < -0.005 ? colors.priceGood : trendDelta > 0.005 ? colors.priceBad : colors.primary;
   const trendIcon: "trending-down" | "trending-up" | "minus" =
     trendDelta < -0.005 ? "trending-down" : trendDelta > 0.005 ? "trending-up" : "minus";
 
@@ -426,7 +426,7 @@ export default function ItemHistoryScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: "#16a34a" }]}>{format(data.lowestPrice)}</Text>
+            <Text style={[styles.statValue, { color: colors.priceGood }]}>{format(data.lowestPrice)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Lowest</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -434,7 +434,7 @@ export default function ItemHistoryScreen() {
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Average</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: "#dc2626" }]}>{format(data.highestPrice)}</Text>
+            <Text style={[styles.statValue, { color: colors.priceBad }]}>{format(data.highestPrice)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Highest</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -513,8 +513,8 @@ export default function ItemHistoryScreen() {
             {ranOutAt ? (
               <>
                 <View style={styles.ranOutLabelRow}>
-                  <Feather name="alert-circle" size={13} color="#dc2626" />
-                  <Text style={[styles.ranOutMetaLabel, { color: "#dc2626" }]}>Ran out</Text>
+                  <Feather name="alert-circle" size={13} color={colors.priceBad} />
+                  <Text style={[styles.ranOutMetaLabel, { color: colors.priceBad }]}>Ran out</Text>
                 </View>
                 <Text style={[styles.ranOutMetaValue, { color: colors.foreground }]}>
                   {ranOutDaysAgo === 0
@@ -620,15 +620,15 @@ export default function ItemHistoryScreen() {
                   </View>
                   <View style={styles.historyRight}>
                     <Text style={[styles.historyPrice, {
-                      color: isLowest ? "#16a34a" : isHighest ? "#dc2626" : colors.foreground,
+                      color: isLowest ? colors.priceGood : isHighest ? colors.priceBad : colors.foreground,
                     }]}>
                       {format(entry.price)}
                     </Text>
                     {isLowest && data.history.length > 1 && (
-                      <Text style={[styles.priceBadge, { color: "#16a34a" }]}>lowest</Text>
+                      <Text style={[styles.priceBadge, { color: colors.priceGood }]}>lowest</Text>
                     )}
                     {isHighest && (
-                      <Text style={[styles.priceBadge, { color: "#dc2626" }]}>highest</Text>
+                      <Text style={[styles.priceBadge, { color: colors.priceBad }]}>highest</Text>
                     )}
                   </View>
                   <Feather name="chevron-right" size={14} color={colors.border} style={{ marginLeft: 6 }} />
