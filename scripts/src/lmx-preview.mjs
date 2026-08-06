@@ -105,10 +105,17 @@ if (lmx.includes(LOGO_PLACEHOLDER)) {
     process.exit(1);
   }
 
-  // Step 3: finalise, which is what yields the usable CDN URL.
+  // Step 3: finalise, which is what yields the usable CDN URL. The field is
+  // `finalUrl` (confirmed against the live API); the fallback scans every string
+  // value for an https URL so a future rename doesn't break this again.
   const done = await call("POST", `/uploads/${emailAssetId}/complete`);
   const url =
-    done.url ?? done.cdnUrl ?? done.src ?? done.assetUrl ?? done.publicUrl ?? null;
+    done.finalUrl ??
+    done.url ??
+    done.cdnUrl ??
+    done.src ??
+    Object.values(done).find((v) => typeof v === "string" && /^https?:\/\//.test(v)) ??
+    null;
   if (!url) {
     console.error("     ERROR: complete response did not contain a URL. Response was:");
     console.error(JSON.stringify(done, null, 2));
