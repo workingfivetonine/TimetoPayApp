@@ -24,31 +24,27 @@
   dividerBorderWidth="1"
 />
 
-<Divider color="#04576A" borderWidth="6" paddingTop="0" paddingBottom="18" />
+<Divider color="#04576A" borderWidth="6" paddingTop="0" paddingBottom="20" />
 
-<Image
-  src="LOOPS_HOSTED_LOGO_URL"
-  alt="TimetoPay"
-  width="44"
-  align="left"
-  borderRadius="10"
-  paddingBottom="16"
-/>
+<Image src="LOOPS_HOSTED_LOGO_URL" alt="TimetoPay" width="44" align="left" borderRadius="10" paddingBottom="20" />
 
-<H1>Welcome to TimetoPay, {contact.firstName}</H1>
+<H1 paddingBottom="14">Welcome to TimetoPay, {contact.firstName}</H1>
 
-<Paragraph>You're set up. The quickest way to see what it does:</Paragraph>
+<Paragraph paddingBottom="16">You're set up. The quickest way to see what it does:</Paragraph>
 
-<Paragraph lineHeight="180">
-  <Strong>Scan a receipt.</Strong> We pull out every item and price for you.<Br />
-  <Strong>Build up your price history.</Strong> After a few receipts you'll see the best store and price for the things you buy often.<Br />
-  <Strong>Get a shopping list.</Strong> Built from what you actually buy.
-</Paragraph>
+<!-- One Paragraph per item rather than a single block split by <Br />. Two
+     reasons: <Br /> gave no vertical gap so the three ran together as a wall of
+     text, and the source indentation after each <Br /> leaked through as a
+     visible leading space before "Build" and "Get". Separate blocks fix both,
+     and paddingBottom controls the rhythm explicitly. -->
+<Paragraph paddingBottom="10"><Strong>Scan a receipt.</Strong> We pull out every item and price for you.</Paragraph>
+
+<Paragraph paddingBottom="10"><Strong>Build up your price history.</Strong> After a few receipts you'll see the best store and price for the things you buy often.</Paragraph>
+
+<Paragraph paddingBottom="24"><Strong>Get a shopping list.</Strong> Built from what you actually buy.</Paragraph>
 
 <Button href="https://5to9shopping.com/scan">Scan your first receipt</Button>
 
-<Divider paddingTop="20" paddingBottom="14" />
+<Divider paddingTop="24" paddingBottom="16" />
 
-<Paragraph fontSize="12" lineHeight="160">
-  <Text textColor="#8FA3A0">Happy saving, the TimetoPay team</Text>
-</Paragraph>
+<Paragraph fontSize="12" lineHeight="160"><Text textColor="#8FA3A0">Happy saving, the TimetoPay team</Text></Paragraph>
