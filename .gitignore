@@ -48,3 +48,9 @@ Thumbs.db
 .local/
 .vercel
 .env*
+
+# Screenshot pipeline intermediates (scripts/src/compose-appstore.sh).
+# raw/ and appstore/ are kept: raw are the source captures, appstore are the
+# finished store images. work/ is pure throwaway.
+screenshots/work/
+screenshots/work-ipad/
