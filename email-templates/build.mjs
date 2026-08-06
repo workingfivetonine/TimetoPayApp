@@ -11,11 +11,19 @@
 // Every email shares the chrome defined in `render()`, so a palette or footer
 // change is edited once here rather than in nine files.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deflateRawSync } from "node:zlib";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+// The logo ships INSIDE each zip rather than as an absolute URL. Loops rewrites
+// any `img/...` path to its own hosted copy on upload, which means the logo
+// renders even though most clients block remote images by default — an absolute
+// https:// src shows as a broken image until the reader clicks "load images".
+// 192px for a 44px slot covers retina with room to spare (~34KB).
+const LOGO_SRC = join(HERE, "..", "artifacts", "receipt-tracker", "public", "icon-192.png");
 
 // Derived from the app's light palette in
 // artifacts/receipt-tracker/constants/colors.ts. Email clients have no reliable
@@ -37,7 +45,7 @@ const C = {
   sage: "#E3EDE9",        // app accent — tinted callout background
 };
 
-const LOGO = "https://5to9shopping.com/icon-512.png";
+const LOGO = "img/logo.png";
 const SITE = "https://5to9shopping.com";
 const LEGAL = "FivetoNine LLC · 483 Chestnut Street, Cedarhurst, NY 11518";
 
@@ -224,12 +232,122 @@ const EMAILS = [
   },
 ];
 
+// ── zip writer ───────────────────────────────────────────────────────────────
+// Hand-rolled because the obvious Windows tools get the entry names wrong:
+// both PowerShell 5.1's Compress-Archive and .NET Framework's
+// ZipFile.CreateFromDirectory store "img\logo.png" with a BACKSLASH. The ZIP
+// spec (APPNOTE 4.4.17.1) requires forward slashes, and Loops unpacks on Linux,
+// where a backslash name is a file literally called "img\logo.png" at the root
+// rather than a folder — so the logo silently fails to resolve. Writing the
+// archive here keeps entry names correct on every platform and needs no deps.
+
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+}
+
+// Fixed DOS timestamp (1 Jan 2026) so rebuilding an unchanged template produces
+// a byte-identical zip instead of a spurious diff.
+const DOS_TIME = 0;
+const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1;
+
+function zip(files) {
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+
+  for (const { name, data } of files) {
+    const nameBuf = Buffer.from(name, "utf8");
+    const deflated = deflateRawSync(data, { level: 9 });
+    const crc = crc32(data);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);          // version needed
+    local.writeUInt16LE(0, 6);           // flags
+    local.writeUInt16LE(8, 8);           // deflate
+    local.writeUInt16LE(DOS_TIME, 10);
+    local.writeUInt16LE(DOS_DATE, 12);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(deflated.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    local.writeUInt16LE(0, 28);          // extra length
+    locals.push(local, nameBuf, deflated);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);        // version made by
+    central.writeUInt16LE(20, 6);        // version needed
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt16LE(DOS_TIME, 12);
+    central.writeUInt16LE(DOS_DATE, 14);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(deflated.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt16LE(0, 30);        // extra
+    central.writeUInt16LE(0, 32);        // comment
+    central.writeUInt16LE(0, 34);        // disk start
+    central.writeUInt16LE(0, 36);        // internal attrs
+    central.writeUInt32LE(0, 38);        // external attrs
+    central.writeUInt32LE(offset, 42);   // local header offset
+    centrals.push(central, nameBuf);
+
+    offset += local.length + nameBuf.length + deflated.length;
+  }
+
+  const cd = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(files.length, 8);
+  eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(cd.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...locals, cd, eocd]);
+}
+
+// ── build ────────────────────────────────────────────────────────────────────
+const DIST = join(HERE, "dist");
+mkdirSync(DIST, { recursive: true });
+const logo = readFileSync(LOGO_SRC);
+
 let n = 0;
 for (const email of EMAILS) {
   const dir = join(HERE, email.key);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "index.mjml"), render(email), "utf8");
-  console.log(`  ${email.key}/index.mjml`);
+  const mjml = render(email);
+
+  // Keep the unpacked copy too — it's what you edit/validate by hand.
+  mkdirSync(join(dir, "img"), { recursive: true });
+  writeFileSync(join(dir, "index.mjml"), mjml, "utf8");
+  copyFileSync(LOGO_SRC, join(dir, "img", "logo.png"));
+
+  // Forward slashes, and index.mjml at the archive root — the shape Loops wants.
+  writeFileSync(
+    join(DIST, `${email.key}.zip`),
+    zip([
+      { name: "index.mjml", data: Buffer.from(mjml, "utf8") },
+      { name: "img/logo.png", data: logo },
+    ]),
+  );
+
+  console.log(`  ${email.key.padEnd(24)} index.mjml + img/logo.png`);
   n++;
 }
-console.log(`\n${n} templates written.`);
+console.log(`\n${n} templates written, ${n} zips in dist/.`);

@@ -19,7 +19,7 @@
 
     <mj-section background-color="#FFFFFF" padding="28px 32px 8px">
       <mj-column>
-        <mj-image src="https://5to9shopping.com/icon-512.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
+        <mj-image src="img/logo.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
         <mj-text font-size="23px" font-weight="700" color="#17242B" line-height="1.3" padding="0 0 14px">Welcome to TimetoPay, {firstName} 🛒</mj-text>
         <mj-text padding="0 0 12px">You're all set to start spending less on groceries. The fastest way to see it work:</mj-text>
         <mj-text line-height="1.8" padding="0 0 4px">📸 <strong>Scan a receipt</strong> — we pull out every item and price.<br />📈 <strong>Build price history</strong> — the best store and price for what you buy.<br />🛒 <strong>Get a smart shopping list</strong> — built from your purchases.</mj-text>

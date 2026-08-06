@@ -19,7 +19,7 @@
 
     <mj-section background-color="#FFFFFF" padding="28px 32px 8px">
       <mj-column>
-        <mj-image src="https://5to9shopping.com/icon-512.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
+        <mj-image src="img/logo.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
         <mj-text font-size="23px" font-weight="700" color="#17242B" line-height="1.3" padding="0 0 14px">Did you keep the receipt? 🧾</mj-text>
         <mj-text padding="0 0 12px">Hi {firstName}, you ticked off <strong>{EVENT_PROPERTY:itemsPicked} items</strong> on your last shop {EVENT_PROPERTY:daysSince} days ago — but we haven't seen the receipt yet.</mj-text>
         <mj-text padding="0 0 12px">Adding it takes about ten seconds, and it's what keeps the good stuff working: your price history, best-store suggestions and spend totals all come from receipts.</mj-text>

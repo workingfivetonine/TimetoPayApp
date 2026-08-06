@@ -19,7 +19,7 @@
 
     <mj-section background-color="#FFFFFF" padding="28px 32px 8px">
       <mj-column>
-        <mj-image src="https://5to9shopping.com/icon-512.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
+        <mj-image src="img/logo.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
         <mj-text font-size="23px" font-weight="700" color="#17242B" line-height="1.3" padding="0 0 14px">Your email preferences were updated</mj-text>
         <mj-text padding="0 0 12px">Hi {firstName}, this is a quick confirmation that your email preferences on TimetoPay were just updated.</mj-text>
         <mj-text padding="0 0 12px">You can review or change them anytime under <strong>Account → Notifications</strong>. If you didn't make this change, please reply and let us know.</mj-text>

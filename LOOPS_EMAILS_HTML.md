@@ -95,8 +95,20 @@ Two quirks baked into the templates:
 ## Uploading to Loops
 
 Per [Loops' custom email docs](https://loops.so/docs/creating-emails/uploading-custom-email),
-the zip must contain `index.mjml` **at the root** (an `img/` folder is optional —
-Loops rehosts any images it finds). Our zips already have exactly that shape.
+the zip must contain `index.mjml` **at the root**, with images in an `img/`
+folder that Loops rehosts on upload. Each of our zips is exactly that:
+
+```
+index.mjml
+img/
+  └─ logo.png
+```
+
+**The logo is bundled, not linked.** It used to point at
+`https://5to9shopping.com/icon-512.png`, which renders as a broken image in most
+inboxes — mail clients block remote images until the reader opts in, and Loops
+never gets a chance to rehost an absolute URL. Shipping the file inside the zip
+means Loops serves it from its own CDN and it just appears.
 
 1. Loops → the Loop for that event → add/edit an Email
 2. Choose the **upload custom email** option
@@ -120,18 +132,27 @@ Shared chrome (palette, logo, footer, legal line) is defined once at the top of
 a one-line edit rather than nine.
 
 ```bash
-node email-templates/build.mjs      # regenerate all 9 index.mjml files
-npx mjml@4 --validate email-templates/welcome/index.mjml   # optional check
+node email-templates/build.mjs      # regenerates all 9 templates AND their zips
 ```
 
-Then re-zip (PowerShell):
+Optional validation:
 
-```powershell
-cd email-templates
-Get-ChildItem -Directory -Exclude dist | ForEach-Object {
-  Compress-Archive -Path (Join-Path $_.FullName "index.mjml") `
-    -DestinationPath (Join-Path "dist" ($_.Name + ".zip")) -Force
-}
+```bash
+npx mjml@4 --validate email-templates/welcome/index.mjml
 ```
 
 Re-upload the changed zips to Loops — uploads don't sync automatically.
+
+### Why the zips are written in Node
+
+**Don't re-zip these with `Compress-Archive` or Windows Explorer.** Both
+PowerShell 5.1's `Compress-Archive` and .NET Framework's
+`ZipFile.CreateFromDirectory` store the entry name as `img\logo.png` with a
+**backslash**. The ZIP spec requires forward slashes, and Loops unpacks on
+Linux — where a backslash name is read as a single file literally called
+`img\logo.png` sitting in the root, not a folder. The MJML's `img/logo.png`
+reference then resolves to nothing and the logo breaks, with no error anywhere.
+
+`build.mjs` writes the archives itself for that reason, so entry names are
+correct regardless of platform. It also pins a fixed timestamp, so rebuilding an
+unchanged template gives a byte-identical zip rather than a phantom diff.
