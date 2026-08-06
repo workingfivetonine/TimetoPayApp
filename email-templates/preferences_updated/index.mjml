@@ -22,8 +22,8 @@
         <mj-image src="img/logo.png" alt="TimetoPay" width="44px" align="left" padding="0 0 16px" border-radius="10px" />
         <mj-text font-size="23px" font-weight="700" color="#17242B" line-height="1.3" padding="0 0 14px">Your email preferences were updated</mj-text>
         <mj-text padding="0 0 12px">Hi {firstName}, this is a quick confirmation that your email preferences on TimetoPay were just updated.</mj-text>
-        <mj-text padding="0 0 12px">You can review or change them anytime under <strong>Account → Notifications</strong>. If you didn't make this change, please reply and let us know.</mj-text>
-        <mj-button background-color="#04576A" color="#FFFFFF" href="https://5to9shopping.com/account" border-radius="10px" font-size="16px" font-weight="600" inner-padding="14px 28px" padding="22px 0 6px" align="left">Manage preferences →</mj-button>
+        <mj-text padding="0 0 12px">You can review or change them anytime under <strong>Account, then Notifications</strong>. If you didn't make this change, please reply and let us know.</mj-text>
+        <mj-button background-color="#04576A" color="#FFFFFF" href="https://5to9shopping.com/account" border-radius="10px" font-size="16px" font-weight="600" inner-padding="14px 28px" padding="22px 0 6px" align="left">Manage preferences</mj-button>
         <mj-divider border-color="#E6E4EC" border-width="1px" padding="20px 0 0" />
         <mj-text font-size="12px" color="#8FA3A0" line-height="1.6" padding="14px 0 28px">
           The TimetoPay team<br />

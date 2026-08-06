@@ -23,7 +23,7 @@
         <mj-text font-size="23px" font-weight="700" color="#17242B" line-height="1.3" padding="0 0 14px">{EVENT_PROPERTY:headline}</mj-text>
         <mj-text padding="0 0 12px">Hi {firstName},</mj-text>
         <mj-text padding="0 0 12px">{EVENT_PROPERTY:body}</mj-text>
-        <mj-button background-color="#04576A" color="#FFFFFF" href="https://5to9shopping.com/scan" border-radius="10px" font-size="16px" font-weight="600" inner-padding="14px 28px" padding="22px 0 6px" align="left">Scan a receipt →</mj-button>
+        <mj-button background-color="#04576A" color="#FFFFFF" href="https://5to9shopping.com/scan" border-radius="10px" font-size="16px" font-weight="600" inner-padding="14px 28px" padding="22px 0 6px" align="left">Scan a receipt</mj-button>
         <mj-divider border-color="#E6E4EC" border-width="1px" padding="20px 0 0" />
         <mj-text font-size="12px" color="#8FA3A0" line-height="1.6" padding="14px 0 28px">
           The TimetoPay team<br />

@@ -269,29 +269,37 @@ export default function AccountScreen() {
         </TouchableOpacity>
 
         {/* Support TimetoPay — an optional donation, and the only place money is
-            ever mentioned. Every feature is free; nothing here unlocks anything. */}
-        <View style={[styles.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.subHeader}>
-            <Feather name="heart" size={18} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Support TimetoPay</Text>
-              <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-                TimetoPay is free — every feature, always. If it helps you save, a small
-                donation keeps it running. Totally optional.
-              </Text>
-            </View>
-          </View>
+            ever mentioned. Every feature is free; nothing here unlocks anything.
 
-          {DONATE_URL ? (
-            <TouchableOpacity
-              onPress={() => void Linking.openURL(DONATE_URL)}
-              style={[styles.subActionBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.subActionText, { color: colors.primaryForeground }]}>Support us 💛</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
+            Hidden on iOS. App Review requires donation mentions to be removed
+            entirely: linking out to an external payment page for a for-profit
+            developer breaches Guideline 3.1.1, and donations would have to go
+            through in-app purchase instead. Stays available on Android and web,
+            same approach as the Google sign-in button. */}
+        {Platform.OS !== "ios" ? (
+          <View style={[styles.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.subHeader}>
+              <Feather name="heart" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowText, { color: colors.foreground }]}>Support TimetoPay</Text>
+                <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+                  TimetoPay is free — every feature, always. If it helps you save, a small
+                  donation keeps it running. Totally optional.
+                </Text>
+              </View>
+            </View>
+
+            {DONATE_URL ? (
+              <TouchableOpacity
+                onPress={() => void Linking.openURL(DONATE_URL)}
+                style={[styles.subActionBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.subActionText, { color: colors.primaryForeground }]}>Support us 💛</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
 
         <NotificationsSection />
 
