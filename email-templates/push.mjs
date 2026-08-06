@@ -93,15 +93,58 @@ if (!targets.length) {
 
 console.log(apply ? "APPLY mode: changes will be written.\n" : "DRY RUN: nothing will be written. Add --apply to push.\n");
 
+// Response envelopes are inconsistent across Loops endpoints, so unwrap
+// defensively and say so when nothing is found rather than reporting a silent
+// zero that looks like "you have no emails".
+function unwrap(res) {
+  if (Array.isArray(res)) return res;
+  for (const k of ["data", "workflows", "items", "results", "transactionalEmails", "campaigns"]) {
+    if (Array.isArray(res?.[k])) return res[k];
+  }
+  return [];
+}
+
+const debug = process.argv.includes("--debug");
+
 // ── discover workflows and their email nodes ─────────────────────────────────
 console.log("Discovering workflows...");
 let workflows;
 try {
   const list = await api("GET", "/workflows?limit=100");
-  workflows = list.data ?? list.workflows ?? list.items ?? (Array.isArray(list) ? list : []);
+  workflows = unwrap(list);
+  if (!workflows.length) {
+    console.log("  none returned. Raw response, so we can see what shape it actually is:");
+    console.log(`  ${JSON.stringify(list).slice(0, 600)}`);
+    // The templates may not live in workflows at all. When the MJML zips were
+    // uploaded they could have been created as transactional emails or as
+    // individual campaigns, so check those too before giving up.
+    for (const [label, path] of [
+      ["transactional emails", "/transactional-emails?limit=100"],
+      ["campaigns", "/campaigns?limit=100"],
+    ]) {
+      try {
+        const alt = await api("GET", path);
+        const rows = unwrap(alt);
+        console.log(`\n  ${label}: ${rows.length} found`);
+        for (const r of rows.slice(0, 25)) {
+          const name = r.name ?? r.subject ?? r.title ?? "(unnamed)";
+          const ids = [r.id, r.draftEmailMessageId, r.emailMessageId].filter(Boolean).join(" / ");
+          console.log(`    "${name}"  ${ids}`);
+        }
+        if (debug) console.log(`    raw: ${JSON.stringify(alt).slice(0, 600)}`);
+      } catch (e) {
+        console.log(`  ${label}: could not read (${e.message})`);
+      }
+    }
+    console.log(
+      "\n  If your emails are listed under transactional emails or campaigns rather\n" +
+        "  than workflows, tell me and I'll point the push at the right endpoint.",
+    );
+  }
 } catch (e) {
   console.error(`  ${e.message}\n  ${e.detail ?? ""}`);
-  process.exit(1);
+  process.exitCode = 1;
+  workflows = [];
 }
 console.log(`  found ${workflows.length} workflow(s)`);
 
@@ -176,39 +219,48 @@ if (campaigns.length) {
   console.log("  Campaigns are one-shot sends. Use scripts/src/lmx-preview.mjs to draft one.");
 }
 
+// Exit by setting process.exitCode and letting the script finish, NOT via
+// process.exit(). fetch keeps its sockets alive briefly, and tearing the process
+// down mid-flight trips a libuv assertion on Windows:
+//   Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src\win\async.c
+// That looked like a crash but was only the exit path.
 if (!apply) {
   console.log(`\nDry run complete. ${plan.length} would be updated. Re-run with --apply.`);
-  process.exit(unmatched.length || ambiguous.length ? 1 : 0);
-}
+  if (unmatched.length || ambiguous.length) process.exitCode = 1;
+} else {
+  // ── apply ──────────────────────────────────────────────────────────────────
+  console.log("\nPushing...");
+  let ok = 0;
+  let failed = 0;
+  for (const p of plan) {
+    const lmx = readFileSync(join(DIST, `${p.key}.lmx`), "utf8");
+    try {
+      // Optimistically concurrent: fetch the current revision id first, or the
+      // write is rejected with a 409.
+      const current = await api("GET", `/email-messages/${p.emailMessageId}`);
+      const revision = current.contentRevisionId ?? current.revisionId;
+      if (!revision) {
+        throw Object.assign(new Error("no contentRevisionId in GET response"), {
+          detail: JSON.stringify(current),
+        });
+      }
 
-// ── apply ────────────────────────────────────────────────────────────────────
-console.log("\nPushing...");
-let ok = 0;
-let failed = 0;
-for (const p of plan) {
-  const lmx = readFileSync(join(DIST, `${p.key}.lmx`), "utf8");
-  try {
-    // The update is optimistically concurrent: fetch the current revision id
-    // first, or the write is rejected with a 409.
-    const current = await api("GET", `/email-messages/${p.emailMessageId}`);
-    const revision = current.contentRevisionId ?? current.revisionId;
-    if (!revision) throw Object.assign(new Error("no contentRevisionId in GET response"), { detail: JSON.stringify(current) });
-
-    await api("POST", `/email-messages/${p.emailMessageId}`, {
-      expectedRevisionId: revision,
-      subject: p.subject,
-      previewText: p.previewText,
-      lmx,
-    });
-    console.log(`  ok    ${p.key}`);
-    ok++;
-  } catch (e) {
-    console.log(`  FAIL  ${p.key}: ${e.message}`);
-    if (e.detail) console.log(`        ${String(e.detail).slice(0, 300)}`);
-    failed++;
+      await api("POST", `/email-messages/${p.emailMessageId}`, {
+        expectedRevisionId: revision,
+        subject: p.subject,
+        previewText: p.previewText,
+        lmx,
+      });
+      console.log(`  ok    ${p.key}`);
+      ok++;
+    } catch (e) {
+      console.log(`  FAIL  ${p.key}: ${e.message}`);
+      if (e.detail) console.log(`        ${String(e.detail).slice(0, 300)}`);
+      failed++;
+    }
   }
-}
 
-console.log(`\n${ok} updated, ${failed} failed.`);
-if (failed) process.exit(1);
-console.log("Publish each Loop in the Loops dashboard for the changes to go live.");
+  console.log(`\n${ok} updated, ${failed} failed.`);
+  if (failed) process.exitCode = 1;
+  else console.log("Publish each Loop in the Loops dashboard for the changes to go live.");
+}
