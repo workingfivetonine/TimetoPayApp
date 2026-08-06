@@ -210,24 +210,27 @@ export default function LandingPage() {
           </View>
         </View>
 
-        {/* Donate */}
-        <View style={styles.donateWrap}>
-          <View style={styles.donateInner}>
-            <Feather name="heart" size={28} color={colors.primary} style={styles.donateIcon} />
-            <Text style={styles.donateTitle}>Support our work</Text>
-            <Text style={styles.donateBody}>
-              TimetoPay is built by a small team passionate about helping families spend less on groceries. If it saves you money, consider buying us a coffee — every contribution keeps the servers running and new features coming.
-            </Text>
-            <TouchableOpacity
-              style={styles.donateBtn}
-              onPress={() => openDonate()}
-              accessibilityRole="button"
-            >
-              <Feather name="heart" size={16} color={colors.primaryForeground} />
-              <Text style={styles.donateBtnText}>Donate</Text>
-            </TouchableOpacity>
+        {/* Donate — hidden on iOS, see the note in app/account.tsx. App Review
+            requires donation mentions gone entirely on iOS; Android and web keep it. */}
+        {Platform.OS !== "ios" ? (
+          <View style={styles.donateWrap}>
+            <View style={styles.donateInner}>
+              <Feather name="heart" size={28} color={colors.primary} style={styles.donateIcon} />
+              <Text style={styles.donateTitle}>Support our work</Text>
+              <Text style={styles.donateBody}>
+                TimetoPay is built by a small team passionate about helping families spend less on groceries. If it saves you money, consider buying us a coffee — every contribution keeps the servers running and new features coming.
+              </Text>
+              <TouchableOpacity
+                style={styles.donateBtn}
+                onPress={() => openDonate()}
+                accessibilityRole="button"
+              >
+                <Feather name="heart" size={16} color={colors.primaryForeground} />
+                <Text style={styles.donateBtnText}>Donate</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Closing CTA */}
         <View style={styles.closing}>
@@ -269,13 +272,17 @@ export default function LandingPage() {
             >
               <Text style={styles.footerLink}>Support</Text>
             </TouchableOpacity>
-            <Text style={styles.footerDot}>·</Text>
-            <TouchableOpacity
-              onPress={() => openDonate()}
-              accessibilityRole="link"
-            >
-              <Text style={styles.footerLink}>Donate</Text>
-            </TouchableOpacity>
+            {Platform.OS !== "ios" ? (
+              <>
+                <Text style={styles.footerDot}>·</Text>
+                <TouchableOpacity
+                  onPress={() => openDonate()}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.footerLink}>Donate</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
           <Text style={styles.footer}>
             © {new Date().getFullYear()} TimetoPay
