@@ -279,7 +279,7 @@ export default function QuickAddScreen() {
                 <Feather
                   name="minus-circle"
                   size={17}
-                  color={lineItems.length === 1 ? colors.border : "#ef4444"}
+                  color={lineItems.length === 1 ? colors.border : colors.destructive}
                 />
               </TouchableOpacity>
             </View>

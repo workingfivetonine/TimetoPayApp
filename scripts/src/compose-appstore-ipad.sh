@@ -12,8 +12,8 @@ CW=2048
 CH=2732
 APPW=1380
 R=64
-TOP_GRAD="#8b5cf6"
-BOT_GRAD="#5b21b6"
+TOP_GRAD="#06687e"
+BOT_GRAD="#032f3c"
 
 names=("01-receipts" "02-stores" "03-shopping" "04-analytics" "05-catalog")
 heads=(

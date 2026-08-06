@@ -163,7 +163,7 @@ export default function ProfileSetupScreen() {
       case "checking":
         return <Text style={[styles.hint, { color: colors.mutedForeground }]}>Checking…</Text>;
       case "available":
-        return <Text style={[styles.hint, { color: "#16a34a" }]}>✓ {username} is available</Text>;
+        return <Text style={[styles.hint, { color: colors.priceGood }]}>✓ {username} is available</Text>;
       case "taken":
         return <Text style={[styles.hint, { color: colors.destructive }]}>✗ That username is taken</Text>;
       case "invalid":

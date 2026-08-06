@@ -105,7 +105,9 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <View>
               <Feather name="message-square" size={22} color={color} />
-              {newCount > 0 && <View style={tabStyles.notifBadge} />}
+              {newCount > 0 && (
+                <View style={[tabStyles.notifBadge, { backgroundColor: colors.destructive }]} />
+              )}
             </View>
           ),
         }}
@@ -135,7 +137,6 @@ const tabStyles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#EF4444",
     borderWidth: 1.5,
     borderColor: "#fff",
   },

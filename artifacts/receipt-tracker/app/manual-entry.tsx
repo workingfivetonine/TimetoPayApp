@@ -400,7 +400,7 @@ export default function ManualEntryScreen() {
               onPress={() => removeLineItem(li.id)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Feather name="minus-circle" size={18} color={lineItems.length === 1 ? colors.mutedForeground : "#ef4444"} />
+              <Feather name="minus-circle" size={18} color={lineItems.length === 1 ? colors.mutedForeground : colors.destructive} />
             </TouchableOpacity>
           </View>
         ))}

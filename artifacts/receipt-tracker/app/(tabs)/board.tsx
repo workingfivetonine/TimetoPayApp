@@ -459,7 +459,7 @@ export default function BoardScreen() {
             </Text>
             {data.missingRequirements.map((r) => (
               <View key={r} style={styles.requirementRow}>
-                <Feather name="x-circle" size={15} color={colors.spendHigh ?? "#EF4444"} />
+                <Feather name="x-circle" size={15} color={colors.destructive} />
                 <Text style={[styles.requirementText, { color: colors.mutedForeground }]}>
                   {missingLabel(r)}
                 </Text>
@@ -754,12 +754,12 @@ export default function BoardScreen() {
               autoFocus
             />
 
-            <Text style={[styles.charCount, { color: composeText.length > MAX_CHARS ? "#EF4444" : colors.mutedForeground }]}>
+            <Text style={[styles.charCount, { color: composeText.length > MAX_CHARS ? colors.destructive : colors.mutedForeground }]}>
               {composeText.length}/{MAX_CHARS}
             </Text>
 
             {submitMutation.isError && (
-              <Text style={[styles.errorText, { color: "#EF4444" }]}>
+              <Text style={[styles.errorText, { color: colors.destructive }]}>
                 {submitMutation.error instanceof Error ? submitMutation.error.message : "Submission failed"}
               </Text>
             )}
@@ -831,7 +831,7 @@ export default function BoardScreen() {
                 styles.charCount,
                 {
                   color:
-                    (editingPost?.content.length ?? 0) > MAX_CHARS ? "#EF4444" : colors.mutedForeground,
+                    (editingPost?.content.length ?? 0) > MAX_CHARS ? colors.destructive : colors.mutedForeground,
                 },
               ]}
             >
@@ -902,7 +902,7 @@ function PostCard({
     <View style={[
       postStyles.card,
       { backgroundColor: colors.card, borderColor: colors.border },
-      isHotDeal && postStyles.hotDealCard,
+      isHotDeal && { borderColor: colors.warning },
     ]}>
       {/* Badges row: tag chip + trending badge */}
       {(tag || item.isHot) && (
@@ -910,18 +910,18 @@ function PostCard({
           {tag && (
             <View style={[
               postStyles.tagBadge,
-              { backgroundColor: isHotDeal ? "#FEF3C7" : colors.accent },
+              { backgroundColor: isHotDeal ? colors.warningBackground : colors.accent },
             ]}>
               <Text style={postStyles.tagBadgeEmoji}>{tag.emoji}</Text>
-              <Text style={[postStyles.tagBadgeLabel, { color: isHotDeal ? "#D97706" : colors.primary }]}>
+              <Text style={[postStyles.tagBadgeLabel, { color: isHotDeal ? colors.warning : colors.primary }]}>
                 {tag.label}
               </Text>
             </View>
           )}
           {item.isHot && (
-            <View style={postStyles.trendingBadge}>
+            <View style={[postStyles.trendingBadge, { backgroundColor: colors.warningBackground }]}>
               <Text style={postStyles.trendingEmoji}>⚡</Text>
-              <Text style={postStyles.trendingLabel}>Trending</Text>
+              <Text style={[postStyles.trendingLabel, { color: colors.warning }]}>Trending</Text>
             </View>
           )}
         </View>
@@ -969,7 +969,7 @@ function PostCard({
           activeOpacity={0.7}
         >
           <Text style={[postStyles.thanksEmoji, { opacity: item.userThanked ? 1 : 0.45 }]}>🙏</Text>
-          <Text style={[postStyles.actionLabel, { color: item.userThanked ? "#8B5CF6" : colors.mutedForeground }]}>
+          <Text style={[postStyles.actionLabel, { color: item.userThanked ? colors.primary : colors.mutedForeground }]}>
             {item.thanksCount > 0 ? `${item.thanksCount} ` : ""}Thanks
           </Text>
         </TouchableOpacity>
@@ -1290,9 +1290,6 @@ const postStyles = StyleSheet.create({
     marginBottom: 10,
     gap: 8,
   },
-  hotDealCard: {
-    borderColor: "#F59E0B",
-  },
   badgeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1317,10 +1314,9 @@ const postStyles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 20,
-    backgroundColor: "#FEF3C7",
   },
   trendingEmoji: { fontSize: 11 },
-  trendingLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D97706" },
+  trendingLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   thanksEmoji: { fontSize: 13 },
   content: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },

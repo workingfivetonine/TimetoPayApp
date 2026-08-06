@@ -40,12 +40,6 @@ import {
   type ParsedReceiptData,
 } from "@/stores/pendingReceipt";
 
-const WARN = "#F59E0B";
-const WARN_BG_LIGHT = "#FFFBEB";
-const WARN_BG_DARK = "#2D2000";
-const WARN_BORDER_LIGHT = "#FCD34D";
-const WARN_BORDER_DARK = "#92400E";
-
 function toDateInput(iso: string): string {
   try {
     return iso.slice(0, 10);
@@ -72,7 +66,6 @@ export default function ReviewReceiptScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const isDark = colors.background === "#09090B" || colors.background < "#888888";
 
   const { receipt: initialReceipt, imageBase64 } = getPendingReceipt();
   const [receipt, setReceipt] = useState<ParsedReceiptData | null>(
@@ -106,8 +99,8 @@ export default function ReviewReceiptScreen() {
   const numVal = (key: string, current: number) =>
     numText[key] !== undefined ? numText[key] : String(current);
 
-  const warnBg = isDark ? WARN_BG_DARK : WARN_BG_LIGHT;
-  const warnBorder = isDark ? WARN_BORDER_DARK : WARN_BORDER_LIGHT;
+  const warnBg = colors.warningBackground;
+  const warnBorder = colors.warning;
 
   if (!receipt) {
     router.back();
@@ -300,8 +293,8 @@ export default function ReviewReceiptScreen() {
           <View style={{ flex: 1 }}>
             {uncertainCount > 0 ? (
               <View style={[styles.warnBanner, { backgroundColor: warnBg, borderColor: warnBorder }]}>
-                <Feather name="alert-triangle" size={15} color={WARN} />
-                <Text style={[styles.warnText, { color: WARN }]}>
+                <Feather name="alert-triangle" size={15} color={colors.warning} />
+                <Text style={[styles.warnText, { color: colors.warning }]}>
                   AI flagged {uncertainCount} unclear{" "}
                   {uncertainCount === 1 ? "field" : "fields"} — highlighted below
                 </Text>
@@ -343,7 +336,7 @@ export default function ReviewReceiptScreen() {
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
               Store
               {receipt.storeNameUncertain && (
-                <Text style={{ color: WARN }}> ⚠</Text>
+                <Text style={{ color: colors.warning }}> ⚠</Text>
               )}
             </Text>
             <StoreNameField
@@ -360,7 +353,7 @@ export default function ReviewReceiptScreen() {
             <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
                 Date
-                {receipt.dateUncertain && <Text style={{ color: WARN }}> ⚠</Text>}
+                {receipt.dateUncertain && <Text style={{ color: colors.warning }}> ⚠</Text>}
               </Text>
               <TextInput
                 style={[styles.fieldInput, fieldStyle(receipt.dateUncertain)]}
@@ -374,7 +367,7 @@ export default function ReviewReceiptScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
                 Total
-                {receipt.totalUncertain && <Text style={{ color: WARN }}> ⚠</Text>}
+                {receipt.totalUncertain && <Text style={{ color: colors.warning }}> ⚠</Text>}
               </Text>
               <TextInput
                 style={[styles.fieldInput, fieldStyle(receipt.totalUncertain)]}
@@ -461,7 +454,7 @@ export default function ReviewReceiptScreen() {
               {/* Item name row */}
               <View style={styles.itemNameRow}>
                 {rowUncertain && (
-                  <Feather name="alert-triangle" size={13} color={WARN} style={{ marginRight: 6, marginTop: 2 }} />
+                  <Feather name="alert-triangle" size={13} color={colors.warning} style={{ marginRight: 6, marginTop: 2 }} />
                 )}
                 <TextInput
                   style={[
@@ -493,7 +486,7 @@ export default function ReviewReceiptScreen() {
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={[styles.itemSubLabel, { color: colors.mutedForeground }]}>
                     {li.byWeight ? "Price / lb" : "Unit price"}
-                    {li.priceUncertain && <Text style={{ color: WARN }}> ⚠</Text>}
+                    {li.priceUncertain && <Text style={{ color: colors.warning }}> ⚠</Text>}
                   </Text>
                   <TextInput
                     style={[

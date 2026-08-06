@@ -697,11 +697,11 @@ function SupportModal({ visible, onClose, getToken, colors }: SupportModalProps)
                 maxLength={2010}
                 textAlignVertical="top"
               />
-              <Text style={[supportStyles.charCount, { color: message.length > 2000 ? "#EF4444" : colors.mutedForeground }]}>
+              <Text style={[supportStyles.charCount, { color: message.length > 2000 ? colors.destructive : colors.mutedForeground }]}>
                 {message.length}/2000
               </Text>
 
-              {error ? <Text style={[supportStyles.error, { color: "#EF4444" }]}>{error}</Text> : null}
+              {error ? <Text style={[supportStyles.error, { color: colors.destructive }]}>{error}</Text> : null}
 
               <TouchableOpacity
                 style={[

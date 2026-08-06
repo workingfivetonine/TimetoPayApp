@@ -2,17 +2,12 @@
   "expo": {
     "name": "TimetoPay",
     "slug": "timetopay",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "timetopay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/logo-lockup.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.fivetonine.timetopay",
@@ -24,7 +19,7 @@
       "package": "com.fivetonine.timetopay",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#f7f6f9"
       },
       "permissions": [
         "android.permission.CAMERA"
@@ -43,6 +38,17 @@
         "expo-router",
         {
           "origin": "https://5to9shopping.com"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo-lockup.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#f7f6f9",
+          "dark": {
+            "backgroundColor": "#1c1b30"
+          }
         }
       ],
       "expo-font",

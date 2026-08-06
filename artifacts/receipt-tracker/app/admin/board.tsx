@@ -153,7 +153,7 @@ export default function AdminBoardScreen() {
               <Text style={[styles.postContent, { color: colors.foreground }]}>{item.content}</Text>
               <View style={styles.actions}>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: "#DCFCE7", borderColor: "#16A34A" }]}
+                  style={[styles.actionBtn, { backgroundColor: colors.spendLow, borderColor: colors.priceGood }]}
                   onPress={() =>
                     item.type === "post"
                       ? moderatePost.mutate({ id: item.id, action: "approve" })
@@ -162,11 +162,11 @@ export default function AdminBoardScreen() {
                   disabled={moderatePost.isPending || moderateReply.isPending}
                   activeOpacity={0.75}
                 >
-                  <Feather name="check" size={15} color="#16A34A" />
-                  <Text style={[styles.actionLabel, { color: "#16A34A" }]}>Approve</Text>
+                  <Feather name="check" size={15} color={colors.priceGood} />
+                  <Text style={[styles.actionLabel, { color: colors.priceGood }]}>Approve</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: "#FEE2E2", borderColor: "#DC2626" }]}
+                  style={[styles.actionBtn, { backgroundColor: colors.spendHigh, borderColor: colors.destructive }]}
                   onPress={() =>
                     item.type === "post"
                       ? moderatePost.mutate({ id: item.id, action: "reject" })
@@ -175,8 +175,8 @@ export default function AdminBoardScreen() {
                   disabled={moderatePost.isPending || moderateReply.isPending}
                   activeOpacity={0.75}
                 >
-                  <Feather name="x" size={15} color="#DC2626" />
-                  <Text style={[styles.actionLabel, { color: "#DC2626" }]}>Reject</Text>
+                  <Feather name="x" size={15} color={colors.destructive} />
+                  <Text style={[styles.actionLabel, { color: colors.destructive }]}>Reject</Text>
                 </TouchableOpacity>
               </View>
             </View>

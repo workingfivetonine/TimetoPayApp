@@ -43,7 +43,7 @@ export function WeeklySpendBar({ week, maxTotal }: Props) {
             <View
               style={[
                 styles.badge,
-                { backgroundColor: week.isHigh ? "#fecaca" : "#bbf7d0" },
+                { backgroundColor: week.isHigh ? colors.spendHigh : colors.spendLow },
               ]}
             >
               <Text

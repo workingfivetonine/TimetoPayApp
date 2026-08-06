@@ -117,12 +117,12 @@ function buildLegalPage({ baseUrl, appName, title, slug, intro, sections }) {
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #1e1b2e;
-      background: #faf8ff;
+      color: #17242b;
+      background: #f7f6f9;
       line-height: 1.65;
     }
     .hero {
-      background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+      background: linear-gradient(135deg, #04576a 0%, #023c4a 100%);
       color: #fff;
       padding: 56px 24px 40px;
     }
@@ -133,20 +133,20 @@ function buildLegalPage({ baseUrl, appName, title, slug, intro, sections }) {
     main { padding: 36px 24px 64px; }
     .card {
       background: #fff;
-      border: 1px solid #e7e1f5;
+      border: 1px solid #e6e4ec;
       border-radius: 16px;
       padding: 28px 28px 12px;
-      box-shadow: 0 1px 2px rgba(30,27,46,.04);
+      box-shadow: 0 1px 2px rgba(23,36,43,.04);
     }
-    .intro { font-size: 17px; color: #3d3658; margin-top: 0; }
-    h2 { font-size: 20px; font-weight: 700; margin: 28px 0 8px; color: #1e1b2e; }
-    h3 { font-size: 16px; font-weight: 700; margin: 18px 0 4px; color: #2d2842; }
-    p, li { font-size: 15.5px; color: #45405c; }
+    .intro { font-size: 17px; color: #3a4b52; margin-top: 0; }
+    h2 { font-size: 20px; font-weight: 700; margin: 28px 0 8px; color: #17242b; }
+    h3 { font-size: 16px; font-weight: 700; margin: 18px 0 4px; color: #17242b; }
+    p, li { font-size: 15.5px; color: #3a4b52; }
     ul { padding-left: 20px; }
-    a { color: #7c3aed; }
+    a { color: #04576a; }
     section:first-of-type h2 { margin-top: 8px; }
-    footer { max-width: 760px; margin: 0 auto; padding: 0 24px 56px; color: #6b6385; font-size: 13px; }
-    footer a { color: #6b6385; font-weight: 600; }
+    footer { max-width: 760px; margin: 0 auto; padding: 0 24px 56px; color: #4c6b66; font-size: 13px; }
+    footer a { color: #4c6b66; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -421,8 +421,8 @@ function getAppName() {
 
 // --- PWA (installable web app) ------------------------------------------------
 // Brand colors (kept in sync with constants/colors.ts teal/violet theme).
-const PWA_THEME_COLOR = "#7c3aed";
-const PWA_BACKGROUND_COLOR = "#faf8ff";
+const PWA_THEME_COLOR = "#04576a";
+const PWA_BACKGROUND_COLOR = "#f7f6f9";
 
 // scope/start_url honor BASE_PATH; basePath is "" when mounted at root → "/".
 const PWA_SCOPE = `${basePath}/`;
@@ -539,7 +539,7 @@ function buildOfflinePage(appName) {
     body {
       display: flex; align-items: center; justify-content: center;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: ${PWA_BACKGROUND_COLOR}; color: #1e1b2e; padding: 24px; text-align: center;
+      background: ${PWA_BACKGROUND_COLOR}; color: #17242b; padding: 24px; text-align: center;
     }
     .card { max-width: 360px; }
     .badge {
@@ -548,7 +548,7 @@ function buildOfflinePage(appName) {
       background: ${PWA_THEME_COLOR}; color: #fff; font-size: 34px;
     }
     h1 { font-size: 22px; margin: 0 0 10px; }
-    p { font-size: 15px; line-height: 1.5; color: #4b465c; margin: 0 0 22px; }
+    p { font-size: 15px; line-height: 1.5; color: #3a4b52; margin: 0 0 22px; }
     button {
       appearance: none; border: 0; cursor: pointer; font-size: 15px; font-weight: 600;
       color: #fff; background: ${PWA_THEME_COLOR}; padding: 12px 22px; border-radius: 999px;

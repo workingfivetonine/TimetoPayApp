@@ -16,6 +16,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClerkProvider, ClerkLoaded, ClerkLoading, useAuth } from "@clerk/expo";
 import { tokenCache } from "@/lib/tokenCache";
+import colors from "@/constants/colors";
 import "@/lib/pwaInstall"; // side-effect: registers beforeinstallprompt listener in root bundle
 import {
   setAuthTokenGetter,
@@ -85,7 +86,7 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
   ensureTag('meta[name="theme-color"]', () => {
     const m = document.createElement("meta");
     m.setAttribute("name", "theme-color");
-    m.content = "#6d28d9";
+    m.content = colors.light.primary;
     return m;
   });
 }
@@ -115,7 +116,7 @@ const toastConfig = {
   success: (props: BaseToastProps) => (
     <BaseToast
       {...props}
-      style={{ ...toastBaseStyle, borderLeftColor: "#22c55e" }}
+      style={{ ...toastBaseStyle, borderLeftColor: colors.light.priceGood }}
       contentContainerStyle={toastContentStyle}
       text1NumberOfLines={2}
       text2NumberOfLines={0}
@@ -125,7 +126,7 @@ const toastConfig = {
   error: (props: BaseToastProps) => (
     <ErrorToast
       {...props}
-      style={{ ...toastBaseStyle, borderLeftColor: "#ef4444" }}
+      style={{ ...toastBaseStyle, borderLeftColor: colors.light.destructive }}
       contentContainerStyle={toastContentStyle}
       text1NumberOfLines={2}
       text2NumberOfLines={0}

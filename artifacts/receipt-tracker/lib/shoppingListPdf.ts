@@ -231,18 +231,18 @@ export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .header { border-bottom: 3px solid #7c3aed; padding-bottom: 14px; margin-bottom: 20px; }
+  .header { border-bottom: 3px solid #04576a; padding-bottom: 14px; margin-bottom: 20px; }
   .title { font-size: 28px; font-weight: 700; margin: 0; color: #0f172a; }
   .prepared { font-size: 14px; color: #334155; margin-top: 8px; }
-  .prepared strong { color: #6d28d9; }
+  .prepared strong { color: #04576a; }
   .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
   .layout { display: flex; align-items: stretch; gap: 20px; }
   .main { flex: 1 1 auto; min-width: 0; }
   .notes-col { flex: 0 0 190px; border-left: 1px solid #e2e8f0; padding-left: 16px; }
-  .notes-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6d28d9; margin-bottom: 10px; }
+  .notes-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #04576a; margin-bottom: 10px; }
   .notes-lines { min-height: 920px; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, #cbd5e1 31px, #cbd5e1 32px); }
   .section { margin-bottom: 22px; page-break-inside: avoid; }
-  .section-title { font-size: 18px; font-weight: 700; color: #6d28d9; background: #ede9fe; padding: 7px 12px; border-radius: 8px; margin: 0 0 10px; }
+  .section-title { font-size: 18px; font-weight: 700; color: #04576a; background: #e3ede9; padding: 7px 12px; border-radius: 8px; margin: 0 0 10px; }
   .category { margin: 0 0 12px; padding-left: 2px; }
   .category-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 6px; }
   .category-title .count { color: #94a3b8; font-weight: 600; }
@@ -254,12 +254,12 @@ export function buildShoppingListHtml(opts: ShoppingListPdfOptions): string {
   .item-name { color: #0f172a; }
   .item-name.ranout { font-style: italic; color: #64748b; }
   .item-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 1px; }
-  .item-price { font-size: 12px; font-weight: 600; color: #15803d; }
+  .item-price { font-size: 12px; font-weight: 600; color: #1e4d40; }
   .item-store { font-size: 12px; color: #64748b; }
   .item-sep { font-size: 11px; color: #94a3b8; }
-  .ranout-tag { display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #dc2626; background: #fef2f2; border-radius: 4px; padding: 1px 6px; vertical-align: middle; }
-  .custom-tag { display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #6d28d9; background: #ede9fe; border-radius: 4px; padding: 1px 6px; vertical-align: middle; }
-  .qty-badge { display: inline-block; font-style: normal; font-size: 11px; font-weight: 700; color: #6d28d9; margin-left: 5px; vertical-align: middle; }
+  .ranout-tag { display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #c13e77; background: #f7dbe6; border-radius: 4px; padding: 1px 6px; vertical-align: middle; }
+  .custom-tag { display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #04576a; background: #e3ede9; border-radius: 4px; padding: 1px 6px; vertical-align: middle; }
+  .qty-badge { display: inline-block; font-style: normal; font-size: 11px; font-weight: 700; color: #04576a; margin-left: 5px; vertical-align: middle; }
   .empty { color: #64748b; font-size: 14px; }
 </style>
 </head>
