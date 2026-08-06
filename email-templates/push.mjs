@@ -4,6 +4,7 @@
 //   LOOPS_API_KEY=xxx node email-templates/push.mjs     # dry run, shows the plan
 //   LOOPS_API_KEY=xxx node email-templates/push.mjs --apply
 //   LOOPS_API_KEY=xxx node email-templates/push.mjs --apply welcome weekly_summary
+//   LOOPS_API_KEY=xxx node email-templates/push.mjs --inspect   # list every workflow
 //
 // Dry run by default. Nothing is written to Loops without --apply.
 //
@@ -47,6 +48,16 @@ if (!existsSync(join(DIST, "manifest.json"))) {
   console.error("ERROR: no dist/manifest.json. Run: node email-templates/build.mjs");
   process.exit(1);
 }
+
+// Explicit pins, checked before any matching. Use these when a workflow is
+// unnamed, or when two share a name so auto-matching can't choose. Values are a
+// workflowId or an emailMessageId; either works.
+//
+//   welcome: "cmsgz...",   // the real one, not the duplicate
+//
+// Run with --inspect to list every workflow with its id and trigger event.
+const PINS = {
+};
 
 // Where a workflow is named for the human-readable email rather than the event
 // key. Extend as needed; unmatched templates are listed, never guessed.
@@ -211,6 +222,14 @@ console.log(`  found ${emailNodes.length} email node(s)\n`);
 // so matching on it is exact rather than guesswork. Display names are a fallback
 // for when the trigger's event isn't exposed in the graph.
 function match(key) {
+  // An explicit pin wins outright, so unnamed or duplicated workflows can be
+  // resolved by hand without weakening the automatic matching for the rest.
+  const pin = PINS[key];
+  if (pin) {
+    const hit = emailNodes.filter((n) => n.wfId === pin || n.emailMessageId === pin);
+    return { hits: hit, how: "pinned" };
+  }
+
   const byEvent = emailNodes.filter((n) => n.eventName && n.eventName === key);
   if (byEvent.length) return { hits: byEvent, how: "trigger event" };
 
@@ -242,9 +261,30 @@ for (const a of ambiguous) {
   console.log(`  ${a.key.padEnd(24)} -> AMBIGUOUS: ${a.hits.map((h) => `"${h.wfName}"`).join(", ")}`);
 }
 
-if (unmatched.length || ambiguous.length) {
-  console.log("\nWorkflow names Loops reported, to help fix NAME_HINTS:");
-  for (const n of emailNodes) console.log(`  "${n.wfName}"`);
+const inspect = process.argv.includes("--inspect");
+if (inspect || unmatched.length || ambiguous.length) {
+  console.log("\nEvery email node Loops reported. Copy a workflowId into PINS to");
+  console.log("resolve anything unnamed or duplicated:\n");
+  console.log(`  ${"workflow name".padEnd(26)} ${"trigger event".padEnd(24)} workflowId`);
+  console.log(`  ${"-".repeat(26)} ${"-".repeat(24)} ${"-".repeat(26)}`);
+  // Claimed rows are marked so it's obvious which of the duplicates is spoken for.
+  const claimed = new Set(plan.map((p) => p.emailMessageId));
+  for (const n of emailNodes) {
+    const label = n.wfName ? `"${n.wfName}"` : "(unnamed)";
+    const mark = claimed.has(n.emailMessageId) ? " <- matched" : "";
+    console.log(
+      `  ${label.padEnd(26)} ${(n.eventName ?? "(none exposed)").padEnd(24)} ${n.wfId}${mark}`,
+    );
+  }
+
+  // These were removed from the app; a live Loop for them can never fire.
+  const dead = emailNodes.filter((n) =>
+    /subscription started|trial ending|payment past due/i.test(n.wfName ?? ""),
+  );
+  if (dead.length) {
+    console.log("\n  Dead Loops still present (billing was removed, nothing can trigger these):");
+    for (const d of dead) console.log(`    "${d.wfName}" - safe to delete or unpublish`);
+  }
 }
 
 if (campaigns.length) {
