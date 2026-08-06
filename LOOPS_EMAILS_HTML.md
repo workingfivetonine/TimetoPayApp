@@ -12,6 +12,10 @@ For *when* each email fires and what the app sends with it, see
 
 ---
 
+> **First time?** The nine Loops must exist in Loops before anything can be
+> pushed into them, and the API cannot create them. See
+> [email-templates/SETUP.md](email-templates/SETUP.md).
+
 ## Everyday use
 
 ```bash

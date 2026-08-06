@@ -161,6 +161,21 @@ for (const wf of workflows) {
     continue;
   }
   const nodes = graph.nodes ?? graph.data?.nodes ?? [];
+
+  // The trigger node names the event the app fires, which is the reliable way to
+  // identify which template belongs here. Field name isn't documented, so check
+  // the plausible ones.
+  const trigger = nodes.find((n) => /Trigger/i.test(n.typeName ?? n.type ?? ""));
+  let eventName =
+    trigger?.eventName ?? trigger?.event ?? trigger?.eventKey ?? trigger?.name ?? null;
+  if (!eventName && trigger) {
+    try {
+      const full = await api("GET", `/workflow-nodes/${trigger.id ?? trigger.nodeId}`);
+      eventName = full.eventName ?? full.event ?? full.eventKey ?? null;
+      if (debug) console.log(`    trigger node raw: ${JSON.stringify(full).slice(0, 300)}`);
+    } catch { /* fall back to name matching */ }
+  }
+
   for (const n of nodes) {
     if ((n.typeName ?? n.type) !== "SendEmailAction") continue;
     const nodeId = n.id ?? n.nodeId;
@@ -173,19 +188,24 @@ for (const wf of workflows) {
         emailMessageId = full.emailMessageId ?? null;
       } catch { /* reported below as unmatched */ }
     }
-    if (emailMessageId) emailNodes.push({ wfName, wfId, emailMessageId });
+    if (emailMessageId) emailNodes.push({ wfName, wfId, emailMessageId, eventName });
   }
 }
 console.log(`  found ${emailNodes.length} email node(s)\n`);
 
-// ── match templates to email nodes by workflow name ──────────────────────────
+// ── match templates to email nodes ───────────────────────────────────────────
+// Prefer the TRIGGER EVENT NAME: it is exactly the template key the app fires,
+// so matching on it is exact rather than guesswork. Display names are a fallback
+// for when the trigger's event isn't exposed in the graph.
 function match(key) {
+  const byEvent = emailNodes.filter((n) => n.eventName && n.eventName === key);
+  if (byEvent.length) return { hits: byEvent, how: "trigger event" };
+
   const hints = [key, key.replace(/_/g, " "), ...(NAME_HINTS[key] ?? [])];
-  const hits = emailNodes.filter((n) => {
-    const name = n.wfName.toLowerCase();
-    return hints.some((h) => name.includes(h.toLowerCase()));
-  });
-  return hits;
+  const byName = emailNodes.filter((n) =>
+    hints.some((h) => n.wfName.toLowerCase().includes(h.toLowerCase())),
+  );
+  return { hits: byName, how: "workflow name" };
 }
 
 const plan = [];
@@ -193,14 +213,14 @@ const unmatched = [];
 const ambiguous = [];
 
 for (const t of targets) {
-  const hits = match(t.key);
-  if (hits.length === 1) plan.push({ ...t, ...hits[0] });
+  const { hits, how } = match(t.key);
+  if (hits.length === 1) plan.push({ ...t, ...hits[0], how });
   else if (hits.length === 0) unmatched.push(t);
   else ambiguous.push({ ...t, hits });
 }
 
 for (const p of plan) {
-  console.log(`  ${p.key.padEnd(24)} -> "${p.wfName}"  (${p.emailMessageId})`);
+  console.log(`  ${p.key.padEnd(24)} -> "${p.wfName}"  via ${p.how}  (${p.emailMessageId})`);
 }
 for (const u of unmatched) {
   console.log(`  ${u.key.padEnd(24)} -> NO MATCHING WORKFLOW`);
