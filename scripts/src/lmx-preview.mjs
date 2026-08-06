@@ -40,12 +40,11 @@ try {
   process.exit(1);
 }
 
-if (lmx.includes("LOOPS_HOSTED_LOGO_URL")) {
-  console.log("NOTE: the logo src is still the LOOPS_HOSTED_LOGO_URL placeholder.");
-  console.log("      Expect a broken image. Everything else still renders, which is");
-  console.log("      what this test is for. Upload the logo via Loops and swap the");
-  console.log("      URL in if you want the full picture.\n");
-}
+// LMX only accepts Loops-hosted images ("Uploading external images is not
+// supported yet"), so the logo has to go up to their CDN first. That's a
+// three-step presigned-URL flow, done automatically below.
+const LOGO_PLACEHOLDER = "LOOPS_HOSTED_LOGO_URL";
+const LOGO_FILE = "artifacts/receipt-tracker/public/icon-192.png";
 
 // Every response is printed on failure. The point is to learn the API's actual
 // contract rather than guess at it a second time.
@@ -69,6 +68,64 @@ async function call(method, path, body) {
 const stamp = new Date().toISOString().replace("T", " ").slice(0, 16);
 
 console.log(`Using ${lmxPath}\n`);
+
+// 0 ─ upload the logo to Loops' CDN and swap it into the LMX.
+if (lmx.includes(LOGO_PLACEHOLDER)) {
+  console.log("0/4  uploading the logo to the Loops CDN...");
+  let bytes;
+  try {
+    bytes = readFileSync(LOGO_FILE);
+  } catch {
+    console.error(`     ERROR: could not read ${LOGO_FILE}`);
+    process.exit(1);
+  }
+
+  // Step 1: ask for a presigned S3 URL.
+  const created = await call("POST", "/uploads", {
+    contentType: "image/png",
+    contentLength: bytes.length,
+  });
+  const { emailAssetId, presignedUrl } = created;
+  if (!emailAssetId || !presignedUrl) {
+    console.error("     ERROR: upload response missing emailAssetId / presignedUrl");
+    console.error(JSON.stringify(created, null, 2));
+    process.exit(1);
+  }
+
+  // Step 2: PUT the bytes straight to S3. Content-Length must match what we
+  // declared above or S3 rejects the signature.
+  const put = await fetch(presignedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "image/png", "Content-Length": String(bytes.length) },
+    body: bytes,
+  });
+  if (!put.ok) {
+    console.error(`     ERROR: PUT to presigned URL failed -> HTTP ${put.status}`);
+    console.error((await put.text()).slice(0, 400));
+    process.exit(1);
+  }
+
+  // Step 3: finalise, which is what yields the usable CDN URL. The field is
+  // `finalUrl` (confirmed against the live API); the fallback scans every string
+  // value for an https URL so a future rename doesn't break this again.
+  const done = await call("POST", `/uploads/${emailAssetId}/complete`);
+  const url =
+    done.finalUrl ??
+    done.url ??
+    done.cdnUrl ??
+    done.src ??
+    Object.values(done).find((v) => typeof v === "string" && /^https?:\/\//.test(v)) ??
+    null;
+  if (!url) {
+    console.error("     ERROR: complete response did not contain a URL. Response was:");
+    console.error(JSON.stringify(done, null, 2));
+    process.exit(1);
+  }
+
+  lmx = lmx.replaceAll(LOGO_PLACEHOLDER, url);
+  console.log(`     hosted at ${url}`);
+  console.log(`     (${(bytes.length / 1024).toFixed(0)} KB, from ${LOGO_FILE})\n`);
+}
 
 // 1 ─ create a throwaway draft campaign. Only `name` is required, and the
 // response carries both IDs the next call needs.
