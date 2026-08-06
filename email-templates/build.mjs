@@ -212,6 +212,29 @@ const EMAILS = [
     signoff: "The TimetoPay team",
   },
   {
+    // One-off CAMPAIGN announcing 2.0 to existing users — not triggered by an
+    // event. That constrains the variables: a campaign has no event payload, so
+    // only contact properties like {firstName} resolve here. Using
+    // {EVENT_PROPERTY:...} in a campaign renders the literal text.
+    key: "announce_2_0",
+    title: "TimetoPay is now free — and a lot faster",
+    preview: "No more subscriptions, plus Shopping Mode and a new look.",
+    headline: "TimetoPay is now free 🎉",
+    body: [
+      p("Hi {firstName}, we've got a big one for you."),
+      p(
+        "<strong>Everything is free now.</strong> Subscriptions and scan limits are gone. Unlimited AI receipt scanning, multi-page PDF imports, your full price history and every analytics view — all open, no card, no trial.",
+      ),
+      p("A few other things worth opening the app for:"),
+      `        <mj-text line-height="1.85" padding="0 0 12px">🎨 <strong>A new look</strong> — redesigned throughout, with a proper dark mode that follows your phone.<br />🛒 <strong>Shopping Mode</strong> — tick items off while you're actually in the store.<br />📸 <strong>In-app camera</strong> — snap receipts directly, or share them in from Photos.<br />🧾 <strong>Tax &amp; discounts</strong> — now captured properly instead of thrown away.<br />🔍 <strong>Smarter matching</strong> — scanned items line up with what you've bought there before.</mj-text>`,
+      p(
+        `<span style="color:${C.muted};">Your receipts, price history and lists are all exactly where you left them.</span>`,
+      ),
+    ].join("\n"),
+    cta: { label: "Open TimetoPay →", href: `${SITE}/scan` },
+    signoff: "Thanks for sticking with us, the TimetoPay team",
+  },
+  {
     key: "trip_receipt_missing",
     title: "Did you keep the receipt?",
     preview: "Your prices only update when the receipt does.",

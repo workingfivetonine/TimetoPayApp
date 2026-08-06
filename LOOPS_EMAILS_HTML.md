@@ -55,6 +55,21 @@ the app fires the event name and Loops sends the matching email.
 | `password_reset_required` | Admin forces a password reset | `firstName` |
 | `trip_receipt_missing` | A week after a Shopping Mode trip with no receipt | `firstName`, `itemsPicked`, `daysSince` |
 
+### Plus one campaign (not a Loop)
+
+| Zip | What | Variables |
+|---|---|---|
+| `announce_2_0` | One-off 2.0 announcement to existing users — free tier, new look, Shopping Mode | `firstName` |
+
+**Send this as a Campaign, not a Loop.** Loops → Campaigns → New, upload the zip,
+pick your audience, send once. It is not attached to any event and the app never
+fires it.
+
+That distinction changes what variables work: a campaign has **no event payload**,
+so only contact properties resolve. `{firstName}` is fine;
+`{EVENT_PROPERTY:anything}` would render as literal text. This template
+deliberately uses nothing but `{firstName}`.
+
 ### No longer sent
 
 `subscription_started`, `trial_ending` and `payment_past_due` are **gone** —
@@ -141,7 +156,16 @@ Optional validation:
 npx mjml@4 --validate email-templates/welcome/index.mjml
 ```
 
-Re-upload the changed zips to Loops — uploads don't sync automatically.
+### Editing here does NOT change what Loops sends
+
+Loops keeps its **own copy** of whatever you upload. Changing a template in this
+repo — colours, copy, anything — has no effect on live email until you go into
+Loops and upload that zip again. There is no API sync, no webhook, and no git
+connection between the two.
+
+So the loop is always: edit → `node email-templates/build.mjs` → **manually
+re-upload each changed zip**. If you only touched three templates, only those
+three need re-uploading.
 
 ### Why the zips are written in Node
 
