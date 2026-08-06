@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Get branch name
         id: branch_name
-        uses: tj-actions/branch-names@v8
+        run: |
 
   create_neon_branch:
     name: Create Neon Branch
