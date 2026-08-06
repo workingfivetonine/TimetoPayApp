@@ -160,7 +160,20 @@ for (const wf of workflows) {
     console.log(`  skipped ${wfName}: could not read graph`);
     continue;
   }
-  const nodes = graph.nodes ?? graph.data?.nodes ?? [];
+  // The graph's nodes may arrive as an array OR as an object keyed by node id,
+  // depending on the endpoint. Normalise before touching it: assuming an array
+  // here is what threw "nodes.find is not a function".
+  const rawNodes = graph.nodes ?? graph.data?.nodes ?? graph.workflow?.nodes ?? [];
+  const nodes = Array.isArray(rawNodes)
+    ? rawNodes
+    : typeof rawNodes === "object" && rawNodes !== null
+      ? Object.entries(rawNodes).map(([id, v]) => ({ id, ...(v ?? {}) }))
+      : [];
+
+  if (debug || !nodes.length) {
+    console.log(`  ${wfName}: ${nodes.length} node(s)`);
+    if (!nodes.length) console.log(`    raw graph: ${JSON.stringify(graph).slice(0, 400)}`);
+  }
 
   // The trigger node names the event the app fires, which is the reliable way to
   // identify which template belongs here. Field name isn't documented, so check
