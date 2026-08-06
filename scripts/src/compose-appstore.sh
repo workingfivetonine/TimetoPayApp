@@ -1,7 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+# Pick the first bold font that actually exists, so this runs on Windows
+# (Git Bash) as well as Linux. Override with FONT=/path/to.ttf if you prefer.
+if [ -z "${FONT:-}" ]; then
+  for candidate in \
+    /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf \
+    /c/Windows/Fonts/arialbd.ttf \
+    /c/Windows/Fonts/segoeuib.ttf \
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf"; do
+    [ -f "$candidate" ] && FONT="$candidate" && break
+  done
+fi
+if [ -z "${FONT:-}" ] || [ ! -f "$FONT" ]; then
+  echo "ERROR: no bold font found. Set FONT=/path/to/font.ttf and re-run." >&2
+  exit 1
+fi
+
+command -v magick >/dev/null || {
+  echo "ERROR: ImageMagick 'magick' not found. Install ImageMagick v7 first." >&2
+  exit 1
+}
+
 RAW="screenshots/raw"
 WORK="screenshots/work"
 OUT="screenshots/appstore"
@@ -11,8 +31,10 @@ CW=1290
 CH=2796
 APPW=964
 R=54
-TOP_GRAD="#8b5cf6"
-BOT_GRAD="#5b21b6"
+# Teal gradient matching the 2.0 palette (was violet #8b5cf6 -> #5b21b6).
+# Kept dark enough that the white headline clears AA contrast for large text.
+TOP_GRAD="#06687e"
+BOT_GRAD="#032f3c"
 
 names=("01-receipts" "02-stores" "03-shopping" "04-analytics" "05-catalog")
 heads=(
@@ -20,7 +42,7 @@ heads=(
   "Compare the true\ncost of every store"
   "A list that finds\nthe lowest price"
   "See where your\nmoney really goes"
-  "Real prices from\nevery store"
+  "Every feature.\nCompletely free."
 )
 
 for i in "${!names[@]}"; do
