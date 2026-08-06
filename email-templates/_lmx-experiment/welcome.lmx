@@ -1,0 +1,57 @@
+<Style
+  backgroundColor="#F7F6F9"
+  backgroundYPadding="24"
+  bodyColor="#FFFFFF"
+  bodyXPadding="32"
+  bodyYPadding="28"
+  borderColor="#E6E4EC"
+  borderWidth="1"
+  borderRadius="16"
+  bodyFontFamily="Inter"
+  textBaseColor="#3A4B52"
+  textBaseFontSize="16"
+  textBaseLineHeight="1.6"
+  textLinkColor="#04576A"
+  heading1Color="#17242B"
+  heading1FontSize="23"
+  heading1LineHeight="1.3"
+  buttonBodyColor="#04576A"
+  buttonTextColor="#FFFFFF"
+  buttonBorderRadius="10"
+  buttonBodyXPadding="28"
+  buttonBodyYPadding="14"
+  buttonTextFontSize="16"
+  dividerColor="#E6E4EC"
+  dividerBorderWidth="1"
+/>
+
+<Section blockColor="#04576A" blockBorderRadius="0" paddingTop="3" paddingBottom="3">
+  <Paragraph fontSize="1" lineHeight="1">&#8203;</Paragraph>
+</Section>
+
+<Image
+  src="LOOPS_HOSTED_LOGO_URL"
+  alt="TimetoPay"
+  width="44"
+  align="left"
+  borderRadius="10"
+  paddingBottom="16"
+/>
+
+<H1>Welcome to TimetoPay, {contact.firstName}</H1>
+
+<Paragraph>You're set up. The quickest way to see what it does:</Paragraph>
+
+<Paragraph lineHeight="1.8">
+  <Strong>Scan a receipt.</Strong> We pull out every item and price for you.<Br />
+  <Strong>Build up your price history.</Strong> After a few receipts you'll see the best store and price for the things you buy often.<Br />
+  <Strong>Get a shopping list.</Strong> Built from what you actually buy.
+</Paragraph>
+
+<Button href="https://5to9shopping.com/scan">Scan your first receipt</Button>
+
+<Divider paddingTop="20" paddingBottom="14" />
+
+<Paragraph fontSize="12" lineHeight="1.6">
+  <Text textColor="#8FA3A0">Happy saving, the TimetoPay team</Text>
+</Paragraph>
