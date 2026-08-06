@@ -20,7 +20,14 @@ jobs:
     steps:
       - name: Get branch name
         id: branch_name
-        uses: tj-actions/branch-names@v8
+        run: |
+          # for pull_request events (works for forks)
+          if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+            echo "current_branch=${GITHUB_HEAD_REF}" >> "$GITHUB_OUTPUT"
+          else
+            # fallback for regular branch refs like refs/heads/main
+            echo "current_branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
+          fi
 
   create_neon_branch:
     name: Create Neon Branch
