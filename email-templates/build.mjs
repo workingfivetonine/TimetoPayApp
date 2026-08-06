@@ -241,8 +241,18 @@ const EMAILS = [
     subject: "Did you keep the receipt?",
     previewText: "Your prices only update when the receipt does.",
     headline: "Did you keep the receipt?",
+    // Deliberately avoids {event.itemsPicked} and {event.daysSince}, even though
+    // the app sends both. Loops validates {event.x} against properties it has
+    // actually observed for the event, and this event has never successfully
+    // fired in production -- its Loop trigger was misspelled as
+    // Trip_receipt_inactivity, so every send went nowhere. Until real events have
+    // flowed, referencing those properties makes the push 422 with
+    // "Unknown event property".
+    //
+    // To restore the specific version once the event has fired for real:
+    //   p("Hi {contact.firstName}, you ticked off <Strong>{event.itemsPicked} items</Strong> on your last shop {event.daysSince} days ago, but we haven't seen the receipt yet."),
     body: [
-      p("Hi {contact.firstName}, you ticked off <Strong>{event.itemsPicked} items</Strong> on your last shop {event.daysSince} days ago, but we haven't seen the receipt yet."),
+      p("Hi {contact.firstName}, you finished a shop recently, but we haven't seen the receipt yet."),
       p("Adding it takes about ten seconds, and it's what keeps everything else working. Your price history, best-store suggestions and spend totals all come from receipts."),
       muted("Already added it somewhere else? Then you're all set and we'll stop asking.", 24),
     ].join("\n\n"),
