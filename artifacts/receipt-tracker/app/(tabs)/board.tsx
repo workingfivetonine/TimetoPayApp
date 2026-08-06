@@ -831,7 +831,7 @@ export default function BoardScreen() {
                 styles.charCount,
                 {
                   color:
-                    (editingPost?.content.length ?? 0) > MAX_CHARS ? "#EF4444" : colors.mutedForeground,
+                    (editingPost?.content.length ?? 0) > MAX_CHARS ? colors.destructive : colors.mutedForeground,
                 },
               ]}
             >

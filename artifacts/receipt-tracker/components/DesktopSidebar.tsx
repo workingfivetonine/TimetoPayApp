@@ -58,7 +58,7 @@ export function DesktopSidebar() {
                 {item.label}
               </Text>
               {item.href === "/board" && newCount > 0 && (
-                <View style={styles.notifBadge} />
+                <View style={[styles.notifBadge, { backgroundColor: colors.destructive }]} />
               )}
             </TouchableOpacity>
           );
@@ -175,7 +175,6 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#EF4444",
   },
   scanWrap: {
     paddingHorizontal: 10,

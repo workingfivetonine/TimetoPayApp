@@ -41,7 +41,7 @@ export function StoreNameField({
         style={[
           styles.inputRow,
           {
-            borderColor: uncertain ? WARN_BORDER : colors.border,
+            borderColor: uncertain ? colors.warning : colors.border,
             backgroundColor: colors.card,
           },
         ]}
@@ -100,8 +100,6 @@ export function StoreNameField({
     </View>
   );
 }
-
-const WARN_BORDER = "#FCD34D";
 
 const styles = StyleSheet.create({
   inputRow: {
