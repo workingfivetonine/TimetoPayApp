@@ -105,12 +105,12 @@ const EMAILS = [
     key: "welcome",
     title: "Welcome to TimetoPay",
     preview: "Your grocery prices, tracked automatically.",
-    headline: "Welcome to TimetoPay, {firstName} 🛒",
+    headline: "Welcome to TimetoPay, {firstName}",
     body: [
-      p("You're all set to start spending less on groceries. The fastest way to see it work:"),
-      `        <mj-text line-height="1.8" padding="0 0 4px">📸 <strong>Scan a receipt</strong> — we pull out every item and price.<br />📈 <strong>Build price history</strong> — the best store and price for what you buy.<br />🛒 <strong>Get a smart shopping list</strong> — built from your purchases.</mj-text>`,
+      p("You're set up. The quickest way to see what it does:"),
+      `        <mj-text line-height="1.8" padding="0 0 4px"><strong>Scan a receipt.</strong> We pull out every item and price for you.<br /><strong>Build up your price history.</strong> After a few receipts you'll see the best store and price for the things you buy often.<br /><strong>Get a shopping list.</strong> Built from what you actually buy.</mj-text>`,
     ].join("\n"),
-    cta: { label: "Scan your first receipt →", href: `${SITE}/scan` },
+    cta: { label: "Scan your first receipt", href: `${SITE}/scan` },
     signoff: "Happy saving, the TimetoPay team",
   },
   {
@@ -128,14 +128,14 @@ const EMAILS = [
     key: "list_export_ready",
     title: "Your shopping list is ready",
     preview: "Grab the best prices before your next trip.",
-    headline: "Your shopping list is ready 🛒",
+    headline: "Your shopping list is ready",
     body: [
       p(
         "Hi {firstName}, you've got <strong>{EVENT_PROPERTY:itemCount} items</strong> on your TimetoPay list, with the best store and price for each.",
       ),
       p("You can also download a printable version grouped by store or category."),
     ].join("\n"),
-    cta: { label: "Open your list →", href: `${SITE}/shopping` },
+    cta: { label: "Open your list", href: `${SITE}/shopping` },
     signoff: "Happy shopping, the TimetoPay team",
   },
   {
@@ -146,35 +146,35 @@ const EMAILS = [
     // they come straight through as event properties.
     headline: "{EVENT_PROPERTY:headline}",
     body: p("Hi {firstName},") + "\n" + p("{EVENT_PROPERTY:body}"),
-    cta: { label: "Scan a receipt →", href: `${SITE}/scan` },
+    cta: { label: "Scan a receipt", href: `${SITE}/scan` },
     signoff: "The TimetoPay team",
   },
   {
     key: "weekly_summary",
     title: "Your grocery week",
-    preview: "{EVENT_PROPERTY:periodStart} – {EVENT_PROPERTY:periodEnd}",
+    preview: "{EVENT_PROPERTY:periodStart} to {EVENT_PROPERTY:periodEnd}",
     headline: "Your grocery week",
     // total / previousTotal / changeAmount arrive as raw numbers (comparePeriods
     // rounds to 2dp but does not format currency), so the $ is added here.
     body: [
-      `        <mj-text font-size="13px" color="${C.muted}" padding="0 0 14px">{EVENT_PROPERTY:periodStart} – {EVENT_PROPERTY:periodEnd}</mj-text>`,
-      p("Hi {firstName}, here's how the week went:"),
-      `        <mj-text line-height="1.9" padding="0 0 4px">🧾 <strong>Spent this week:</strong> \${EVENT_PROPERTY:total}<br />📅 <strong>Week before:</strong> \${EVENT_PROPERTY:previousTotal}<br />📈 <strong>Change:</strong> {EVENT_PROPERTY:changeDirection} \${EVENT_PROPERTY:changeAmount}</mj-text>`,
+      `        <mj-text font-size="13px" color="${C.muted}" padding="0 0 14px">{EVENT_PROPERTY:periodStart} to {EVENT_PROPERTY:periodEnd}</mj-text>`,
+      p("Hi {firstName}, here's how the week went."),
+      `        <mj-text line-height="1.9" padding="0 0 4px"><strong>Spent this week:</strong> \${EVENT_PROPERTY:total}<br /><strong>Week before:</strong> \${EVENT_PROPERTY:previousTotal}<br /><strong>Change:</strong> {EVENT_PROPERTY:changeDirection} \${EVENT_PROPERTY:changeAmount}</mj-text>`,
     ].join("\n"),
-    cta: { label: "See your analytics →", href: SITE },
+    cta: { label: "See your analytics", href: SITE },
     signoff: "The TimetoPay team",
   },
   {
     key: "monthly_summary",
     title: "Your grocery month",
-    preview: "{EVENT_PROPERTY:periodStart} – {EVENT_PROPERTY:periodEnd}",
+    preview: "{EVENT_PROPERTY:periodStart} to {EVENT_PROPERTY:periodEnd}",
     headline: "Your grocery month",
     body: [
-      `        <mj-text font-size="13px" color="${C.muted}" padding="0 0 14px">{EVENT_PROPERTY:periodStart} – {EVENT_PROPERTY:periodEnd}</mj-text>`,
-      p("Hi {firstName}, here's how the month went:"),
-      `        <mj-text line-height="1.9" padding="0 0 4px">🧾 <strong>Spent this month:</strong> \${EVENT_PROPERTY:total}<br />📅 <strong>Month before:</strong> \${EVENT_PROPERTY:previousTotal}<br />📈 <strong>Change:</strong> {EVENT_PROPERTY:changeDirection} \${EVENT_PROPERTY:changeAmount}</mj-text>`,
+      `        <mj-text font-size="13px" color="${C.muted}" padding="0 0 14px">{EVENT_PROPERTY:periodStart} to {EVENT_PROPERTY:periodEnd}</mj-text>`,
+      p("Hi {firstName}, here's how the month went."),
+      `        <mj-text line-height="1.9" padding="0 0 4px"><strong>Spent this month:</strong> \${EVENT_PROPERTY:total}<br /><strong>Month before:</strong> \${EVENT_PROPERTY:previousTotal}<br /><strong>Change:</strong> {EVENT_PROPERTY:changeDirection} \${EVENT_PROPERTY:changeAmount}</mj-text>`,
     ].join("\n"),
-    cta: { label: "See your analytics →", href: SITE },
+    cta: { label: "See your analytics", href: SITE },
     signoff: "The TimetoPay team",
   },
   {
@@ -186,9 +186,9 @@ const EMAILS = [
       p(
         "Hi {firstName}, this is a quick confirmation that your email preferences on TimetoPay were just updated.",
       ),
-      p("You can review or change them anytime under <strong>Account → Notifications</strong>. If you didn't make this change, please reply and let us know."),
+      p("You can review or change them anytime under <strong>Account, then Notifications</strong>. If you didn't make this change, please reply and let us know."),
     ].join("\n"),
-    cta: { label: "Manage preferences →", href: `${SITE}/account` },
+    cta: { label: "Manage preferences", href: `${SITE}/account` },
     signoff: "The TimetoPay team",
   },
   {
@@ -208,7 +208,7 @@ const EMAILS = [
         `<span style="color:${C.muted};">We'll never email you a password or ask you to reply with one. If you weren't expecting this, contact us before signing in.</span>`,
       ),
     ].join("\n"),
-    cta: { label: "Go to sign in →", href: `${SITE}/sign-in` },
+    cta: { label: "Go to sign in", href: `${SITE}/sign-in` },
     signoff: "The TimetoPay team",
   },
   {
@@ -217,40 +217,40 @@ const EMAILS = [
     // only contact properties like {firstName} resolve here. Using
     // {EVENT_PROPERTY:...} in a campaign renders the literal text.
     key: "announce_2_0",
-    title: "TimetoPay is now free — and a lot faster",
+    title: "TimetoPay is now free",
     preview: "No more subscriptions, plus Shopping Mode and a new look.",
-    headline: "TimetoPay is now free 🎉",
+    headline: "TimetoPay is now free",
     body: [
-      p("Hi {firstName}, we've got a big one for you."),
+      p("Hi {firstName}, a few things have changed since you last opened the app."),
       p(
-        "<strong>Everything is free now.</strong> Subscriptions and scan limits are gone. Unlimited AI receipt scanning, multi-page PDF imports, your full price history and every analytics view — all open, no card, no trial.",
+        "<strong>Everything is free now.</strong> Subscriptions and scan limits are gone. Unlimited receipt scanning, multi-page PDF imports, your full price history and every analytics view are all open. No card, no trial.",
       ),
-      p("A few other things worth opening the app for:"),
-      `        <mj-text line-height="1.85" padding="0 0 12px">🎨 <strong>A new look</strong> — redesigned throughout, with a proper dark mode that follows your phone.<br />🛒 <strong>Shopping Mode</strong> — tick items off while you're actually in the store.<br />📸 <strong>In-app camera</strong> — snap receipts directly, or share them in from Photos.<br />🧾 <strong>Tax &amp; discounts</strong> — now captured properly instead of thrown away.<br />🔍 <strong>Smarter matching</strong> — scanned items line up with what you've bought there before.</mj-text>`,
+      p("Also new:"),
+      `        <mj-text line-height="1.85" padding="0 0 12px"><strong>A new look.</strong> Redesigned throughout, with a proper dark mode that follows your phone's setting.<br /><strong>Shopping Mode.</strong> Tick items off while you're actually in the store.<br /><strong>In-app camera.</strong> Snap receipts directly, or share them in from Photos.<br /><strong>Tax and discounts.</strong> Now recorded properly instead of discarded.<br /><strong>Better item matching.</strong> Scanned items line up with what you've bought at that store before.</mj-text>`,
       p(
         `<span style="color:${C.muted};">Your receipts, price history and lists are all exactly where you left them.</span>`,
       ),
     ].join("\n"),
-    cta: { label: "Open TimetoPay →", href: `${SITE}/scan` },
+    cta: { label: "Open TimetoPay", href: `${SITE}/scan` },
     signoff: "Thanks for sticking with us, the TimetoPay team",
   },
   {
     key: "trip_receipt_missing",
     title: "Did you keep the receipt?",
     preview: "Your prices only update when the receipt does.",
-    headline: "Did you keep the receipt? 🧾",
+    headline: "Did you keep the receipt?",
     body: [
       p(
-        "Hi {firstName}, you ticked off <strong>{EVENT_PROPERTY:itemsPicked} items</strong> on your last shop {EVENT_PROPERTY:daysSince} days ago — but we haven't seen the receipt yet.",
+        "Hi {firstName}, you ticked off <strong>{EVENT_PROPERTY:itemsPicked} items</strong> on your last shop {EVENT_PROPERTY:daysSince} days ago, but we haven't seen the receipt yet.",
       ),
       p(
-        "Adding it takes about ten seconds, and it's what keeps the good stuff working: your price history, best-store suggestions and spend totals all come from receipts.",
+        "Adding it takes about ten seconds, and it's what keeps everything else working. Your price history, best-store suggestions and spend totals all come from receipts.",
       ),
       p(
-        `<span style="color:${C.muted};">Already added it somewhere else? Then you're all set — we'll stop asking.</span>`,
+        `<span style="color:${C.muted};">Already added it somewhere else? Then you're all set and we'll stop asking.</span>`,
       ),
     ].join("\n"),
-    cta: { label: "Add that receipt →", href: `${SITE}/scan` },
+    cta: { label: "Add that receipt", href: `${SITE}/scan` },
     signoff: "The TimetoPay team",
   },
 ];
