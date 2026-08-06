@@ -1,182 +1,166 @@
-# TimetoPay — Loops email templates (MJML upload)
+# TimetoPay — Loops email templates (LMX)
 
-The emails are now **MJML zips uploaded to Loops**, not HTML pasted into the
-editor. Source lives in [`email-templates/`](email-templates/), built zips in
-`email-templates/dist/`.
+The emails live in this repo as **LMX**, Loops' own XML format, and are **pushed
+over the API**. There are no zips and no manual uploads.
 
-For the *copy* of each email (subject lines, body wording, when each one fires),
-see [LOOPS_EMAILS.md](LOOPS_EMAILS.md) — that's the content source of truth.
-This file covers the **branding and the upload mechanics**.
+- Source of truth: [`email-templates/build.mjs`](email-templates/build.mjs) — copy, subjects and shared design
+- Build output: `email-templates/dist/*.lmx` (gitignored; regenerate any time)
+- Push: [`email-templates/push.mjs`](email-templates/push.mjs)
 
----
-
-## Brand colours
-
-Derived from the app's light palette in
-[`constants/colors.ts`](artifacts/receipt-tracker/constants/colors.ts). Email
-clients have no dependable dark-mode support, so these templates use the light
-palette only.
-
-| Role | Hex | Comes from |
-|---|---|---|
-| Brand / buttons / links | `#04576A` | app `primary` |
-| Headlines | `#17242B` | app `foreground` |
-| Body copy | `#3A4B52` | email-only mid-tone |
-| Meta lines (dates) | `#4C6B66` | app `mutedForeground` |
-| Footer | `#8FA3A0` | email-only light tint |
-| Page background | `#F7F6F9` | app `background` |
-| Card | `#FFFFFF` | app `card` |
-| Divider | `#E6E4EC` | app `border` |
-| Security / attention | `#C13E77` | app `destructive` |
-
-Two tints (`body`, `footer`) are email-only: the app's `mutedForeground` is too
-dark for 12px footer text, and its `foreground` too heavy for long body copy.
-Everything else maps straight to an app token.
-
-`password_reset_required` is the one email that uses the magenta accent bar
-instead of teal — it's a security notice and should not read as marketing.
+For *when* each email fires and what the app sends with it, see
+[LOOPS_EMAILS.md](LOOPS_EMAILS.md).
 
 ---
 
-## The 9 emails
+> **First time?** The nine Loops must exist in Loops before anything can be
+> pushed into them, and the API cannot create them. See
+> [email-templates/SETUP.md](email-templates/SETUP.md).
 
-Each row is one zip in `email-templates/dist/`. All are **event-triggered** —
-the app fires the event name and Loops sends the matching email.
+## Everyday use
 
-| Event / zip | Fires when | Variables |
+```bash
+# 1. edit the copy in build.mjs, then
+node email-templates/build.mjs
+
+# 2. see what would change, without changing it
+LOOPS_API_KEY=xxx node email-templates/push.mjs
+
+# 3. do it
+LOOPS_API_KEY=xxx node email-templates/push.mjs --apply
+
+# just one or two
+LOOPS_API_KEY=xxx node email-templates/push.mjs --apply welcome weekly_summary
+```
+
+`push.mjs` is **dry-run by default**. Nothing reaches Loops without `--apply`.
+
+After pushing, **publish each changed Loop in the Loops dashboard** — a pushed
+draft isn't live until it's published.
+
+> Get the API key from Loops → Settings → API.
+> PowerShell needs it on its own line: `$env:LOOPS_API_KEY="key"`
+
+---
+
+## Why LMX instead of MJML zips
+
+MJML zips had to be uploaded by hand, and Loops kept its own copy, so every copy
+edit meant re-uploading ten files. Loops refuses HTML and MJML over the API
+[on purpose](https://loops.so/docs/guides/html-emails) — *"we don't believe emails
+belong in your codebase"* — but it does accept LMX. Porting to LMX is what makes
+these templates pushable.
+
+Two things improved on the way:
+
+- **Subject lines are now code.** A zip carries no subject, so all ten used to be
+  hand-typed in the dashboard.
+- **The hand-built footer is gone.** Loops appends the postal address and
+  unsubscribe link itself.
+
+---
+
+## The 10 emails
+
+| Key | Kind | Subject |
 |---|---|---|
-| `welcome` | New user finishes profile setup | `firstName` |
-| `account_deleted` | User deletes their account | *(none)* |
-| `list_export_ready` | User has items on their list | `firstName`, `itemCount` |
-| `receipt_inactivity` | No receipt added in a while | `firstName`, `headline`, `body` |
-| `weekly_summary` | Start of each week | `firstName`, `periodStart`, `periodEnd`, `total`, `previousTotal`, `changeAmount`, `changeDirection` |
-| `monthly_summary` | Start of each month | same as weekly |
-| `preferences_updated` | Email settings changed (debounced 10 min) | `firstName` |
-| `password_reset_required` | Admin forces a password reset | `firstName` |
-| `trip_receipt_missing` | A week after a Shopping Mode trip with no receipt | `firstName`, `itemsPicked`, `daysSince` |
+| `welcome` | workflow | Welcome to TimetoPay, {contact.firstName} |
+| `account_deleted` | workflow | Your TimetoPay account has been deleted |
+| `list_export_ready` | workflow | Your shopping list is ready ({event.itemCount} items) |
+| `receipt_inactivity` | workflow | {event.headline} |
+| `weekly_summary` | workflow | Your grocery week: ${event.total} spent |
+| `monthly_summary` | workflow | Your grocery month: ${event.total} spent |
+| `preferences_updated` | workflow | Your TimetoPay email preferences were updated |
+| `password_reset_required` | workflow | Action needed: reset your TimetoPay password |
+| `trip_receipt_missing` | workflow | Did you keep the receipt? |
+| `announce_2_0` | **campaign** | TimetoPay is now free |
 
-### Plus one campaign (not a Loop)
-
-| Zip | What | Variables |
-|---|---|---|
-| `announce_2_0` | One-off 2.0 announcement to existing users — free tier, new look, Shopping Mode | `firstName` |
-
-**Send this as a Campaign, not a Loop.** Loops → Campaigns → New, upload the zip,
-pick your audience, send once. It is not attached to any event and the app never
-fires it.
-
-That distinction changes what variables work: a campaign has **no event payload**,
-so only contact properties resolve. `{firstName}` is fine;
-`{EVENT_PROPERTY:anything}` would render as literal text. This template
-deliberately uses nothing but `{firstName}`.
+`announce_2_0` is a one-off broadcast, not event-triggered, so **`push.mjs` skips
+it deliberately** — pushing content into a sent campaign is meaningless. To draft
+it, use `scripts/src/lmx-preview.mjs`.
 
 ### No longer sent
 
-`subscription_started`, `trial_ending` and `payment_past_due` are **gone** —
-TimetoPay is free, so there is no billing to email about. If those Loops still
-exist in the dashboard, unpublish them; nothing will ever trigger them.
+`subscription_started`, `trial_ending`, `payment_past_due` — TimetoPay is free, so
+nothing can trigger them. Unpublish those Loops if they still exist.
 
 ---
 
-## Variable syntax — the part that silently breaks
+## Variables
 
-Loops uses **different syntax depending on where the value came from**, and
-getting it wrong renders the literal text instead of the value.
+LMX **requires a prefix**. Bare `{firstName}` is invalid and renders as literal
+text.
 
-| Kind | Syntax | Which of ours |
+| Prefix | Use | Example |
 |---|---|---|
-| Contact property | `{firstName}` | **only** `firstName` |
-| Event property | `{EVENT_PROPERTY:itemCount}` | everything else |
-| Transactional data | `{DATA_VARIABLE:message}` | support relay only |
+| `{contact.x}` | contact property | `{contact.firstName}` |
+| `{event.x}` | workflow emails only | `{event.itemCount}` |
+| `{data.x}` | transactional only | `{data.message}` |
 
-The app always sends `firstName` as a *contact* property and everything else as
-*event* properties — verified against
-[`reminders.ts`](artifacts/api-server/src/lib/notifications/reminders.ts),
-[`transactional.ts`](artifacts/api-server/src/lib/email/transactional.ts) and
-[`me.ts`](artifacts/api-server/src/routes/me.ts). The templates already use the
-right form; keep it that way if you edit them.
+The app always sends `firstName` as a contact property and everything else as
+event properties — verified against the `loopsSendEvent` call sites in
+[reminders.ts](artifacts/api-server/src/lib/notifications/reminders.ts),
+[transactional.ts](artifacts/api-server/src/lib/email/transactional.ts) and
+[me.ts](artifacts/api-server/src/routes/me.ts).
 
-Two quirks baked into the templates:
+A **campaign has no event payload**, so `{event.x}` cannot resolve there. The
+build fails if a campaign template uses one.
 
-- **`total`, `previousTotal` and `changeAmount` are raw numbers**, not formatted
-  currency (`comparePeriods` rounds to 2dp and stops there). The templates add
-  the `$` themselves — `${EVENT_PROPERTY:total}`. Without it you'd get `64.12`.
-- **`changeDirection` is the bare word** `up`, `down` or `flat`, so it reads
-  "up $12.50". If you want "Nice — you spent less! 🎉", use a Loops conditional
-  block on that value.
+**`total`, `previousTotal` and `changeAmount` are raw numbers** — `comparePeriods`
+rounds to 2dp and stops. The templates add the `$` themselves, so the LMX reads
+`${event.total}`. Without it you'd get `64.12`.
 
----
-
-## Uploading to Loops
-
-Per [Loops' custom email docs](https://loops.so/docs/creating-emails/uploading-custom-email),
-the zip must contain `index.mjml` **at the root**, with images in an `img/`
-folder that Loops rehosts on upload. Each of our zips is exactly that:
-
-```
-index.mjml
-img/
-  └─ logo.png
-```
-
-**The logo is bundled, not linked.** It used to point at
-`https://5to9shopping.com/icon-512.png`, which renders as a broken image in most
-inboxes — mail clients block remote images until the reader opts in, and Loops
-never gets a chance to rehost an absolute URL. Shipping the file inside the zip
-means Loops serves it from its own CDN and it just appears.
-
-1. Loops → the Loop for that event → add/edit an Email
-2. Choose the **upload custom email** option
-3. Upload `email-templates/dist/<event>.zip`
-4. Set the Subject from [LOOPS_EMAILS.md](LOOPS_EMAILS.md)
-5. **Publish the Loop** — an unpublished Loop is a silent no-op
-
-Every template already contains the `{unsubscribe_link}` tag Loops requires.
-
-> **The failure mode to know:** an event with no matching *published* Loop is a
-> silent no-op. The app fires it, Loops accepts it, nothing is delivered, nothing
-> errors. "No email arrived" almost always means the Loop isn't published — not
-> that the code broke.
+**`changeDirection` is the bare word** `up`, `down` or `flat`.
 
 ---
 
-## Rebuilding after a brand change
+## LMX rules the API enforces
 
-Shared chrome (palette, logo, footer, legal line) is defined once at the top of
-[`email-templates/build.mjs`](email-templates/build.mjs), so a colour change is
-a one-line edit rather than nine.
+Learned by having it reject things. `build.mjs` checks all of these locally, and
+a negative test confirms each check actually fires:
 
-```bash
-node email-templates/build.mjs      # regenerates all 9 templates AND their zips
+| Rule | Why it bites |
+|---|---|
+| `lineHeight` is **100–300**, not 1.0–3.0 | Every value was wrong on the first attempt |
+| `fontSize` is **12–64** | Kills the "thin bar via a 1px paragraph" trick |
+| Images must be **Loops-hosted** | External URLs are refused outright |
+| Variables must be prefixed | Otherwise silent literal text |
+| No raw HTML escape hatch | LMX only |
+
+Two consequences worth knowing:
+
+- **The accent bar is a thick `<Divider>`.** A `<Section>` wrapping a tiny
+  paragraph is impossible given the fontSize floor.
+- **Never build lists with `<Br />`.** It gives no vertical gap, and the source
+  indentation after each break leaks through as a visible leading space. Use one
+  `<Paragraph>` per line with `paddingBottom`.
+
+### The logo
+
+Uploaded once to Loops' CDN and referenced by URL in `build.mjs` (`LOGO`). To
+replace it, upload a new asset via `scripts/src/lmx-preview.mjs` and swap the
+constant.
+
+---
+
+## How push.mjs finds what to update
+
+No endpoint lists email messages, so the IDs are discovered by walking the graph:
+
+```
+GET  /v1/workflows                 every Loop
+GET  /v1/workflows/{id}            its nodes
+GET  /v1/workflow-nodes/{nodeId}   emailMessageId, for SendEmailAction nodes
+POST /v1/email-messages/{id}       write subject + previewText + lmx
 ```
 
-Optional validation:
+Templates are matched to workflows **by name** — the workflow name must contain
+the template key or one of the `NAME_HINTS` in `push.mjs`. Anything unmatched or
+ambiguous is **reported, never guessed**, and the script prints the workflow names
+Loops returned so the hints can be corrected.
 
-```bash
-npx mjml@4 --validate email-templates/welcome/index.mjml
-```
+Updates are optimistically concurrent: it GETs the current `contentRevisionId`
+and passes it as `expectedRevisionId`, so a stale write fails with a 409 instead
+of silently clobbering a dashboard edit.
 
-### Editing here does NOT change what Loops sends
-
-Loops keeps its **own copy** of whatever you upload. Changing a template in this
-repo — colours, copy, anything — has no effect on live email until you go into
-Loops and upload that zip again. There is no API sync, no webhook, and no git
-connection between the two.
-
-So the loop is always: edit → `node email-templates/build.mjs` → **manually
-re-upload each changed zip**. If you only touched three templates, only those
-three need re-uploading.
-
-### Why the zips are written in Node
-
-**Don't re-zip these with `Compress-Archive` or Windows Explorer.** Both
-PowerShell 5.1's `Compress-Archive` and .NET Framework's
-`ZipFile.CreateFromDirectory` store the entry name as `img\logo.png` with a
-**backslash**. The ZIP spec requires forward slashes, and Loops unpacks on
-Linux — where a backslash name is read as a single file literally called
-`img\logo.png` sitting in the root, not a folder. The MJML's `img/logo.png`
-reference then resolves to nothing and the logo breaks, with no error anywhere.
-
-`build.mjs` writes the archives itself for that reason, so entry names are
-correct regardless of platform. It also pins a fixed timestamp, so rebuilding an
-unchanged template gives a byte-identical zip rather than a phantom diff.
+> **Editing in the Loops dashboard still works** for a quick typo, but it will be
+> overwritten by the next push. For anything you want kept, edit `build.mjs`.
