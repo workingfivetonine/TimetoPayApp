@@ -305,6 +305,7 @@ if (!apply) {
   console.log("\nPushing...");
   let ok = 0;
   let failed = 0;
+  const mjmlBlocked = [];
   for (const p of plan) {
     const lmx = readFileSync(join(DIST, `${p.key}.lmx`), "utf8");
     try {
@@ -327,13 +328,38 @@ if (!apply) {
       console.log(`  ok    ${p.key}`);
       ok++;
     } catch (e) {
-      console.log(`  FAIL  ${p.key}: ${e.message}`);
-      if (e.detail) console.log(`        ${String(e.detail).slice(0, 300)}`);
+      // An email message that still holds MJML (from the old zip uploads) can't
+      // be read OR written through the API at all -- the GET itself 409s. The
+      // format is a property of the existing message, and deleting the uploaded
+      // zip does not reset it. The only fix is a fresh email message, which
+      // starts out LMX-native.
+      if (/MJML format is not supported/i.test(String(e.detail ?? ""))) {
+        console.log(`  FAIL  ${p.key}: still holds MJML, so the API can't touch it`);
+        console.log(`        Fix in Loops: open "${p.wfName}", delete the email step,`);
+        console.log(`        add a fresh empty one, then re-run this push.`);
+        mjmlBlocked.push(p);
+      } else {
+        console.log(`  FAIL  ${p.key}: ${e.message}`);
+        if (e.detail) console.log(`        ${String(e.detail).slice(0, 300)}`);
+      }
       failed++;
     }
   }
 
   console.log(`\n${ok} updated, ${failed} failed.`);
+
+  if (mjmlBlocked.length) {
+    console.log(
+      `\n${mjmlBlocked.length} of those are blocked purely because the existing email still\n` +
+        "holds MJML from the old zip uploads. Nothing is wrong with the LMX.\n\n" +
+        "In Loops, for each Loop below: delete its email step, add a fresh empty\n" +
+        "one, save. A new email message is LMX-native, so the push then works.\n" +
+        "(The two that succeeded were ones you'd already recreated.)\n",
+    );
+    for (const b of mjmlBlocked) console.log(`  "${b.wfName}"  (${b.key})`);
+    console.log("\nThen: node email-templates/push.mjs --apply");
+  }
+
   if (failed) process.exitCode = 1;
   else console.log("Publish each Loop in the Loops dashboard for the changes to go live.");
 }

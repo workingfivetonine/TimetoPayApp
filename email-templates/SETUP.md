@@ -81,3 +81,18 @@ errors. If these nine were never built, none of these emails have ever sent.
 Trigger something real and confirm it arrives. The easiest is
 `preferences_updated` — change a notification toggle in the app's Account screen.
 It's debounced to one per ten minutes.
+
+---
+
+## If a push fails with "MJML format is not supported via API"
+
+An email message that currently holds MJML cannot be read **or** written through
+the API. The format is a property of the existing message, and **deleting the
+uploaded zip does not reset it** -- the message stays MJML-flavoured forever.
+
+Fix: in that Loop, **delete the email step and add a fresh empty one**. A new
+email message is LMX-native, so the push then works. Content does not matter;
+it gets overwritten.
+
+This is why a Loop you recreated from scratch pushes fine while one that ever
+had a zip uploaded into it does not.
