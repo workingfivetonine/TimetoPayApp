@@ -33,6 +33,7 @@ import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceip
 import { takeSharedFile } from "@/stores/sharedFile";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { canUseWebCamera, captureWithWebCamera } from "@/lib/webCamera";
 
 interface PendingImage {
   uri: string;
@@ -251,12 +252,33 @@ export default function ScanScreen() {
     });
   };
 
-  // Entry point for the primary scan button. On native, let the user choose
-  // between the camera and their library; on web there's no in-app camera worth
-  // offering, so go straight to the file picker.
+  // Camera capture on the web build. Phone browsers can open the camera from a
+  // file input carrying the `capture` attribute; desktop cannot, which is why
+  // canUseWebCamera() gates the option rather than always showing it.
+  const handleWebTakePhoto = async () => {
+    try {
+      const shot = await captureWithWebCamera();
+      if (!shot) return; // dismissed
+      setPendingImage(shot);
+    } catch {
+      showErrorToast("Couldn't open the camera", "Try choosing a photo instead.");
+    }
+  };
+
+  // Entry point for the primary scan button. Native offers camera or library.
+  // Web offers the same pair on a phone, and goes straight to the file picker on
+  // desktop, where "Take Photo" would just open a file dialog.
   const handleAddPhoto = async () => {
     if (Platform.OS === "web") {
-      await handlePickImage();
+      if (!canUseWebCamera()) {
+        await handlePickImage();
+        return;
+      }
+      Alert.alert("Add a receipt", "Take a photo now, or pick one you already have?", [
+        { text: "Take Photo", onPress: () => void handleWebTakePhoto() },
+        { text: "Choose Photo", onPress: () => void handlePickImage() },
+        { text: "Cancel", style: "cancel" },
+      ]);
       return;
     }
     Alert.alert("Add a receipt", "Take a photo now, or pick one you already have?", [
@@ -545,13 +567,16 @@ export default function ScanScreen() {
             disabled={scanning}
             activeOpacity={0.8}
           >
+            {/* Only say "Choose Photo" where the camera genuinely isn't on offer,
+                i.e. desktop web. A phone browser can capture, so it gets the same
+                camera framing as native. */}
             <Feather
-              name={Platform.OS === "web" ? "image" : "camera"}
+              name={Platform.OS === "web" && !canUseWebCamera() ? "image" : "camera"}
               size={20}
               color="#fff"
             />
             <Text style={styles.primaryBtnText}>
-              {Platform.OS === "web" ? "Choose Photo" : "Scan Receipt"}
+              {Platform.OS === "web" && !canUseWebCamera() ? "Choose Photo" : "Scan Receipt"}
             </Text>
           </TouchableOpacity>
 
