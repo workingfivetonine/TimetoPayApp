@@ -26,6 +26,7 @@ import type {
   AdminReviewDigestResult,
   AdminSetRoleInput,
   AdminUser,
+  AdminUserLogins,
   AdminUserReceipts,
   CatalogAddToListInput,
   CatalogBrowse,
@@ -3663,6 +3664,84 @@ export function useAdminGetUserReceipts<TData = Awaited<ReturnType<typeof adminG
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetUserReceiptsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetUserLoginsUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/logins`
+}
+
+/**
+ * Read live from Clerk's Sessions API, not from our database — we record no sign-in history of our own. Each Clerk session is created at sign-in, so `createdAt` is the moment the user signed in. Clerk publishes no retention guarantee for expired sessions, so this is a rolling window: it may return fewer than three entries for a long-dormant user even though they have signed in more times than that. One Clerk API call per request, so this is deliberately its own endpoint rather than a field on the user list.
+ * @summary Get a user's most recent sign-ins (admin only, read-only)
+ */
+export const adminGetUserLogins = async (userId: string, options?: RequestInit): Promise<AdminUserLogins> => {
+
+  return customFetch<AdminUserLogins>(getAdminGetUserLoginsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetUserLoginsQueryKey = (userId: string,) => {
+    return [
+    `/api/admin/users/${userId}/logins`
+    ] as const;
+    }
+
+
+export const getAdminGetUserLoginsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetUserLogins>>, TError = ErrorType<void>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetUserLogins>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetUserLoginsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetUserLogins>>> = ({ signal }) => adminGetUserLogins(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetUserLogins>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetUserLoginsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetUserLogins>>>
+export type AdminGetUserLoginsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a user's most recent sign-ins (admin only, read-only)
+ */
+
+export function useAdminGetUserLogins<TData = Awaited<ReturnType<typeof adminGetUserLogins>>, TError = ErrorType<void>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetUserLogins>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetUserLoginsQueryOptions(userId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

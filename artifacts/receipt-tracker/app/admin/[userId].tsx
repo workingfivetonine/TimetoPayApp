@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useAdminListUsers,
   useAdminGetUserReceipts,
+  useAdminGetUserLogins,
   useAdminSetUserRole,
   useAdminDeleteUser,
   useAdminForcePasswordReset,
@@ -43,6 +44,22 @@ function confirmAction(title: string, message: string, confirmLabel: string, onC
       { text: "Cancel", style: "cancel" },
       { text: confirmLabel, style: "destructive", onPress: onConfirm },
     ]);
+  }
+}
+
+// Sign-ins need the time of day too — three dates alone can't tell two visits
+// on the same day apart.
+function formatDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso.slice(0, 16).replace("T", " ");
   }
 }
 
@@ -97,6 +114,12 @@ export default function AdminUserDetailScreen() {
 
   const { data: users } = useAdminListUsers();
   const { data, isLoading, error } = useAdminGetUserReceipts(userId);
+  const {
+    data: loginData,
+    isLoading: loginsLoading,
+    error: loginsError,
+  } = useAdminGetUserLogins(userId);
+  const logins = loginData?.logins ?? [];
 
   const current = users?.find((u) => u.id === userId);
   // boardAutoApprove is a drifted field not in the generated type — read via cast.
@@ -249,6 +272,38 @@ export default function AdminUserDetailScreen() {
             <DetailRow label="User ID" value={current.id} colors={colors} mono />
           </View>
         ) : null}
+
+        {/* Recent sign-ins — read live from Clerk, so it can be briefly empty
+            while loading and legitimately short for a dormant user. */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent sign-ins</Text>
+          {loginsLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />
+          ) : loginsError ? (
+            <Text style={[styles.note, { color: colors.mutedForeground, marginTop: 8 }]}>
+              Couldn't reach Clerk for this user's sign-in history.
+            </Text>
+          ) : logins.length === 0 ? (
+            <Text style={[styles.note, { color: colors.mutedForeground, marginTop: 8 }]}>
+              No sign-ins on record. Clerk drops old sessions over time, so this can be
+              empty for a user who hasn't signed in recently.
+            </Text>
+          ) : (
+            <>
+              {logins.map((login) => (
+                <DetailRow
+                  key={login.sessionId}
+                  label={formatDateTime(login.signedInAt)}
+                  value={[login.device, login.city, login.country].filter(Boolean).join(" · ") || login.status}
+                  colors={colors}
+                />
+              ))}
+              <Text style={[styles.note, { color: colors.mutedForeground, marginTop: 8 }]}>
+                From Clerk's session records — not a complete history.
+              </Text>
+            </>
+          )}
+        </View>
 
         {/* User type */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

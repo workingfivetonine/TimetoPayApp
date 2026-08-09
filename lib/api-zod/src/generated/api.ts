@@ -1119,6 +1119,31 @@ export const AdminGetUserReceiptsResponse = zod.object({
 
 
 /**
+ * Read live from Clerk's Sessions API, not from our database — we record no sign-in history of our own. Each Clerk session is created at sign-in, so `createdAt` is the moment the user signed in. Clerk publishes no retention guarantee for expired sessions, so this is a rolling window: it may return fewer than three entries for a long-dormant user even though they have signed in more times than that. One Clerk API call per request, so this is deliberately its own endpoint rather than a field on the user list.
+ * @summary Get a user's most recent sign-ins (admin only, read-only)
+ */
+export const AdminGetUserLoginsParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const AdminGetUserLoginsResponse = zod.object({
+  "userId": zod.string(),
+  "email": zod.string().nullish(),
+  "logins": zod.array(zod.object({
+  "sessionId": zod.string(),
+  "signedInAt": zod.coerce.date().describe('When the Clerk session was created — i.e. when the user signed in.'),
+  "lastActiveAt": zod.coerce.date().nullish(),
+  "status": zod.string().describe('Clerk session status, e.g. active, ended, expired, removed.'),
+  "device": zod.string().nullish().describe('Best-effort device\/browser label from Clerk\'s session activity.'),
+  "ipAddress": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "country": zod.string().nullish()
+})),
+  "truncated": zod.boolean().describe('True when Clerk reported more sessions than were returned, so the list is the newest slice rather than the user\'s full history.\n')
+})
+
+
+/**
  * @summary Browse the global price catalog grouped by category (all users)
  */
 export const BrowseCatalogResponse = zod.object({

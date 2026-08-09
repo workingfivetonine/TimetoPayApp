@@ -936,6 +936,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminUserReceipts"
 
+  /admin/users/{userId}/logins:
+    get:
+      operationId: adminGetUserLogins
+      tags: [admin]
+      summary: Get a user's most recent sign-ins (admin only, read-only)
+      description: >
+        Read live from Clerk's Sessions API, not from our database — we record no
+        sign-in history of our own. Each Clerk session is created at sign-in, so
+        `createdAt` is the moment the user signed in. Clerk publishes no retention
+        guarantee for expired sessions, so this is a rolling window: it may return
+        fewer than three entries for a long-dormant user even though they have
+        signed in more times than that. One Clerk API call per request, so this is
+        deliberately its own endpoint rather than a field on the user list.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The user's most recent sign-ins, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserLogins"
+        "404":
+          description: User not found
+        "502":
+          description: Clerk rejected the request
+
   /catalog/browse:
     get:
       operationId: browseCatalog
@@ -1602,6 +1633,50 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminReceiptSummary"
+
+    AdminUserLogin:
+      type: object
+      required: [sessionId, signedInAt, status]
+      properties:
+        sessionId:
+          type: string
+        signedInAt:
+          type: string
+          format: date-time
+          description: When the Clerk session was created — i.e. when the user signed in.
+        lastActiveAt:
+          type: ["string", "null"]
+          format: date-time
+        status:
+          type: string
+          description: Clerk session status, e.g. active, ended, expired, removed.
+        device:
+          type: ["string", "null"]
+          description: Best-effort device/browser label from Clerk's session activity.
+        ipAddress:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+
+    AdminUserLogins:
+      type: object
+      required: [userId, logins, truncated]
+      properties:
+        userId:
+          type: string
+        email:
+          type: ["string", "null"]
+        logins:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserLogin"
+        truncated:
+          type: boolean
+          description: >
+            True when Clerk reported more sessions than were returned, so the list
+            is the newest slice rather than the user's full history.
 
     Store:
       type: object
