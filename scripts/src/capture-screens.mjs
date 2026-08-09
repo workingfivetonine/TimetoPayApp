@@ -11,8 +11,11 @@ const OUT = "screenshots/raw";
 await mkdir(OUT, { recursive: true });
 
 const STORES = ["Costco", "Whole Foods", "Trader Joe", "Safeway", "Kroger", "Target", "Aldi", "Sprouts"];
+// "/" is the Home hub since the tab bar gained a Home tab; the receipts list
+// moved to /receipts. Capturing "/" here would silently produce the wrong
+// screen under the 01-receipts name.
 const screens = [
-  { name: "01-receipts", path: "/", expect: STORES },
+  { name: "01-receipts", path: "/receipts", expect: STORES },
   { name: "02-stores", path: "/stores", expect: STORES },
   { name: "03-shopping", path: "/shopping", expect: ["Regular", "One-off", "Best", "$"] },
   { name: "04-analytics", path: "/analytics", expect: ["week", "Spend", "Avg", "Highest", "Lowest", "$"] },
