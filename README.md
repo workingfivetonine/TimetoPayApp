@@ -16,7 +16,7 @@ Live at **[5to9shopping.com](https://5to9shopping.com)** — current version **2
 - **Batch review** — a multi-page PDF or multi-photo upload lands in one review queue where store names and line items can be fixed in place, and pages belonging to the same receipt can be merged
 - **Item matching** — scanned item names are fuzzy-matched against what you've already bought at that store, so an OCR wobble or a spacing change doesn't split one product's price history in two
 - **Price history** — track what you pay for each item across every store over time
-- **Smart shopping list** — three sub-tabs: **Items** (everything you buy, with best-price indicators, "ran out"/"buy more" toggles and undo), **Create list** (bulk-select what to buy and export a printable list grouped by category, store, or A–Z), and **Shopping** mode (a tick-off view for the trip itself)
+- **Smart shopping list** — three sub-tabs: **Items** (everything you buy, with best-price indicators, a "ran out" toggle and undo), **Create list** (bulk-select what to buy and export a printable list grouped by category, store, or A–Z), and **Shopping** mode (a tick-off view for the trip itself)
 - **Spend analytics** — this-month and since-join spend totals, weekly/monthly trends, and a spend calendar with per-day quick-add
 - **Multi-currency display** — prices render in the user's local currency symbol based on their country (visual only — amounts are never converted)
 - **Store management** — track multiple stores with delivery fees, hours, website, and Google Maps directions; a saved receipt can also be repointed at a different store, suggesting stores you already have

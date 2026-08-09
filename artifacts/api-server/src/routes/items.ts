@@ -189,8 +189,8 @@ router.post("/:id/dismiss", async (req, res): Promise<void> => {
 });
 
 // Restore an item to the active shopping list: clears both the "ran out" and
-// "dismissed" markers. Powers Undo (after ran-out/dismiss) and the "Buy More"
-// button on a ran-out item ("I've restocked — put it back").
+// "dismissed" markers. Powers Undo (after ran-out/dismiss) and a second tap on
+// an already-marked "Ran Out" button ("I've restocked — put it back").
 router.post("/:id/restore", async (req, res): Promise<void> => {
   const userId = req.userId!;
   const id = parseInt(req.params.id);

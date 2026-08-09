@@ -189,8 +189,8 @@ export default function ShoppingScreen() {
     }
   };
 
-  // "Buy More" on a ran-out item — restore it to the active list.
-  const handleBuyMore = async (itemId: number) => {
+  // Tapping the grey "Ran Out" button again — restore it to the active list.
+  const handleRestore = async (itemId: number) => {
     if (!isOnline) {
       notify("You're offline", "Connect to the internet to update your list.");
       return;
@@ -429,7 +429,7 @@ export default function ShoppingScreen() {
                 item={item}
                 onPress={() => router.push(`/item/${item.itemId}`)}
                 onRanOut={() => handleRanOut(item.itemId, item.itemName)}
-                onBuyMore={() => handleBuyMore(item.itemId)}
+                onRestore={() => handleRestore(item.itemId)}
                 ranOutLoading={loadingItemId === item.itemId}
                 onDismiss={() => handleDismiss(item.itemId, item.itemName)}
                 dismissLoading={dismissingItemId === item.itemId}
