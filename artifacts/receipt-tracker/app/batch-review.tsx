@@ -158,7 +158,7 @@ export default function BatchReviewScreen() {
 
   // Nothing to review (e.g. screen reopened after the batch was cleared).
   if (receipts.length === 0) {
-    router.replace("/(tabs)");
+    router.replace("/receipts");
     return null;
   }
 
@@ -174,7 +174,7 @@ export default function BatchReviewScreen() {
 
   const finish = () => {
     clearBatchReceipts();
-    router.replace("/(tabs)");
+    router.replace("/receipts");
   };
 
   const handleMerge = () => {

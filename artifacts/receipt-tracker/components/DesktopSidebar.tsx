@@ -6,7 +6,8 @@ import { useColors } from "@/hooks/useColors";
 import { useBoardNotification } from "@/contexts/BoardNotification";
 
 const NAV = [
-  { label: "Receipts", icon: "file-text", href: "/", match: (p: string) => p === "/" || p === "" },
+  { label: "Home", icon: "home", href: "/", match: (p: string) => p === "/" || p === "" },
+  { label: "Receipts", icon: "file-text", href: "/receipts", match: (p: string) => p.startsWith("/receipts") },
   { label: "Stores", icon: "shopping-bag", href: "/stores", match: (p: string) => p.startsWith("/stores") },
   { label: "Shopping List", icon: "check-square", href: "/shopping", match: (p: string) => p.startsWith("/shopping") },
   { label: "Analytics", icon: "bar-chart-2", href: "/analytics", match: (p: string) => p.startsWith("/analytics") },

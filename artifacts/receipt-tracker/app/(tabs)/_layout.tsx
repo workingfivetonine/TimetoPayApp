@@ -69,10 +69,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Receipts",
-          tabBarIcon: ({ color }) => <Feather name="file-text" size={22} color={color} />,
+          title: "Home",
+          tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
         }}
       />
+      {/* Receipts gave up its tab-bar slot to Home. The route still exists and
+          is reached from the Home hub (and the desktop sidebar). */}
+      <Tabs.Screen name="receipts" options={{ href: null, title: "Receipts" }} />
       <Tabs.Screen
         name="stores"
         options={{
