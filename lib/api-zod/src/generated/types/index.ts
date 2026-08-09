@@ -13,6 +13,8 @@ export * from './adminReceiptSummary';
 export * from './adminReviewDigestResult';
 export * from './adminSetRoleInput';
 export * from './adminUser';
+export * from './adminUserLogin';
+export * from './adminUserLogins';
 export * from './adminUserReceipts';
 export * from './catalogAddToListInput';
 export * from './catalogBrowse';

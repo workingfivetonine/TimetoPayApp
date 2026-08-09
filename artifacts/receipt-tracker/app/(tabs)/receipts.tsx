@@ -1,0 +1,281 @@
+import React, { useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import {
+  useListReceipts,
+  useDeleteReceipt,
+  getListReceiptsQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useColors } from "@/hooks/useColors";
+import { useDesktop } from "@/hooks/useDesktop";
+import { ReceiptCard } from "@/components/ReceiptCard";
+import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
+import { OfflineBanner } from "@/components/OfflineBanner";
+
+type ReceiptSort = "recent" | "price" | "store";
+const RECEIPT_SORT: SortOption<ReceiptSort>[] = [
+  { key: "recent", label: "Recent" },
+  { key: "price", label: "Price" },
+  { key: "store", label: "Store" },
+];
+
+export default function ReceiptsScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<ReceiptSort>("recent");
+
+  const { data: receipts, isLoading, dataUpdatedAt } = useListReceipts();
+  const deleteMutation = useDeleteReceipt();
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasReceipts = (receipts?.length ?? 0) > 0;
+  const visibleReceipts = useMemo(() => {
+    const all = (receipts ?? []).filter((r) => r.id !== pendingDeleteId);
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? all.filter(
+          (r) =>
+            r.storeName.toLowerCase().includes(q) ||
+            (r.notes ?? "").toLowerCase().includes(q),
+        )
+      : [...all];
+    filtered.sort((a, b) => {
+      if (sortKey === "price") return b.total - a.total;
+      if (sortKey === "store") return a.storeName.localeCompare(b.storeName);
+      return new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime();
+    });
+    return filtered;
+  }, [receipts, query, sortKey, pendingDeleteId]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+    setRefreshing(false);
+  };
+
+  const commitDelete = (id: number) => {
+    deleteMutation.mutate(
+      { id },
+      { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() }) },
+    );
+  };
+
+  const handleDelete = async (id: number) => {
+    // If another receipt is pending deletion, commit it immediately.
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+      if (pendingDeleteId !== null && pendingDeleteId !== id) {
+        commitDelete(pendingDeleteId);
+      }
+    }
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPendingDeleteId(id);
+    undoTimerRef.current = setTimeout(() => {
+      setPendingDeleteId(null);
+      undoTimerRef.current = null;
+      commitDelete(id);
+    }, 4000);
+  };
+
+  const handleUndoDelete = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    setPendingDeleteId(null);
+  };
+
+  const isDesktop = useDesktop();
+  const paddingTop = isDesktop ? 32 : Platform.OS === "web" ? 67 : insets.top + 8;
+  const paddingBottom = isDesktop ? 24 : Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop, backgroundColor: colors.background }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Receipts</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.scanBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push("/scan")}
+            activeOpacity={0.8}
+          >
+            <Feather name="camera" size={18} color="#fff" />
+            <Text style={styles.scanBtnText}>Scan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.accountBtn, { backgroundColor: colors.secondary }]}
+            onPress={() => router.push("/account")}
+            activeOpacity={0.8}
+            accessibilityLabel="Account"
+          >
+            <Feather name="user" size={16} color={colors.foreground} />
+            <Text style={[styles.accountBtnText, { color: colors.foreground }]}>Account</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <OfflineBanner lastUpdated={dataUpdatedAt} />
+
+      {hasReceipts ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search receipts…"
+          sortOptions={RECEIPT_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={visibleReceipts}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom },
+            visibleReceipts.length === 0 && styles.emptyList,
+          ]}
+          scrollEnabled={visibleReceipts.length > 0}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="file-text"
+              title={query ? "No matching receipts" : "No receipts yet"}
+              subtitle={
+                query
+                  ? "Try a different search."
+                  : "Tap Scan to photograph a receipt and track your spending"
+              }
+            />
+          }
+          renderItem={({ item }) => (
+            <ReceiptCard
+              receipt={item}
+              onPress={() => router.push(`/receipt/${item.id}`)}
+              onDelete={() => handleDelete(item.id)}
+            />
+          )}
+        />
+      )}
+
+
+      {/* Undo-delete banner — floats at the bottom for 4 seconds after a receipt is deleted */}
+      {pendingDeleteId !== null && (
+        <View style={[styles.undoBanner, { backgroundColor: colors.foreground }]}>
+          <Text style={[styles.undoText, { color: colors.background }]}>Receipt deleted</Text>
+          <TouchableOpacity onPress={handleUndoDelete} activeOpacity={0.7}>
+            <Text style={[styles.undoAction, { color: colors.primary }]}>Undo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  scanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+  },
+  accountBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+  },
+  accountBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  scanBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  list: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  emptyList: {
+    flex: 1,
+  },
+  undoBanner: {
+    position: "absolute",
+    bottom: 100,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  undoText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  undoAction: { fontSize: 14, fontFamily: "Inter_700Bold" },
+});

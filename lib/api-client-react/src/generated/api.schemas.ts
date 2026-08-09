@@ -249,6 +249,36 @@ export interface AdminUserReceipts {
   receipts: AdminReceiptSummary[];
 }
 
+export interface AdminUserLogin {
+  sessionId: string;
+  /** When the Clerk session was created — i.e. when the user signed in. */
+  signedInAt: string;
+  /** @nullable */
+  lastActiveAt?: string | null;
+  /** Clerk session status, e.g. active, ended, expired, removed. */
+  status: string;
+  /**
+     * Best-effort device/browser label from Clerk's session activity.
+     * @nullable
+     */
+  device?: string | null;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  country?: string | null;
+}
+
+export interface AdminUserLogins {
+  userId: string;
+  /** @nullable */
+  email?: string | null;
+  logins: AdminUserLogin[];
+  /** True when Clerk reported more sessions than were returned, so the list is the newest slice rather than the user's full history. */
+  truncated: boolean;
+}
+
 export interface Store {
   id: number;
   name: string;

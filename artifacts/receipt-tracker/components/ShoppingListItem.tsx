@@ -11,7 +11,8 @@ interface Props {
   onPress?: () => void;
   onRanOut?: () => void;
   ranOutLoading?: boolean;
-  onBuyMore?: () => void;
+  /** Un-marks a ran-out item, restoring it to the active list. */
+  onRestore?: () => void;
   onDismiss?: () => void;
   dismissLoading?: boolean;
 }
@@ -22,7 +23,7 @@ export function ShoppingListItemRow({
   onPress,
   onRanOut,
   ranOutLoading,
-  onBuyMore,
+  onRestore,
   onDismiss,
   dismissLoading,
 }: Props) {
@@ -120,33 +121,38 @@ export function ShoppingListItemRow({
         </View>
       </TouchableOpacity>
 
-      {/* Ran-out / Buy-More button. Once an item is "out", this becomes an
-          actionable "Buy More" that restores it to the active list. */}
+      {/* "Ran Out" toggle. Green while the item is still stocked (the action is
+          available), grey once it has been marked — tapping again un-marks it. */}
       <TouchableOpacity
         style={[
           styles.ranOutBtn,
           {
-            backgroundColor: hasRanOut ? colors.accent : colors.accent,
-            borderColor: hasRanOut ? colors.priceGood : colors.primary,
+            backgroundColor: hasRanOut ? colors.muted : colors.accent,
+            borderColor: hasRanOut ? colors.border : colors.priceGood,
           },
         ]}
-        onPress={hasRanOut ? onBuyMore : onRanOut}
+        onPress={hasRanOut ? onRestore : onRanOut}
         activeOpacity={0.7}
         disabled={ranOutLoading}
+        accessibilityRole="button"
+        accessibilityState={{ selected: hasRanOut }}
+        accessibilityLabel={hasRanOut ? "Undo ran out" : "Mark as ran out"}
       >
         {ranOutLoading ? (
           <Feather name="loader" size={13} color={colors.mutedForeground} />
-        ) : hasRanOut ? (
-          <>
-            <Feather name="shopping-cart" size={12} color={colors.priceGood} />
-            <Text style={[styles.ranOutBtnLabel, { color: colors.priceGood }]}>
-              Buy{"\n"}More
-            </Text>
-          </>
         ) : (
           <>
-            <Feather name="x-circle" size={12} color={colors.primary} />
-            <Text style={[styles.ranOutBtnLabel, { color: colors.primary }]}>
+            <Feather
+              name="x-circle"
+              size={12}
+              color={hasRanOut ? colors.mutedForeground : colors.priceGood}
+            />
+            <Text
+              style={[
+                styles.ranOutBtnLabel,
+                { color: hasRanOut ? colors.mutedForeground : colors.priceGood },
+              ]}
+            >
               Ran{"\n"}Out
             </Text>
           </>
@@ -282,5 +288,4 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     minWidth: 36,
   },
-  priceGood: {},
 });

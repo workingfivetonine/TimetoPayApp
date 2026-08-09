@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.fivetonine.timetopay",
+      "bundleIdentifier": "com.fivetonine.timetopayapp",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -43,11 +43,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo-lockup.png",
+          "image": "./assets/images/splash-mark.png",
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#f7f6f9",
+          "backgroundColor": "#ffffff",
           "dark": {
-            "backgroundColor": "#1c1b30"
+            "backgroundColor": "#ffffff"
           }
         }
       ],

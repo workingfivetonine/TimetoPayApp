@@ -444,6 +444,60 @@ router.get("/users/:userId/receipts", async (req, res): Promise<void> => {
   });
 });
 
+// How many recent sign-ins the admin user view shows.
+const RECENT_LOGIN_COUNT = 3;
+
+// Read-only view of a user's most recent sign-ins.
+//
+// We deliberately record no sign-in history of our own. Clerk's User object
+// carries a single `lastSignInAt`, but a Clerk *session* is created per sign-in,
+// so the session list IS the history — and reading it live means this works for
+// users who signed up long before the feature existed. The trade-off is that
+// Clerk publishes no retention guarantee for expired sessions, so a dormant
+// user can legitimately return fewer rows than they have sign-ins.
+router.get("/users/:userId/logins", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  try {
+    // Over-fetch so `truncated` means something and so ordering is ours, not
+    // Clerk's — the API documents no sort order for the session list.
+    const page = await clerkClient.sessions.getSessionList({ userId, limit: 20 });
+
+    const ordered = [...page.data].sort((a, b) => b.createdAt - a.createdAt);
+    const logins = ordered.slice(0, RECENT_LOGIN_COUNT).map((s) => {
+      const activity = s.latestActivity;
+      const device =
+        [activity?.browserName, activity?.deviceType].filter(Boolean).join(" · ") || null;
+      return {
+        sessionId: s.id,
+        signedInAt: new Date(s.createdAt).toISOString(),
+        lastActiveAt: s.lastActiveAt ? new Date(s.lastActiveAt).toISOString() : null,
+        status: s.status,
+        device,
+        ipAddress: activity?.ipAddress ?? null,
+        city: activity?.city ?? null,
+        country: activity?.country ?? null,
+      };
+    });
+
+    res.json({
+      userId: user.id,
+      email: user.email,
+      logins,
+      truncated: (page.totalCount ?? ordered.length) > logins.length,
+    });
+  } catch (err) {
+    req.log.error({ err, userId }, "Failed to read sign-in history from Clerk");
+    res.status(502).json({ error: "Clerk rejected the sign-in history request" });
+  }
+});
+
 // Manually send a review digest email to the admin now (test/preview). Unlike
 // the scheduled digest, this always sends (even when nothing is new) and does
 // NOT advance the cursor, so it's a safe wiring check that won't consume the
