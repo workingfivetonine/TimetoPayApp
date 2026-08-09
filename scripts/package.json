@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "capture": "node ./src/capture-screens.mjs",
+    "capture:login": "node ./src/capture-screens.mjs --login",
     "generate-guide": "tsx ./src/generate-guide.ts",
     "generate-guide:check": "tsx ./src/generate-guide.ts --check",
     "seed-resend-templates": "tsx ./src/seed-resend-templates.ts",
@@ -17,6 +19,7 @@
     "@types/node": "catalog:",
     "@types/pdfkit": "^0.13.9",
     "pdfkit": "^0.18.0",
+    "playwright-core": "^1.60.0",
     "tsx": "catalog:"
   }
 }

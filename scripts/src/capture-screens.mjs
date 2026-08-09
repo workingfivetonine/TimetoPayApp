@@ -1,67 +1,73 @@
-import { chromium } from "playwright-core";
-import { mkdir } from "node:fs/promises";
+// Captures the six App Store screenshots from the running web app at exactly
+// iPhone 6.9" size (1290x2796), into screenshots/raw/.
+//
+//   pnpm --filter @workspace/scripts run capture:login    # once, to sign in
+//   pnpm --filter @workspace/scripts run capture          # take the screenshots
+//
+// Then compose them into finished store images:
+//   bash scripts/src/compose-appstore.sh
+//
+// Override the target with EXPO_DEV_DOMAIN (defaults to the live site) and the
+// browser with PLAYWRIGHT_CHROMIUM_EXECUTABLE (auto-detected otherwise).
 
-const EXEC = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
-const DOMAIN = process.env.EXPO_DEV_DOMAIN;
-if (!EXEC) throw new Error("PLAYWRIGHT_CHROMIUM_EXECUTABLE not set");
-if (!DOMAIN) throw new Error("EXPO_DEV_DOMAIN not set");
-const BASE = `https://${DOMAIN}`;
+import { mkdir } from "node:fs/promises";
+import {
+  captureScreen,
+  launchBrowser,
+  newPhoneContext,
+  resolveBase,
+  runLogin,
+} from "./captureBrowser.mjs";
 
 const OUT = "screenshots/raw";
-await mkdir(OUT, { recursive: true });
 
 const STORES = ["Costco", "Whole Foods", "Trader Joe", "Safeway", "Kroger", "Target", "Aldi", "Sprouts"];
-// "/" is the Home hub since the tab bar gained a Home tab; the receipts list
-// moved to /receipts. Capturing "/" here would silently produce the wrong
-// screen under the 01-receipts name.
+
+// Home leads: it is the first screen anyone sees, so it is also the first thing
+// anyone sees on the store listing. "/" is the hub; the receipts list is at
+// /receipts since Home took over the root route.
 const screens = [
-  { name: "01-receipts", path: "/receipts", expect: STORES },
-  { name: "02-stores", path: "/stores", expect: STORES },
-  { name: "03-shopping", path: "/shopping", expect: ["Regular", "One-off", "Best", "$"] },
-  { name: "04-analytics", path: "/analytics", expect: ["week", "Spend", "Avg", "Highest", "Lowest", "$"] },
-  { name: "05-catalog", path: "/catalog", expect: ["Produce", "Dairy", "Pantry", "Add", "Browse", "$"] },
+  { name: "01-home", path: "/", expect: ["Scan a receipt", "Shopping List", "Browse Catalog"] },
+  { name: "02-receipts", path: "/receipts", expect: STORES },
+  { name: "03-stores", path: "/stores", expect: STORES },
+  { name: "04-shopping", path: "/shopping", expect: ["Regular", "One-off", "Best", "$"] },
+  { name: "05-analytics", path: "/analytics", expect: ["week", "Spend", "Avg", "Highest", "Lowest", "$"] },
+  { name: "06-catalog", path: "/catalog", expect: ["Produce", "Dairy", "Pantry", "Add", "Browse", "$"] },
 ];
 
-const browser = await chromium.launch({ executablePath: EXEC, args: ["--no-sandbox"] });
-const context = await browser.newContext({
-  viewport: { width: 430, height: 932 },
-  deviceScaleFactor: 3,
-  isMobile: true,
-  hasTouch: true,
-});
+if (process.argv.includes("--login")) {
+  await runLogin();
+  process.exit(0);
+}
+
+await mkdir(OUT, { recursive: true });
+
+const browser = await launchBrowser();
+const context = await newPhoneContext(browser);
 const page = await context.newPage();
 
-// Warm the bundle once.
+// Warm the bundle once — the first paint of an Expo web build is slow enough
+// to poison the first screenshot otherwise.
 process.stdout.write("warming bundle... ");
-await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.goto(`${resolveBase()}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForTimeout(6000);
 console.log("done");
 
-for (const s of screens) {
-  process.stdout.write(`capturing ${s.name} (${s.path}) ... `);
-  await page.goto(`${BASE}${s.path}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  let matched = false;
-  try {
-    await page.waitForFunction(
-      (subs) => {
-        const t = (document.body && document.body.innerText) || "";
-        if (t.replace(/\s/g, "").length < 30) return false;
-        return subs.some((x) => t.includes(x));
-      },
-      s.expect,
-      { timeout: 20000 },
-    );
-    matched = true;
-  } catch {
-    matched = false;
+const unmatched = [];
+try {
+  for (const screen of screens) {
+    const matched = await captureScreen(page, screen, OUT);
+    if (!matched) unmatched.push(screen.name);
   }
-  // settle for fonts/icons/animations
-  await page.waitForTimeout(1500);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/${s.name}.png`, fullPage: false });
-  console.log(matched ? "OK (data matched)" : "captured (no match — check)");
+} finally {
+  await browser.close();
 }
 
-await browser.close();
-console.log("ALL DONE");
+console.log(`\nWrote ${screens.length} screenshots to ${OUT}/`);
+if (unmatched.length) {
+  console.log(
+    `\nCheck these before composing — expected content was missing, which usually\n` +
+      `means the account has no data on that screen: ${unmatched.join(", ")}`,
+  );
+}
+console.log("\nNext: bash scripts/src/compose-appstore.sh");

@@ -36,8 +36,11 @@ R=54
 TOP_GRAD="#06687e"
 BOT_GRAD="#032f3c"
 
-names=("01-receipts" "02-stores" "03-shopping" "04-analytics" "05-catalog")
+# Home leads — it is the first screen in the app, so it is the first screen on
+# the listing. Apple allows up to ten images, so adding it costs nothing.
+names=("01-home" "02-receipts" "03-stores" "04-shopping" "05-analytics" "06-catalog")
 heads=(
+  "Turn receipts into\nreal savings"
   "Snap a receipt.\nWe handle the rest."
   "Compare the true\ncost of every store"
   "A list that finds\nthe lowest price"

@@ -1,47 +1,40 @@
-import { chromium } from "playwright-core";
-import { mkdir } from "node:fs/promises";
+// Re-capture a single App Store screenshot without redoing the whole set.
+//
+//   node scripts/src/capture-one.mjs 04-shopping /shopping "Regular,One-off,Best,$"
+//
+// Uses the same saved session as capture-screens.mjs — run that with --login
+// first if you have not signed in yet.
 
-const EXEC = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
-const DOMAIN = process.env.EXPO_DEV_DOMAIN;
-const BASE = `https://${DOMAIN}`;
+import { mkdir } from "node:fs/promises";
+import { captureScreen, launchBrowser, newPhoneContext, resolveBase } from "./captureBrowser.mjs";
+
 const OUT = "screenshots/raw";
+
+const name = process.argv[2];
+const path = process.argv[3];
+const expect = (process.argv[4] || "$").split(",");
+
+if (!name || !path) {
+  console.error("usage: node scripts/src/capture-one.mjs <name> <path> [comma,separated,expected,text]");
+  console.error('example: node scripts/src/capture-one.mjs 01-home / "Scan a receipt,Shopping List"');
+  process.exit(1);
+}
+
 await mkdir(OUT, { recursive: true });
 
-const name = process.argv[2] || "05-catalog";
-const path = process.argv[3] || "/catalog";
-const expect = (process.argv[4] || "Produce,Dairy,Pantry,Add,Browse,$").split(",");
-
-const browser = await chromium.launch({ executablePath: EXEC, args: ["--no-sandbox"] });
-const context = await browser.newContext({
-  viewport: { width: 430, height: 932 },
-  deviceScaleFactor: 3,
-  isMobile: true,
-  hasTouch: true,
-});
+const browser = await launchBrowser();
+const context = await newPhoneContext(browser);
 const page = await context.newPage();
-process.stdout.write("warming... ");
-await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+process.stdout.write("warming bundle... ");
+await page.goto(`${resolveBase()}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForTimeout(6000);
 console.log("done");
 
-process.stdout.write(`capturing ${name} (${path}) ... `);
-await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-let matched = false;
 try {
-  await page.waitForFunction(
-    (subs) => {
-      const t = (document.body && document.body.innerText) || "";
-      if (t.replace(/\s/g, "").length < 30) return false;
-      return subs.some((x) => t.includes(x));
-    },
-    expect,
-    { timeout: 20000 },
-  );
-  matched = true;
-} catch {}
-await page.waitForTimeout(1500);
-await page.evaluate(() => window.scrollTo(0, 0));
-await page.waitForTimeout(300);
-await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false });
-console.log(matched ? "OK" : "captured (no match)");
-await browser.close();
+  await captureScreen(page, { name, path, expect }, OUT);
+} finally {
+  await browser.close();
+}
+
+console.log(`\nWrote ${OUT}/${name}.png`);
