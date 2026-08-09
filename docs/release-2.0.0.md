@@ -3,7 +3,8 @@
 Copy-paste blocks for App Store Connect and Google Play Console.
 
 - **Version:** 2.0.0 (build number is auto-incremented by EAS — `appVersionSource: "remote"`)
-- **iOS bundle ID:** `com.fivetonine.timetopay`
+- **iOS bundle ID:** `com.fivetonine.timetopayapp` (differs from Android — the
+  original `com.fivetonine.timetopay` is stranded on the frozen developer account)
 - **Android package:** `com.fivetonine.timetopay`
 - **Headline change:** TimetoPay is now free. All subscription, trial and paywall
   surfaces were removed, so everything that used to be premium is open to everyone.
