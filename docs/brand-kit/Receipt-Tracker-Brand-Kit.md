@@ -1,5 +1,15 @@
 # TimetoPay (Receipt Tracker) — Brand Kit
 
+> **Superseded.** This is the violet identity from before the 2.0 redesign.
+> The app has used a teal palette (`#04576A` primary) since Aug 2026 — see
+> [`TimetoPay-Brand-Kit-2.0.pdf`](TimetoPay-Brand-Kit-2.0.pdf) (regenerate with
+> `pnpm --filter @workspace/scripts run generate-brand-kit`) for the current
+> one. Kept here as a historical record, not deleted, but don't build anything
+> new from the colors below — `artifacts/pitch-deck` and `artifacts/showcase-video`
+> are the only things left still using them.
+
+---
+
 Everything below is extracted from the pitch deck stylesheet (`artifacts/pitch-deck/src/index.css`) and reorganized so you can recreate it as a **Canva Brand Kit** (Brand Hub → Brand Kits → add colors & fonts).
 
 ---

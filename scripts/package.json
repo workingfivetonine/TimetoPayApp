@@ -9,6 +9,7 @@
     "capture:login": "node ./src/capture-screens.mjs --login",
     "generate-guide": "tsx ./src/generate-guide.ts",
     "generate-guide:check": "tsx ./src/generate-guide.ts --check",
+    "generate-brand-kit": "tsx ./src/generate-brand-kit.ts",
     "seed-resend-templates": "tsx ./src/seed-resend-templates.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
