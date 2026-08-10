@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -12,9 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
+import { tabBarClearance } from "@/lib/tabBar";
 import { downloadShoppingListPdf, type PriceMode, type GroupMode } from "@/lib/shoppingListPdf";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 
@@ -169,6 +170,7 @@ export function ShoppingListPdfModal({
   onDismissedPairsChange,
 }: Props) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { symbol } = useCurrency();
 
   // Core builder state. Each piece is controlled by the parent when the matching
@@ -901,11 +903,16 @@ export function ShoppingListPdfModal({
 
           </ScrollView>
 
-          {/* Footer */}
+          {/* Footer. Inline it's a sub-tab of the shopping screen, so the
+              floating tab bar sits over it and has to be cleared; as a Modal it
+              covers the tab bar and only owes the home indicator. */}
           <View
             style={[
               styles.footer,
-              { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? 28 : 16 },
+              {
+                borderTopColor: colors.border,
+                paddingBottom: inline ? tabBarClearance(insets.bottom) : insets.bottom + 16,
+              },
             ]}
           >
             {/* No Cancel inline — switching sub-tabs is how you leave. */}

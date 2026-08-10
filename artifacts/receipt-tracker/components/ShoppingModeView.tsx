@@ -1,11 +1,13 @@
 import React, { useMemo } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { EmptyState } from "@/components/EmptyState";
+import { tabBarClearance } from "@/lib/tabBar";
 
 interface Props {
   // Everything ticked in the Create-list tab, already in display order.
@@ -34,6 +36,7 @@ export function ShoppingModeView({
   onDoneShopping,
 }: Props) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { format } = useCurrency();
 
   // Item ids and custom names share one key space so both can be ticked.
@@ -153,10 +156,13 @@ export function ShoppingModeView({
         })}
       </ScrollView>
 
+      {/* "Done shopping" is the only way to end a trip, so it must never be
+          under the floating tab bar — a fixed 28pt of padding put it there on
+          every phone, which is what hid it. */}
       <View
         style={[
           styles.footer,
-          { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? 28 : 16 },
+          { borderTopColor: colors.border, paddingBottom: tabBarClearance(insets.bottom) },
         ]}
       >
         <TouchableOpacity
