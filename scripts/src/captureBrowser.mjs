@@ -9,9 +9,18 @@ import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Anchor every path to the repo root, not the working directory: `pnpm --filter`
+// runs scripts from the package folder, so a relative "screenshots/raw" would
+// land in scripts/screenshots/raw. This makes both invocations equivalent.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** Where the signed-in session is cached. Gitignored — it holds real cookies. */
-export const AUTH_STATE = "screenshots/.auth.json";
+export const AUTH_STATE = path.join(REPO_ROOT, "screenshots", ".auth.json");
+
+/** Where raw device-sized screenshots are written, for compose-appstore.sh. */
+export const RAW_DIR = path.join(REPO_ROOT, "screenshots", "raw");
 
 /**
  * 430x932 at 3x renders to 1290x2796 — exactly the iPhone 6.9" App Store size,

@@ -15,11 +15,12 @@ import {
   captureScreen,
   launchBrowser,
   newPhoneContext,
+  RAW_DIR,
   resolveBase,
   runLogin,
 } from "./captureBrowser.mjs";
 
-const OUT = "screenshots/raw";
+const OUT = RAW_DIR;
 
 const STORES = ["Costco", "Whole Foods", "Trader Joe", "Safeway", "Kroger", "Target", "Aldi", "Sprouts"];
 

@@ -1,97 +1,153 @@
 # Capturing App Store screenshots
 
-The framing half is automated and now teal-ready. The **capture** half needs a
-running app with a real signed-in session, which is why it isn't scripted here.
+Both halves are scripted now: capture, then framing. End to end it's three
+commands and about ten minutes, most of which is the browser loading.
 
-Target: **iPhone 6.7" — 1290 × 2796**. The app is iPhone-only
-(`supportsTablet: false`), so Apple does not ask for iPad screenshots;
-`compose-appstore-ipad.sh` exists but isn't needed for submission.
+**Target size: 1290 × 2796.** That fills App Store Connect's *iPhone 6.9"* slot,
+which accepts either 1320 × 2868 or 1290 × 2796. The app is iPhone-only
+(`supportsTablet: false`), so Apple never asks for iPad — `compose-appstore-ipad.sh`
+exists but is not needed for submission.
+
+**Six screenshots**, Home first, because Home is the first screen in the app and
+so the first thing anyone sees on the listing. Apple allows up to ten.
 
 ---
 
-## Step 1 — install ImageMagick v7
+## Before you start
 
-Not currently installed on this machine. The compose script exits with a clear
-error if it's missing.
+**ImageMagick v7** — already installed (`magick -version` reports 7.1.2). If you
+ever hit a machine without it:
 
 ```bash
 winget install ImageMagick.ImageMagick
-# then reopen your terminal and check:
-magick -version
 ```
 
-## Step 2 — capture five raw screens
+**Chrome or Edge** — found automatically at the standard install paths. Override
+only if yours is somewhere unusual:
 
-Save as PNG into `screenshots/raw/` with these exact names:
+```powershell
+$env:PLAYWRIGHT_CHROMIUM_EXECUTABLE = "C:\path\to\chrome.exe"
+```
 
-| File | Screen |
-|---|---|
-| `01-receipts.png` | Receipts tab with several receipts listed |
-| `02-stores.png` | Stores tab |
-| `03-shopping.png` | Shopping tab (show Shopping Mode — it's new in 2.0) |
-| `04-analytics.png` | Analytics tab with the spend calendar visible |
-| `05-catalog.png` | Catalog screen |
+**An account with real data.** The capture photographs whatever the signed-in
+account actually has. Empty lists make weak screenshots and Apple has rejected
+listings for showing placeholder-looking screens.
 
-Size doesn't need to be exact — the script resizes to 964px wide — but capture at
-the highest resolution you can and keep the aspect ratio portrait.
+**Know which build you're shooting.** Capture defaults to the live site,
+`5to9shopping.com`, which runs whatever was last deployed to Vercel — *not*
+necessarily your local branch. To shoot an unreleased UI, point it elsewhere:
 
-**Sign in with a real account that has data.** Empty states make weak
-screenshots, and the previous run hit exactly this: the naive capture tool
-grabbed frames *before* React Query finished loading, producing blank white
-screens for every data-backed view.
+```powershell
+$env:EXPO_DEV_DOMAIN = "your-preview-url.vercel.app"
+```
 
-Easiest routes, in order of preference:
+---
 
-1. **iOS Simulator** (needs a Mac): run the app, sign in, then
-   `Cmd+S` on each screen, or `xcrun simctl io booted screenshot 01-receipts.png`.
-2. **A real iPhone**: install the EAS preview build, sign in, take normal
-   screenshots, AirDrop them over. Note these are the device's own resolution —
-   fine, the script rescales.
-3. **The web build at phone dimensions**: `pnpm --filter @workspace/receipt-tracker run web`,
-   then in the browser devtools set a 430 × 932 viewport at 3× device pixel ratio
-   to land exactly on 1290 × 2796. Web layout differs slightly from native, so
-   check each frame looks right before using it.
+## Step 1 — sign in, once
 
-> Do **not** reuse the old screenshots. They show the purple UI *and* the paywall
-> that no longer exists.
+```powershell
+pnpm --filter @workspace/scripts run capture:login
+```
 
-## Step 3 — frame them
+A real Chrome window opens on the site. Sign in normally — password, Google,
+whatever you use. The script watches the URL and closes the window by itself the
+moment you land on a signed-in route.
+
+It writes `screenshots/.auth.json`, which holds live session cookies. That file
+is gitignored and must stay that way; anyone with it is signed in as you.
+
+You only repeat this when the session expires, which shows up as a clear error
+in step 2 rather than as a bad screenshot.
+
+## Step 2 — capture the six screens
+
+```powershell
+pnpm --filter @workspace/scripts run capture
+```
+
+It warms the bundle once (Expo's first paint is slow enough to ruin the first
+frame otherwise), then walks the six routes at a 430 × 932 viewport with a 3×
+pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
+
+| File | Route | What should be visible |
+|---|---|---|
+| `01-home.png` | `/` | The hub: Scan card, six tiles |
+| `02-receipts.png` | `/receipts` | Several receipts with store names and totals |
+| `03-stores.png` | `/stores` | Stores with delivery fees |
+| `04-shopping.png` | `/shopping` | Items sub-tab, Regulars and One-offs |
+| `05-analytics.png` | `/analytics` | Weekly spend bars |
+| `06-catalog.png` | `/catalog` | Categories with prices |
+
+Each line prints `OK (content matched)` or `captured (NO content match — check
+this one)`. The second is not fatal — it usually means that screen has no data
+in your account — but open the file before continuing.
+
+If the saved session has died, the script **throws instead of writing a file**.
+That is deliberate: a signed-out browser is redirected to `/landing`, and the
+old version of this script silently saved six copies of the marketing page under
+real screen names. It looks like a valid screenshot right up until App Review.
+
+To redo a single screen without repeating the set:
+
+```powershell
+node scripts/src/capture-one.mjs 04-shopping /shopping "Regular,One-off,Best"
+```
+
+## Step 3 — look at all six
+
+Open `screenshots/raw/` and check each one. Things that have gone wrong before:
+
+- A view still loading, so the frame is blank white
+- A screen with one item on it
+- Real personal data you don't want public — these images go on a public store page
+
+## Step 4 — frame them
 
 ```bash
 bash scripts/src/compose-appstore.sh
 ```
 
-Output lands in `screenshots/appstore/`, one 1290 × 2796 PNG per screen: rounded
-corners, soft drop shadow, teal gradient background, white headline.
+Finished images land in `screenshots/appstore/`, one 1290 × 2796 PNG each:
+rounded device corners, drop shadow, teal gradient background
+(`#06687e` → `#032f3c`), white headline.
 
-The script now:
-- uses the teal gradient (`#06687e` → `#032f3c`), replacing the old violet
-- finds a bold font automatically on Windows, Linux or macOS (override with
-  `FONT=/path/to/font.ttf`)
-- fails fast with a readable message if ImageMagick or a font is missing
+Headline copy lives in the `heads=(...)` array near the top of that script. Edit
+it there, not in the composite step:
 
-Headline copy lives in the `heads=(...)` array near the top — edit there, not in
-the composite step. The fifth headline is now "Every feature. Completely free."
-to lead on the 2.0 change.
+| # | Headline |
+|---|---|
+| 1 | Turn receipts into real savings |
+| 2 | Snap a receipt. We handle the rest. |
+| 3 | Compare the true cost of every store |
+| 4 | A list that finds the lowest price |
+| 5 | See where your money really goes |
+| 6 | Every feature. Completely free. |
 
-## Step 4 — upload
+## Step 5 — upload
 
-App Store Connect → your 2.0.0 version → Previews and Screenshots → iPhone 6.7".
-Order matters; the numeric filename prefixes are the intended order.
+App Store Connect → your version → **Previews and Screenshots** → *iPhone 6.9"
+Display*. Drag all six in. Order matters and is not inferred from filenames —
+check it after dropping them; the numeric prefixes are the intended order.
 
 ---
 
 ## Gotchas already paid for
 
-From `.agents/memory/appstore-screenshots.md` — these cost real time before:
+Real time was lost to each of these:
 
 - The rounded-corner mask must be drawn with `-fill white` on `xc:none`. With a
   default black fill plus `-alpha Off`, `CopyOpacity` reads pixel *intensity*
-  (black = 0) and the screenshot goes fully transparent, i.e. invisible.
+  (black = 0) and the screenshot comes out fully transparent, i.e. invisible.
 - `caption:"@file"` (reading text from a file) is blocked by ImageMagick's
-  security policy and fails silently. Pass text inline; use `$'line1\nline2'` for
-  line breaks.
-- `-morphology EdgeOut` for a bezel edge is pathologically slow on images this
-  size. The drop shadow already gives enough depth.
-- If you use a temporary dev auth bypass to reach signed-in screens, **revert it**
-  and confirm a protected route returns 401 afterwards.
+  security policy and fails **silently**. Pass text inline; use `$'line1\nline2'`
+  for line breaks.
+- `-morphology EdgeOut` for a bezel edge is pathologically slow at this size. The
+  drop shadow already gives enough depth.
+- A naive capture grabs frames before React Query has loaded, producing blank
+  white screens. The current script waits for expected text and then settles.
+- Do not reuse pre-2.0 screenshots. They show the purple UI *and* a paywall that
+  no longer exists.
+- Earlier attempts reached signed-in screens with a temporary dev auth bypass.
+  That is no longer necessary and should not be reintroduced — `capture:login`
+  uses a genuine session. If you ever do add one, revert it and confirm a
+  protected route returns 401 afterwards.

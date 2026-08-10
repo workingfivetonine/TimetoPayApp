@@ -6,9 +6,9 @@
 // first if you have not signed in yet.
 
 import { mkdir } from "node:fs/promises";
-import { captureScreen, launchBrowser, newPhoneContext, resolveBase } from "./captureBrowser.mjs";
+import { captureScreen, launchBrowser, newPhoneContext, RAW_DIR, resolveBase } from "./captureBrowser.mjs";
 
-const OUT = "screenshots/raw";
+const OUT = RAW_DIR;
 
 const name = process.argv[2];
 const path = process.argv[3];
