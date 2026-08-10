@@ -8,6 +8,13 @@
     "scheme": "timetopay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "updates": {
+      "url": "https://u.expo.dev/cdba2f1e-4643-4768-93ca-aedaeaaae5ca",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.fivetonine.timetopayapp",
