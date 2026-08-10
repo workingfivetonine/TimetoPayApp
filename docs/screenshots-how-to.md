@@ -54,15 +54,29 @@ $env:EXPO_DEV_DOMAIN = "your-preview-url.vercel.app"
 pnpm --filter @workspace/scripts run capture:login
 ```
 
-A real Chrome window opens on the site. Sign in normally — password, Google,
-whatever you use. The script watches the URL and closes the window by itself the
-moment you land on a signed-in route.
+A real Chrome window opens on `/sign-in`. **Nothing is typed for you** — sign in
+by hand, with whatever method you use. Take as long as you like; it waits up to
+five minutes and won't close until Clerk has actually issued a session. It then
+prints which account you signed in as, so you can tell your own account apart
+from the App Review demo account.
 
 It writes `screenshots/.auth.json`, which holds live session cookies. That file
 is gitignored and must stay that way; anyone with it is signed in as you.
 
+To switch accounts, just run it again — each run starts from a clean browser
+profile, so you always get a fresh sign-in prompt. Delete `.auth.json` if you
+want to be certain nothing is reused.
+
 You only repeat this when the session expires, which shows up as a clear error
 in step 2 rather than as a bad screenshot.
+
+> **This step was broken until Aug 2026** and the failure was silent. It waited
+> for the URL to leave `/landing`, `/sign-in` or `/sign-up` — but a signed-out
+> visitor at `/` is on none of those, because `/` serves landing content without
+> redirecting. The condition was already true on load, so the window closed after
+> ~2.5 seconds with no chance to type and saved a signed-*out* session. That is
+> where the six identical marketing-page screenshots came from. It now waits on
+> Clerk's `__session` cookie, and the capture step re-checks it per screen.
 
 ## Step 2 — capture the seven screens
 

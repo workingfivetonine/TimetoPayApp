@@ -114,33 +114,79 @@ export async function newPhoneContext(browser, { authed = true } = {}) {
  * Detects success by leaving the public routes rather than by watching for a
  * particular element, so it survives redesigns of the sign-in screen.
  */
+/**
+ * True once Clerk has issued a real session.
+ *
+ * The URL cannot answer this. `/` serves landing content to signed-out visitors
+ * (deliberately, for SEO) AND is where signed-in users land, so the path is
+ * identical either way. Clerk only sets `__session` once authenticated —
+ * `__client_uat` exists while signed out too, holding "0".
+ */
+async function hasClerkSession(context) {
+  const cookies = await context.cookies();
+  return cookies.some((c) => c.name === "__session" && c.value);
+}
+
 export async function runLogin() {
   const base = resolveBase();
   const browser = await launchBrowser({ headed: true });
   const context = await browser.newContext({ viewport: { width: 480, height: 900 } });
   const page = await context.newPage();
 
-  console.log(`\nOpening ${base} — sign in in the window that just opened.`);
-  console.log("This window is only used to capture the session; nothing is uploaded.\n");
-  await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
+  console.log(`\nOpening ${base}/sign-in — sign in in the window that just opened.`);
+  console.log("Take as long as you need; this waits up to 5 minutes and will not");
+  console.log("close until Clerk has actually issued a session.");
+  console.log("Nothing is typed for you, and nothing is uploaded.\n");
 
-  try {
-    await page.waitForFunction(
-      (publicPaths) => !publicPaths.some((p) => location.pathname.startsWith(p)),
-      SIGNED_OUT,
-      { timeout: 5 * 60 * 1000, polling: 500 },
-    );
-  } catch {
+  // Straight to the form rather than the landing page — one less click, and it
+  // makes it obvious the window is waiting for input.
+  await page.goto(`${base}/sign-in`, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+  // Poll the session cookie, NOT the pathname.
+  //
+  // This used to wait for the URL to leave a list of public paths. `/` is not on
+  // that list, so the condition was already satisfied the instant the page
+  // loaded: the window closed after ~2.5s with no chance to type, and saved a
+  // signed-OUT session that then produced screenshots of the marketing page.
+  const deadline = Date.now() + 5 * 60 * 1000;
+  let signedIn = false;
+  let waited = 0;
+  while (Date.now() < deadline) {
+    if (await hasClerkSession(context)) {
+      signedIn = true;
+      break;
+    }
+    await page.waitForTimeout(1000);
+    waited += 1;
+    if (waited % 30 === 0) console.log(`  still waiting for sign-in (${waited}s)...`);
+  }
+
+  if (!signedIn) {
     await browser.close();
     throw new Error("Timed out waiting for sign-in (5 minutes). Nothing was saved.");
   }
 
   // Let Clerk finish writing its tokens before snapshotting storage.
   await page.waitForTimeout(2500);
+
+  // Report which account this is. The demo account for App Review and your own
+  // account produce very different screenshots, and the old flow gave no way to
+  // tell them apart after the window closed.
+  let who = "";
+  try {
+    await page.goto(`${base}/account`, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(3000);
+    const text = await page.evaluate(() => document.body.innerText || "");
+    who = (text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/) || [""])[0];
+  } catch {
+    // Non-fatal — the session is already captured, this is only a courtesy.
+  }
+
   await mkdir(path.dirname(AUTH_STATE), { recursive: true });
   await context.storageState({ path: AUTH_STATE });
   await browser.close();
-  console.log(`Signed in. Session saved to ${AUTH_STATE}.`);
+  console.log(`\nSigned in${who ? ` as ${who}` : ""}. Session saved to ${AUTH_STATE}.`);
+  if (!who) console.log("(Could not read the account email — check /account if unsure which account.)");
   console.log("Re-run the capture without --login to take the screenshots.\n");
 }
 
@@ -157,6 +203,16 @@ export async function captureScreen(page, screen, outDir) {
   if (looksSignedOut(page.url())) {
     throw new Error(
       `redirected to ${new URL(page.url()).pathname} — the saved session has expired. Re-run with --login.`,
+    );
+  }
+
+  // The URL check alone is not enough. `/` serves landing content to signed-out
+  // visitors without redirecting anywhere, so a dead session captured at `/`
+  // passes the check above and writes a marketing page as `01-home.png`. Verify
+  // the session itself.
+  if (!(await hasClerkSession(page.context()))) {
+    throw new Error(
+      `no Clerk session — the saved session at ${AUTH_STATE} is signed out or expired. Re-run with --login.`,
     );
   }
 
