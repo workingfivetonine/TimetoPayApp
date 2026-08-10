@@ -38,6 +38,7 @@ const SHOT_ASPECT = 402 / 860;
 // Screenshots must be referenced with static `require()` literals so Metro can
 // bundle them. The map keys mirror `imageFile` in `@workspace/guide-content`.
 const GUIDE_IMAGES: Record<string, ImageSourcePropType> = {
+  "home.jpg": require("@/assets/images/guide/home.jpg"),
   "sign-in.jpg": require("@/assets/images/guide/sign-in.jpg"),
   "receipts.jpg": require("@/assets/images/guide/receipts.jpg"),
   "receipt-detail.jpg": require("@/assets/images/guide/receipt-detail.jpg"),
@@ -49,6 +50,7 @@ const GUIDE_IMAGES: Record<string, ImageSourcePropType> = {
   "store-detail.jpg": require("@/assets/images/guide/store-detail.jpg"),
   "item-detail.jpg": require("@/assets/images/guide/item-detail.jpg"),
   "shopping.jpg": require("@/assets/images/guide/shopping.jpg"),
+  "shopping-mode.jpg": require("@/assets/images/guide/shopping-mode.jpg"),
   "analytics.jpg": require("@/assets/images/guide/analytics.jpg"),
   "catalog.jpg": require("@/assets/images/guide/catalog.jpg"),
   "account.jpg": require("@/assets/images/guide/account.jpg"),

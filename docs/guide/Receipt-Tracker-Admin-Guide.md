@@ -1,12 +1,12 @@
 # TimetoPay — Admin Guide
 
-> Administrator-only reference for TimetoPay. These tools are visible only to the master admin and cover the cross-user catalog, user management, billing oversight, and global pricing. Keep this document restricted to administrators.
+> Administrator-only reference for TimetoPay. These tools are visible only to the master admin and cover the cross-user catalog, user management, board moderation, and global pricing. Keep this document restricted to administrators.
 
 ---
 
 ## 1. Admin tools overview
 
-Admin features are visible only to the master admin account. When you're signed in as the admin, four extra links appear at the bottom of the Account screen: All users, Subscriptions, Global prices, and Manage catalog. Everything below lives behind those links.
+Admin features are visible only to the master admin account. When you're signed in as the admin, extra links appear at the bottom of the Account screen: All users, Global prices, Manage catalog, and Board moderation. Everything below lives behind those links.
 
 - Open the Account screen and scroll to the admin links at the bottom.
 - These links (and the data behind them) never appear for regular users.
@@ -48,13 +48,13 @@ Global prices is a cross-user market view of the most recent price recorded for 
 - The “Lowest” badge marks the cheapest store for that item.
 - Sort by A–Z, Price, or Recent to surface the data you need.
 
-## 6. Subscriptions
+## 6. Board moderation
 
-The Subscriptions screen tracks billing and entitlement across the user base — who's on a free trial, who's actively paying via Stripe or PayPal, and whose payment is past due — so premium access stays correct.
+New Community Board posts and replies wait for approval before anyone else sees them, and reports from users land in a separate queue for you to act on.
 
-- Read the color-coded status badges (e.g. red for Past due, gold for Free trial) to spot billing issues.
-- Check the Access column to confirm whether the backend currently grants premium features.
-- Open a card's Period section to see when a trial ends or a subscription renews.
+- Open Board moderation to approve or reject pending posts and replies — rejecting removes it without saving a copy.
+- Toggle “Auto-approve” for a user you trust so their future posts skip the queue and go live immediately.
+- Reports from users appear separately, newest first, with the reason and the reported content. Resolving one just clears it from the queue — if the content itself needs to go, remove it the normal way from the Board.
 
 ---
 

@@ -64,10 +64,22 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
     imageFile: "sign-in.jpg",
   },
   {
+    icon: "home",
+    title: "The Home screen",
+    intro:
+      "TimetoPay opens on a hub, not a list. Scan a receipt in one tap, or jump straight to any other part of the app.",
+    steps: [
+      "Tap Scan a receipt (or Shopping Mode, if it's showing) to jump straight into either.",
+      "The six tiles below — Receipts, Shopping List, Stores, Analytics, Browse Catalog, and Community — take you anywhere else in one tap.",
+      "The tab bar at the bottom always has Home, Stores, List, Stats, and Board; Receipts and Account live one tap from Home.",
+    ],
+    imageFile: "home.jpg",
+  },
+  {
     icon: "file-text",
     title: "Your receipts",
     intro:
-      "The Receipts tab is your home base — every receipt you scan or enter shows up here, newest first, with the store and total.",
+      "Every receipt you scan or enter shows up on the Receipts screen, newest first, with the store and total.",
     steps: [
       "Tap any receipt to open it and see the individual line items.",
       "The total on the right is calculated from the items on that receipt.",
@@ -176,23 +188,35 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
     icon: "check-square",
     title: "Shopping list",
     intro:
-      "Your list builds itself from what you buy. Regulars are things you've purchased 2+ times; One-offs are the rest.",
+      "The Shopping List screen has three sub-tabs: Items (your list), Create list (what to bring today), and Shopping (checking things off in the store). Your list builds itself from what you buy — Regulars are things you've purchased 2+ times; One-offs are the rest.",
     steps: [
-      "Each item shows its lowest price, the best store, and how much you save.",
-      "Mark something Ran Out to bump it back to the top of your list.",
-      "Use the download button in the header to export a printable PDF grouped by store.",
+      "In Items, each entry shows its lowest price, the best store, and how much you save. Mark something Ran Out to bump it back to the top.",
+      "In Create list, pick which items to bring, merge near-duplicate names, and add anything one-off with the custom-item field.",
+      "Tap Share or PDF in Create list to export it, grouped by store, category, or A–Z.",
     ],
     imageFile: "shopping.jpg",
+  },
+  {
+    icon: "shopping-cart",
+    title: "Shopping Mode",
+    intro:
+      "Switch to the Shopping sub-tab while you're actually in the store. It groups your list by store with big checkboxes, a running total, and nothing else to distract you.",
+    steps: [
+      "Tick items off as they go in your cart — the total updates as you go.",
+      "Turn on Keep screen on so the display doesn't lock mid-trip.",
+      "Tap Done shopping when you're finished. Anything still ticked is no longer \"ran out,\" and this is the only thing that starts the reminder clock if you don't log a receipt afterward.",
+    ],
+    imageFile: "shopping-mode.jpg",
   },
   {
     icon: "bar-chart-2",
     title: "Spending analytics",
     intro:
-      "The Analytics tab turns your receipts into spending insights so you can spot trends.",
+      "The Analytics tab turns your receipts into spending insights so you can spot trends. It has two sub-tabs: Calendar and Items.",
     steps: [
-      "The calendar heatmap shades each day by how much you spent.",
-      "Switch to Weekly to see spend per week with high/low flags.",
-      "The Items view breaks down price history item by item.",
+      "Calendar shades each day by how much you spent, and shows a recommended weekly budget based on your recent average.",
+      "Items breaks down price history item by item, plus \"Best of\" cards for your go-to store, cheapest delivery, and cheapest store per category.",
+      "Tap a day or an item to see the detail behind the number.",
     ],
     imageFile: "analytics.jpg",
   },
@@ -209,13 +233,27 @@ export const GUIDE_SECTIONS: GuideSectionContent[] = [
     imageFile: "catalog.jpg",
   },
   {
+    icon: "message-square",
+    title: "Community Board",
+    intro:
+      "The Board is where shoppers post tips, deals, and recipes. Posting takes a couple of receipts uploaded first, and every post is reviewed before it appears.",
+    steps: [
+      "Tap Community from the Home hub to read posts, or write your own — new posts go to a moderator first.",
+      "Tap Agree or Thanks on a post, or add a reply.",
+      "If something breaks the rules, tap the ⋯ menu and choose Report. To stop seeing someone entirely, choose Block instead — it takes effect immediately, and you can undo it from Account → Blocked accounts.",
+    ],
+    // No screenshot yet — this section is new. Capture one with capture-one.mjs
+    // (signed in, on /board with at least one post) and add "board.jpg" here plus
+    // to GUIDE_IMAGES in help.tsx once it exists.
+  },
+  {
     icon: "user",
     title: "Your account",
     intro:
-      "The Account screen shows who you're signed in as and lets you sign out.",
+      "The Account screen shows who you're signed in as, your region, and your notification and privacy settings.",
     steps: [
-      "Confirm the email tied to your data.",
-      "Everything you scan stays private to your account.",
+      "Confirm the email tied to your data, and set your country/state so catalog prices match your area.",
+      "Add a home address (optional) to see distance to each store — everything you scan stays private to your account either way.",
       "Sign out here to switch accounts.",
     ],
     imageFile: "account.jpg",
@@ -285,5 +323,16 @@ export const GUIDE_ADMIN_SECTIONS: GuideSectionContent[] = [
       "Sort by A–Z, Price, or Recent to surface the data you need.",
     ],
     imageFile: "admin-global.jpg",
+  },
+  {
+    icon: "flag",
+    title: "Board moderation",
+    intro:
+      "New Community Board posts and replies wait for approval before anyone else sees them, and reports from users land in a separate queue for you to act on.",
+    steps: [
+      "Open Board moderation to approve or reject pending posts and replies — rejecting removes it without saving a copy.",
+      "Toggle “Auto-approve” for a user you trust so their future posts skip the queue and go live immediately.",
+      "Reports from users appear separately, newest first, with the reason and the reported content. Resolving one just clears it from the queue — if the content itself needs to go, remove it the normal way from the Board.",
+    ],
   },
 ];
