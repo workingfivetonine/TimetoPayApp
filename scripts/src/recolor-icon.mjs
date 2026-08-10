@@ -258,12 +258,25 @@ const RECOLOUR = [
   `${A}/public/icon-192.png`,
   `${A}/public/icon.png`,
   `${A}/assets/pwa/icon-512.png`,
+  // assets/pwa/ is a SEPARATE copy from public/ — server/serve.js's dynamically
+  // generated manifest.webmanifest (not the static public/manifest.json) reads
+  // from here, so it was missed the first time this ran and stayed purple in
+  // the actual PWA install UI even after public/ was fixed. icon-192 has a
+  // crisp glyph like its public/ counterpart, so it recolours; the two below
+  // it are washed out like public/'s were and go in REGENERATE instead.
+  `${A}/assets/pwa/icon-192.png`,
+  // Distinct glyphs (not the main icon), so recolour in place rather than
+  // regenerate-from-master, which would replace the glyph with the wrong one.
+  `${A}/assets/pwa/shortcut-scan.png`,
+  `${A}/assets/pwa/shortcut-list.png`,
 ];
 
 // Rebuilt from the recoloured master because the existing files are degraded.
 const REGENERATE = [
   { path: `${A}/public/apple-touch-icon.png`, size: 180, why: "washed-out glyph" },
   { path: `${A}/public/icon-maskable-512.png`, size: 512, why: "glyph near-invisible" },
+  { path: `${A}/assets/pwa/apple-touch-icon.png`, size: 180, why: "washed-out glyph (assets/pwa copy)" },
+  { path: `${A}/assets/pwa/icon-maskable-512.png`, size: 512, why: "glyph near-invisible (assets/pwa copy)" },
 ];
 
 const checkOnly = process.argv.includes("--check");

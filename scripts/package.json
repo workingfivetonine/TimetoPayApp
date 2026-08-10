@@ -11,6 +11,7 @@
     "generate-guide:check": "tsx ./src/generate-guide.ts --check",
     "generate-brand-kit": "tsx ./src/generate-brand-kit.ts",
     "generate-marketing-copy": "tsx ./src/generate-marketing-copy-pdf.ts",
+    "capture-pwa-screenshots": "node ./src/capture-pwa-screenshots.mjs",
     "seed-resend-templates": "tsx ./src/seed-resend-templates.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
