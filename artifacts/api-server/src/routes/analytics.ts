@@ -5,6 +5,7 @@ import { receiptsTable, storesTable, lineItemsTable, itemsTable, catalogStoresTa
 import { groupReceiptsByWeek } from "../lib/analytics/spend";
 import { normalizeName } from "../lib/catalog";
 import { haversineKm, type LatLng } from "../lib/geocode";
+import { isRealPrice, priceStats } from "../lib/prices";
 
 const router = Router();
 
@@ -189,7 +190,12 @@ router.get("/best-of", async (req, res): Promise<void> => {
   for (const r of liRows) {
     const storeName = r.storeName ?? "Unknown";
     const unit = Number(r.price); // unit price already
-    if (!Number.isFinite(unit)) continue;
+    // Skip unpriced rows, not just NaN ones. Everything below this point is a
+    // price comparison, and a single blank-price row used to drag a store's
+    // average to the bottom — winning "cheapest staple", "cheapest by category"
+    // and "best value store" on a price nobody was ever charged. See
+    // lib/prices.ts.
+    if (!isRealPrice(unit)) continue;
 
     let byStore = itemStore.get(r.itemId);
     if (!byStore) { byStore = new Map(); itemStore.set(r.itemId, byStore); }
@@ -333,17 +339,19 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
     return;
   }
 
-  const prices = pricePoints.map((p) => p.price);
-  const lowestIdx = prices.indexOf(Math.min(...prices));
+  // Zero-priced rows stay in `pricePoints` (they happened) but are excluded
+  // from the stats — see lib/prices.ts.
+  const priced = pricePoints.filter((p) => isRealPrice(p.price));
+  const stats = priceStats(priced.map((p) => p.price));
 
   res.json({
     itemId,
     itemName: item.name,
     icon: item.icon ?? null,
-    averagePrice: Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100,
-    lowestPrice: Math.min(...prices),
-    highestPrice: Math.max(...prices),
-    lowestPriceStoreName: pricePoints[lowestIdx].storeName,
+    averagePrice: stats?.average ?? 0,
+    lowestPrice: stats?.lowest ?? 0,
+    highestPrice: stats?.highest ?? 0,
+    lowestPriceStoreName: stats ? priced[stats.lowestIndex]!.storeName : "",
     pricePoints,
   });
 });
@@ -543,8 +551,9 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
     quantity: Number(r.quantity),
   }));
 
-  const prices = history.map((h) => h.price);
-  const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+  // Same rule as the price-history endpoint: unpriced rows stay in `history`
+  // but never set the average or the "cheapest" figure. See lib/prices.ts.
+  const stats = priceStats(history.filter((h) => isRealPrice(h.price)).map((h) => h.price));
 
   const lastPurchasedAt = rows[0]?.purchasedAt ?? null;
   const daysSinceLastPurchase = lastPurchasedAt
@@ -556,9 +565,9 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
     itemName: item.name,
     icon: item.icon ?? null,
     purchaseCount: item.purchaseCount,
-    averagePrice: Math.round(avg * 100) / 100,
-    lowestPrice: prices.length ? Math.min(...prices) : 0,
-    highestPrice: prices.length ? Math.max(...prices) : 0,
+    averagePrice: stats?.average ?? 0,
+    lowestPrice: stats?.lowest ?? 0,
+    highestPrice: stats?.highest ?? 0,
     daysSinceLastPurchase,
     lastPurchasedAt: lastPurchasedAt ? lastPurchasedAt.toISOString() : null,
     ranOutAt: item.ranOutAt ? item.ranOutAt.toISOString() : null,

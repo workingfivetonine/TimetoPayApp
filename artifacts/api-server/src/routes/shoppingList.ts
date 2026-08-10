@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { lineItemsTable, receiptsTable, storesTable, itemsTable, shoppingTripsTable } from "@workspace/db";
+import { isRealPrice, priceStats } from "../lib/prices";
 
 const router = Router();
 
@@ -60,10 +61,20 @@ router.get("/", async (req, res): Promise<void> => {
     let lastPurchasedAt: Date | null = null;
 
     if (rows.length) {
-      const prices = rows.map((r) => Number(r.price));
-      averagePrice = Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100;
-      lowestPrice = Math.min(...prices);
-      lowestPriceStoreName = rows[prices.indexOf(lowestPrice)].storeName;
+      // Only rows with a real price count toward the price stats — a blank
+      // price stored as 0.00 is not a price you could shop at. See lib/prices.ts.
+      const priced = rows.filter((r) => isRealPrice(r.price));
+      const stats = priceStats(priced.map((r) => Number(r.price)));
+
+      if (stats) {
+        averagePrice = stats.average;
+        lowestPrice = stats.lowest;
+        lowestPriceStoreName = priced[stats.lowestIndex]!.storeName;
+      }
+
+      // Dates come from EVERY row, priced or not: buying something without
+      // recording the price is still buying it, so it must still count for
+      // "last purchased" and for the dismissal comparison below.
       lastPurchasedAt = rows.reduce<Date>(
         (max, r) => (r.purchasedAt > max ? r.purchasedAt : max),
         rows[0].purchasedAt
