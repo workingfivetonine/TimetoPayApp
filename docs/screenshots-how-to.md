@@ -11,8 +11,10 @@ upscaled. The app is iPhone-only
 (`supportsTablet: false`), so Apple never asks for iPad — `compose-appstore-ipad.sh`
 exists but is not needed for submission.
 
-**Six screenshots**, Home first, because Home is the first screen in the app and
-so the first thing anyone sees on the listing. Apple allows up to ten.
+**Seven screenshots**, Home first, because Home is the first screen in the app
+and so the first thing anyone sees on the listing. Apple allows up to ten. Six
+of the seven are scriptable; `07-createlist` is a sub-tab with no route of its
+own and has to be captured by hand.
 
 ---
 
@@ -62,14 +64,14 @@ is gitignored and must stay that way; anyone with it is signed in as you.
 You only repeat this when the session expires, which shows up as a clear error
 in step 2 rather than as a bad screenshot.
 
-## Step 2 — capture the six screens
+## Step 2 — capture the seven screens
 
 ```powershell
 pnpm --filter @workspace/scripts run capture
 ```
 
 It warms the bundle once (Expo's first paint is slow enough to ruin the first
-frame otherwise), then walks the six routes at a 430 × 932 viewport with a 3×
+frame otherwise), then walks the six scriptable routes at a 430 × 932 viewport with a 3×
 pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
 
 | File | Route | What should be visible |
@@ -78,8 +80,19 @@ pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
 | `02-receipts.png` | `/receipts` | Several receipts with store names and totals |
 | `03-stores.png` | `/stores` | Stores with delivery fees |
 | `04-shopping.png` | `/shopping` | Items sub-tab, Regulars and One-offs |
-| `05-analytics.png` | `/analytics` | Weekly spend bars |
-| `06-catalog.png` | `/catalog` | Categories with prices |
+| `05-analytics.png` | `/analytics` | Analytics **Items** tab, not Calendar |
+| `06-catalog.png` | `/catalog` | Categories with prices, **Category** sort not A–Z |
+| `07-createlist.png` | `/shopping` | Create list sub-tab, with RAN OUT badges visible |
+
+The last three carry a preference the capture script can't express, because it
+lands on each route's default view:
+
+- **Analytics** defaults to Calendar, which is an empty month grid unless you
+  shopped this month. Switch to Items before capturing.
+- **Catalog** sorted A–Z opens on "12 Bottle Deposit" and "Ami Magazine".
+  Category sort opens on produce, which shows the feature far better.
+- **Create list** has no route of its own — it's a sub-tab of `/shopping`, so it
+  needs a manual capture.
 
 Each line prints `OK (content matched)` or `captured (NO content match — check
 this one)`. The second is not fatal — it usually means that screen has no data
@@ -96,7 +109,7 @@ To redo a single screen without repeating the set:
 node scripts/src/capture-one.mjs 04-shopping /shopping "Regular,One-off,Best"
 ```
 
-## Step 3 — look at all six
+## Step 3 — look at all seven
 
 Open `screenshots/raw/` and check each one. Things that have gone wrong before:
 
@@ -125,11 +138,16 @@ it there, not in the composite step:
 | 4 | A list that finds the lowest price |
 | 5 | See where your money really goes |
 | 6 | Every feature. Completely free. |
+| 7 | Know what ran out before you go |
+
+A slot with no raw capture is skipped with a `SKIP` line and summarised in a
+warning at the end, rather than aborting the run — so you can frame what you
+have while the rest are still being collected.
 
 ## Step 5 — upload
 
 App Store Connect → your version → **Previews and Screenshots** → *iPhone 6.9"
-Display*. Drag all six in. Order matters and is not inferred from filenames —
+Display*. Drag all seven in. Order matters and is not inferred from filenames —
 check it after dropping them; the numeric prefixes are the intended order.
 
 ---

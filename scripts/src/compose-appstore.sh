@@ -38,7 +38,7 @@ BOT_GRAD="#032f3c"
 
 # Home leads — it is the first screen in the app, so it is the first screen on
 # the listing. Apple allows up to ten images, so adding it costs nothing.
-names=("01-home" "02-receipts" "03-stores" "04-shopping" "05-analytics" "06-catalog")
+names=("01-home" "02-receipts" "03-stores" "04-shopping" "05-analytics" "06-catalog" "07-createlist")
 heads=(
   "Turn receipts into\nreal savings"
   "Snap a receipt.\nWe handle the rest."
@@ -46,11 +46,24 @@ heads=(
   "A list that finds\nthe lowest price"
   "See where your\nmoney really goes"
   "Every feature.\nCompletely free."
+  "Know what ran out\nbefore you go"
 )
+
+missing=()
 
 for i in "${!names[@]}"; do
   n="${names[$i]}"
   text="${heads[$i]}"
+
+  # Skip rather than abort. `set -e` would otherwise kill the whole run on the
+  # first absent capture, which is unhelpful while the raw shots are still being
+  # collected one at a time.
+  if [ ! -f "$RAW/$n.png" ]; then
+    echo "SKIP $n — no $RAW/$n.png"
+    missing+=("$n")
+    continue
+  fi
+
   echo "composing $n ..."
 
   # 1) resize app screenshot to target width
@@ -85,5 +98,11 @@ for i in "${!names[@]}"; do
 
   magick identify -format '%f %wx%h\n' "$OUT/$n.png"
 done
+
+if [ ${#missing[@]} -gt 0 ]; then
+  echo ""
+  echo "WARNING: ${#missing[@]} of ${#names[@]} not composed (no raw capture):"
+  printf '  %s\n' "${missing[@]}"
+fi
 
 echo "DONE -> $OUT"

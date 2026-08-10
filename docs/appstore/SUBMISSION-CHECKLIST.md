@@ -125,7 +125,8 @@ Advertising Data
 
 ### Screenshots ⚠️
 
-**6.7" iPhone, 1290 × 2796**, 3–10 images. Required.
+**6.9" iPhone, 1320 × 2868**, 3–10 images. Required. `compose-appstore.sh`
+outputs exactly this size, across seven slots.
 
 Do **not** reuse the existing ones — they show the old purple UI and a paywall
 that no longer exists. See [../screenshots-how-to.md](../screenshots-how-to.md);
