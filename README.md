@@ -57,6 +57,7 @@ Live at **[5to9shopping.com](https://5to9shopping.com)** — current version **2
   <img src="screenshots/raw/08-shopmode.png" width="150" alt="Shopping Mode">
   <img src="screenshots/raw/05-analytics.png" width="150" alt="Analytics">
   <img src="screenshots/raw/06-catalog.png" width="150" alt="Browse Catalog">
+  <img src="screenshots/raw/item-detail.png" width="150" alt="Item price history">
 </p>
 
 Full App Store set, headline copy and captions live in [screenshots-how-to.md](docs/screenshots-how-to.md); framed store-listing versions are generated on demand with `bash scripts/src/compose-appstore.sh` rather than committed.
