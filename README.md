@@ -10,6 +10,7 @@ Live at **[5to9shopping.com](https://5to9shopping.com)** — current version **2
 
 ## Features
 
+- **A Home hub** — the app opens on a hub (Scan card, six tiles, Shopping Mode when there's an active list) rather than dropping straight into a list; Receipts moved off the tab bar and is one tap from here or the desktop sidebar
 - **AI receipt scanning** — upload one photo or several at once, or a PDF of up to 10 pages (a longer file scans the first 10 and warns which pages were skipped). On iOS and Android you can shoot the receipt with the in-app camera, or share one straight into the app from Photos or Files. Nothing is metered — every upload type is available to every signed-in user.
 - **Review before save** — an editable review screen for every scan: fix the store (autocompleting against stores you already have), date, total, and each line item inline, including a per-item "priced by weight" mode (price-per-pound × weight). Tap the thumbnail for a full-screen pinch-to-zoom view of the receipt to check the fine print, and "Save & Next" saves and drops you straight into the next scan.
 - **Receipt-level adjustments** — delivery fee, tax and discounts are captured as amounts that qualify the total instead of being discarded or mixed in with the line items
@@ -20,12 +21,12 @@ Live at **[5to9shopping.com](https://5to9shopping.com)** — current version **2
 - **Spend analytics** — this-month and since-join spend totals, weekly/monthly trends, and a spend calendar with per-day quick-add
 - **Multi-currency display** — prices render in the user's local currency symbol based on their country (visual only — amounts are never converted)
 - **Store management** — track multiple stores with delivery fees, hours, website, and Google Maps directions; a saved receipt can also be repointed at a different store, suggesting stores you already have
-- **Community board** — a moderated tips/deals board for users with 2+ uploaded receipts. Authors can edit and delete their own posts and replies; admins can remove anyone's, inline on the board
+- **Community board** — a moderated tips/deals board for users with 2+ uploaded receipts. Authors can edit and delete their own posts and replies; admins can remove anyone's, inline on the board. Anyone can report a post or reply to a moderator, or block its author outright — blocking takes effect immediately and is private, undone from Account → Blocked accounts
 - **Profile & onboarding** — unique username + generated avatar, shown as the author on the community board
 - **Cross-store catalog** — region-scoped shared item catalog for price benchmarking
 - **Admin panel** — users listed by username with email as the secondary line, a per-user account card, and a force-password-reset action (marks the Clerk password compromised and revokes live sessions)
 - **Free, with no paid tier** — every feature is available to every signed-in user. Support is an optional donation link; there is no plan, paywall or entitlement check anywhere
-- **Email** — nine lifecycle emails through **Loops**, fired as events: `welcome`, `account_deleted`, `password_reset_required`, `preferences_updated`, `trip_receipt_missing`, `list_export_ready`, `receipt_inactivity`, `weekly_summary`, `monthly_summary`. Templates are MJML built from `email-templates/` and uploaded to Loops as zips — see [LOOPS_EMAILS_HTML.md](LOOPS_EMAILS_HTML.md) for branding and upload mechanics, [LOOPS_EMAILS.md](LOOPS_EMAILS.md) for the copy. All reminders default OFF
+- **Email** — nine lifecycle emails through **Loops**, fired as events: `welcome`, `account_deleted`, `password_reset_required`, `preferences_updated`, `trip_receipt_missing`, `list_export_ready`, `receipt_inactivity`, `weekly_summary`, `monthly_summary`. Templates are authored as LMX in `email-templates/build.mjs` and pushed straight to Loops over the API with `push.mjs` (no zip upload) — see [LOOPS_EMAILS_HTML.md](LOOPS_EMAILS_HTML.md) for the mechanics and [LOOPS_EMAILS.md](LOOPS_EMAILS.md) for the copy; [email-templates/SETUP.md](email-templates/SETUP.md) covers the one-time skeleton setup Loops' API can't do for you. All reminders default OFF
 - **Privacy & GDPR** — privacy policy, Terms/Privacy acceptance at signup, full data export, and self-service account + data deletion
 - **PWA + native builds** — installable on the mobile home screen, offline-capable; the same codebase builds iOS and Android apps through EAS
 
@@ -45,6 +46,20 @@ Live at **[5to9shopping.com](https://5to9shopping.com)** — current version **2
 | Backend hosting | Railway |
 | Database hosting | Neon |
 | Mobile builds | Expo EAS (iOS + Android) |
+
+---
+
+## Screenshots
+
+<p>
+  <img src="screenshots/raw/01-home.png" width="150" alt="Home hub">
+  <img src="screenshots/raw/04-shopping.png" width="150" alt="Shopping List">
+  <img src="screenshots/raw/08-shopmode.png" width="150" alt="Shopping Mode">
+  <img src="screenshots/raw/05-analytics.png" width="150" alt="Analytics">
+  <img src="screenshots/raw/06-catalog.png" width="150" alt="Browse Catalog">
+</p>
+
+Full App Store set, headline copy and captions live in [screenshots-how-to.md](docs/screenshots-how-to.md); framed store-listing versions are generated on demand with `bash scripts/src/compose-appstore.sh` rather than committed.
 
 ---
 
@@ -83,8 +98,11 @@ TimetoPayApp/
 │   ├── db/                  # Drizzle schema and database client
 │   ├── geo/                 # Country → region/currency-symbol maps
 │   ├── api-spec/            # OpenAPI spec
-│   └── api-client-react/    # Generated React Query hooks
-└── scripts/                 # Dev and test utilities
+│   ├── api-client-react/    # Generated React Query hooks
+│   └── guide-content/       # Single source of truth for the in-app + offline how-to guide
+├── docs/                    # Store submission checklists, release notes, generated guide MD/PDF
+├── screenshots/             # Raw app captures (committed) + framed store images (generated, gitignored)
+└── scripts/                 # Dev and test utilities, screenshot capture/compose, guide generator
 ```
 
 ---
