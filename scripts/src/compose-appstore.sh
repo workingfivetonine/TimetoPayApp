@@ -27,9 +27,9 @@ WORK="screenshots/work"
 OUT="screenshots/appstore"
 mkdir -p "$WORK" "$OUT"
 
-CW=1290
-CH=2796
-APPW=964
+CW=1320
+CH=2868
+APPW=986
 R=54
 # Teal gradient matching the 2.0 palette (was violet #8b5cf6 -> #5b21b6).
 # Kept dark enough that the white headline clears AA contrast for large text.
