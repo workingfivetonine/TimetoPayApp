@@ -31,10 +31,16 @@ import { notify } from "@/lib/confirm";
 import { getApiOrigin } from "@/lib/apiBase";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser, useAuth } from "@clerk/expo";
 
 type ShoppingView = "items" | "create" | "shop";
+
+/** Narrows a `?view=` query value; anything unrecognised falls through to null. */
+function paramToView(value: string | string[] | undefined): ShoppingView | null {
+  const v = Array.isArray(value) ? value[0] : value;
+  return v === "items" || v === "create" || v === "shop" ? v : null;
+}
 const SHOPPING_VIEWS: { key: ShoppingView; label: string; icon: keyof typeof Feather.glyphMap }[] = [
   { key: "items", label: "Items", icon: "list" },
   { key: "create", label: "Create list", icon: "check-square" },
@@ -82,6 +88,7 @@ export default function ShoppingScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [loadingItemId, setLoadingItemId] = useState<number | null>(null);
   const [dismissingItemId, setDismissingItemId] = useState<number | null>(null);
@@ -90,7 +97,17 @@ export default function ShoppingScreen() {
 
   // Which sub-tab is showing. The three views share the screen rather than the
   // list-builder being a modal, so building a list and shopping it are one flow.
-  const [view, setView] = useState<ShoppingView>("items");
+  const [view, setView] = useState<ShoppingView>(() => paramToView(viewParam) ?? "items");
+
+  // `/shopping?view=shop` opens straight into Shopping Mode, which is how the
+  // Home hub's Shopping Mode button gets here. Synced in an effect as well as
+  // seeded above, because tapping that button while already on this tab updates
+  // the param without remounting the screen. It only fires when the PARAM
+  // changes, so using the segmented control afterwards is not overridden.
+  useEffect(() => {
+    const next = paramToView(viewParam);
+    if (next) setView(next);
+  }, [viewParam]);
   // Everything the list builder accumulates lives here, not inside it. Switching
   // sub-tabs UNMOUNTS the builder, so anything it held locally would be gone on
   // the way back — and Shopping Mode needs to read what was ticked. `excluded`
@@ -112,6 +129,35 @@ export default function ShoppingScreen() {
   // beyond the screen — a stale half-ticked list on the next trip is worse than
   // starting clean — so it's cleared on "Done shopping".
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Screen-awake preference for Shopping Mode. Held here rather than in the view
+  // for the same unmount reason, and deliberately not persisted across launches:
+  // silently holding a phone awake on a later trip the user never opted into is
+  // worse than re-ticking a box.
+  const [keepAwake, setKeepAwake] = useState(false);
+
+  // Removes a row from THIS trip. Real items join `excluded` (they stay on the
+  // shopping list — "not today" is not "done with it"); custom extras have no
+  // id, so they are deleted outright. Also drops any ticked state, or the basket
+  // count would keep counting something no longer shown.
+  const handleRemoveFromTrip = ({ itemId, name }: { itemId: number | null; name: string }) => {
+    if (itemId != null) {
+      setExcluded((prev) => new Set(prev).add(itemId));
+      setPicked((prev) => {
+        const next = new Set(prev);
+        next.delete(`i${itemId}`);
+        return next;
+      });
+      return;
+    }
+    const index = customItems.indexOf(name);
+    if (index === -1) return;
+    setCustomItems((prev) => prev.filter((_, i) => i !== index));
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.delete(`c${index}`);
+      return next;
+    });
+  };
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -400,6 +446,9 @@ export default function ShoppingScreen() {
           picked={picked}
           onPickedChange={setPicked}
           onDoneShopping={handleDoneShopping}
+          onRemove={handleRemoveFromTrip}
+          keepAwake={keepAwake}
+          onKeepAwakeChange={setKeepAwake}
         />
       ) : matchCount === 0 ? (
         <EmptyState

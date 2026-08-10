@@ -73,9 +73,11 @@
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.23",
     "expo-image-manipulator": "~14.0.8",
+    "expo-keep-awake": "~15.0.8",
     "expo-print": "~15.0.8",
     "expo-share-intent": "5.1.1",
     "expo-sharing": "~14.0.8",
+    "expo-updates": "~29.0.19",
     "xlsx": "^0.18.5"
   }
 }

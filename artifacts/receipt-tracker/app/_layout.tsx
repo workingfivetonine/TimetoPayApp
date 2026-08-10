@@ -182,8 +182,6 @@ function InitialLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  // Fires the one-time "open on Scan" redirect per app launch (see effect below).
-  const landedOnScanRef = useRef(false);
 
   // Keep the module-level token getter current on every render so React Query
   // always has the latest getToken before firing a request. Called during render
@@ -230,20 +228,12 @@ function InitialLayout() {
       router.replace("/profile-setup");
     } else if (needsRegion && !onRegionSetup && !onProfileSetup) {
       router.replace("/region-setup");
-    } else if (
-      isSignedIn &&
-      !needsProfile &&
-      !needsRegion &&
-      !isPublicRoute &&
-      !onRegionSetup &&
-      !onProfileSetup &&
-      !landedOnScanRef.current
-    ) {
-      // Open on the Scan screen once per app launch — scanning is the primary
-      // action. The user closes it (X) to reach the Receipts tab + the rest.
-      landedOnScanRef.current = true;
-      router.replace("/scan");
     }
+    // The app used to force /scan once per launch, on the reasoning that
+    // scanning is the primary action and the root route was only a receipts
+    // list. The Home hub now leads with a full-width Scan card, so that
+    // redirect just hid the new landing screen behind a modal the user had to
+    // dismiss before seeing anything else.
     // Note: we do NOT bounce users who already have a region off /region-setup —
     // that screen doubles as the "edit my region" settings screen.
   }, [

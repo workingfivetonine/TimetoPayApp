@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import type { ShoppingListItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -22,6 +23,36 @@ interface Props {
   picked: Set<string>;
   onPickedChange: React.Dispatch<React.SetStateAction<Set<string>>>;
   onDoneShopping: (summary: { picked: number; total: number }) => void | Promise<void>;
+  /** Drops a row from this trip. Real items are de-selected; custom ones deleted. */
+  onRemove: (row: { itemId: number | null; name: string }) => void;
+  /** Screen-awake preference, owned by the parent so it survives a sub-tab switch. */
+  keepAwake: boolean;
+  onKeepAwakeChange: (next: boolean) => void;
+}
+
+const UNKNOWN_STORE = "Any store";
+const UNKNOWN_CATEGORY = "Other";
+
+const KEEP_AWAKE_TAG = "timetopay-shopping";
+
+/**
+ * Holds the screen on while `enabled` and the caller is mounted.
+ *
+ * Not `useKeepAwake()` from expo-keep-awake, which is unconditional. Failures
+ * are swallowed on purpose: on web this is the Wake Lock API, which some
+ * browsers do not implement and which rejects outside a user gesture — neither
+ * is worth an error in a shop. Web also drops the lock when the tab is hidden
+ * and does not restore it, so treat this as best-effort there and reliable on
+ * native.
+ */
+function useKeepAwakeWhen(enabled: boolean) {
+  React.useEffect(() => {
+    if (!enabled) return;
+    void activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+    return () => {
+      void Promise.resolve(deactivateKeepAwake(KEEP_AWAKE_TAG)).catch(() => {});
+    };
+  }, [enabled]);
 }
 
 // The in-trip view: only what you chose to buy, with empty boxes to tick off as
@@ -34,10 +65,18 @@ export function ShoppingModeView({
   picked,
   onPickedChange: setPicked,
   onDoneShopping,
+  onRemove,
+  keepAwake,
+  onKeepAwakeChange,
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { format } = useCurrency();
+
+  // Holds the screen on while this view is mounted and the option is ticked.
+  // The hook handles its own cleanup, so leaving Shopping Mode — including by
+  // switching sub-tabs, which unmounts this — always releases the lock.
+  useKeepAwakeWhen(keepAwake);
 
   // Item ids and custom names share one key space so both can be ticked.
   const rows = useMemo(
@@ -47,6 +86,43 @@ export function ShoppingModeView({
     ],
     [items, customItems],
   );
+
+  // Grouped the way a trip actually runs: you are in one shop at a time, and
+  // within it you walk aisles. So store first, then category — not the flat
+  // list the Create-list tab shows, where ordering is about choosing.
+  const groups = useMemo(() => {
+    const byStore = new Map<string, Map<string, typeof rows>>();
+    for (const row of rows) {
+      const store =
+        row.item?.recommendedStoreName ?? row.item?.lowestPriceStoreName ?? UNKNOWN_STORE;
+      const category = row.item?.category || UNKNOWN_CATEGORY;
+      if (!byStore.has(store)) byStore.set(store, new Map());
+      const cats = byStore.get(store)!;
+      if (!cats.has(category)) cats.set(category, []);
+      cats.get(category)!.push(row);
+    }
+
+    // "Any store" sinks to the bottom — it is the leftovers bucket, not a shop.
+    const storeNames = [...byStore.keys()].sort((a, b) => {
+      if (a === UNKNOWN_STORE) return 1;
+      if (b === UNKNOWN_STORE) return -1;
+      return a.localeCompare(b);
+    });
+
+    return storeNames.map((store) => {
+      const cats = byStore.get(store)!;
+      const catNames = [...cats.keys()].sort((a, b) => {
+        if (a === UNKNOWN_CATEGORY) return 1;
+        if (b === UNKNOWN_CATEGORY) return -1;
+        return a.localeCompare(b);
+      });
+      return {
+        store,
+        categories: catNames.map((category) => ({ category, rows: cats.get(category)! })),
+        total: [...cats.values()].reduce((n, r) => n + r.length, 0),
+      };
+    });
+  }, [rows]);
 
   const toggle = (key: string) => {
     void Haptics.selectionAsync();
@@ -94,66 +170,98 @@ export function ShoppingModeView({
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
-        {rows.map((row) => {
-          const isPicked = picked.has(row.key);
-          const price = row.item?.recommendedPrice ?? row.item?.lowestPrice ?? null;
-          const store = row.item?.recommendedStoreName ?? row.item?.lowestPriceStoreName ?? null;
-          return (
-            <TouchableOpacity
-              key={row.key}
-              style={[styles.row, { borderBottomColor: colors.border }]}
-              onPress={() => toggle(row.key)}
-              activeOpacity={0.7}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isPicked }}
-              accessibilityLabel={row.name}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    borderColor: isPicked ? colors.primary : colors.border,
-                    backgroundColor: isPicked ? colors.primary : "transparent",
-                  },
-                ]}
-              >
-                {isPicked ? <Feather name="check" size={16} color="#fff" /> : null}
-              </View>
+        {groups.map((group) => (
+          <View key={group.store}>
+            <View style={[styles.storeHeader, { backgroundColor: colors.accent }]}>
+              <Feather name="map-pin" size={13} color={colors.primary} />
+              <Text style={[styles.storeHeaderText, { color: colors.primary }]} numberOfLines={1}>
+                {group.store}
+              </Text>
+              <Text style={[styles.storeHeaderCount, { color: colors.primary }]}>
+                {group.total}
+              </Text>
+            </View>
 
-              <Text style={styles.rowIcon}>{row.item?.icon || (row.item ? "🛒" : "📝")}</Text>
-
-              <View style={styles.rowMain}>
-                <Text
-                  style={[
-                    styles.rowName,
-                    { color: isPicked ? colors.mutedForeground : colors.foreground },
-                    // Struck through once in the basket so the eye skips it.
-                    isPicked && styles.rowNamePicked,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {row.name}
+            {group.categories.map(({ category, rows: catRows }) => (
+              <View key={`${group.store}:${category}`}>
+                <Text style={[styles.categoryHeader, { color: colors.mutedForeground }]}>
+                  {category}
                 </Text>
-                {store ? (
-                  <Text style={[styles.rowMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {store}
-                  </Text>
-                ) : null}
-              </View>
 
-              {price != null ? (
-                <Text
-                  style={[
-                    styles.rowPrice,
-                    { color: isPicked ? colors.mutedForeground : colors.foreground },
-                  ]}
-                >
-                  {format(price)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
+                {catRows.map((row) => {
+                  const isPicked = picked.has(row.key);
+                  const price = row.item?.recommendedPrice ?? row.item?.lowestPrice ?? null;
+                  return (
+                    <View key={row.key} style={[styles.row, { borderBottomColor: colors.border }]}>
+                      <TouchableOpacity
+                        style={styles.rowTap}
+                        onPress={() => toggle(row.key)}
+                        activeOpacity={0.7}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: isPicked }}
+                        accessibilityLabel={row.name}
+                      >
+                        <View
+                          style={[
+                            styles.checkbox,
+                            {
+                              borderColor: isPicked ? colors.primary : colors.border,
+                              backgroundColor: isPicked ? colors.primary : "transparent",
+                            },
+                          ]}
+                        >
+                          {isPicked ? <Feather name="check" size={16} color="#fff" /> : null}
+                        </View>
+
+                        <Text style={styles.rowIcon}>
+                          {row.item?.icon || (row.item ? "🛒" : "📝")}
+                        </Text>
+
+                        <View style={styles.rowMain}>
+                          <Text
+                            style={[
+                              styles.rowName,
+                              { color: isPicked ? colors.mutedForeground : colors.foreground },
+                              // Struck through once in the basket so the eye skips it.
+                              isPicked && styles.rowNamePicked,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {row.name}
+                          </Text>
+                        </View>
+
+                        {price != null ? (
+                          <Text
+                            style={[
+                              styles.rowPrice,
+                              { color: isPicked ? colors.mutedForeground : colors.foreground },
+                            ]}
+                          >
+                            {format(price)}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+
+                      {/* Removes the row from THIS trip only — it stays on the
+                          shopping list, because "not buying it today" is not the
+                          same as "done with it". */}
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={() => onRemove({ itemId: row.item?.itemId ?? null, name: row.name })}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${row.name} from this trip`}
+                      >
+                        <Feather name="x" size={16} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        ))}
       </ScrollView>
 
       {/* "Done shopping" is the only way to end a trip, so it must never be
@@ -165,6 +273,30 @@ export function ShoppingModeView({
           { borderTopColor: colors.border, paddingBottom: tabBarClearance(insets.bottom) },
         ]}
       >
+        <TouchableOpacity
+          style={styles.keepAwakeRow}
+          onPress={() => onKeepAwakeChange(!keepAwake)}
+          activeOpacity={0.7}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: keepAwake }}
+          accessibilityLabel="Keep the screen on while shopping"
+        >
+          <View
+            style={[
+              styles.keepAwakeBox,
+              {
+                borderColor: keepAwake ? colors.primary : colors.border,
+                backgroundColor: keepAwake ? colors.primary : "transparent",
+              },
+            ]}
+          >
+            {keepAwake ? <Feather name="check" size={12} color="#fff" /> : null}
+          </View>
+          <Text style={[styles.keepAwakeText, { color: colors.mutedForeground }]}>
+            Keep screen on while shopping
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.doneBtn, { backgroundColor: colors.primary }]}
           onPress={() => onDoneShopping({ picked: picked.size, total: basketTotal })}
@@ -191,14 +323,40 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   progressMeta: { fontSize: 13, fontFamily: "Inter_500Medium" },
   list: { paddingBottom: 16 },
+  storeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+  },
+  storeHeaderText: { flex: 1, fontSize: 13.5, fontFamily: "Inter_700Bold" },
+  storeHeaderCount: { fontSize: 12.5, fontFamily: "Inter_600SemiBold" },
+  categoryHeader: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingRight: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  rowTap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 14,
+  },
+  removeBtn: { padding: 6 },
   // Deliberately larger than the Create-list checkbox: this one gets tapped
   // one-handed, in a shop, often while holding something.
   checkbox: {
@@ -229,4 +387,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   doneBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  keepAwakeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingBottom: 12,
+  },
+  keepAwakeBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  keepAwakeText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 });

@@ -94,6 +94,28 @@ export default function HomeScreen() {
           <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.75)" />
         </TouchableOpacity>
 
+        {/* The other thing people open the app standing up to do. Goes straight
+            to the Shopping sub-tab rather than the list, so there is no
+            segmented control to find first. */}
+        <TouchableOpacity
+          style={[styles.shopCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}
+          onPress={() => router.push("/shopping?view=shop")}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Start Shopping Mode"
+        >
+          <View style={[styles.shopIcon, { backgroundColor: colors.primary }]}>
+            <Feather name="shopping-cart" size={20} color={colors.primaryForeground} />
+          </View>
+          <View style={styles.scanText}>
+            <Text style={[styles.shopTitle, { color: colors.primary }]}>Shopping Mode</Text>
+            <Text style={[styles.shopHint, { color: colors.mutedForeground }]}>
+              Tick items off while you're in the store
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={colors.primary} />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.manualRow, { borderColor: colors.border }]}
           onPress={() => router.push("/manual-entry")}
@@ -101,7 +123,7 @@ export default function HomeScreen() {
         >
           <Feather name="edit-3" size={14} color={colors.mutedForeground} />
           <Text style={[styles.manualText, { color: colors.mutedForeground }]}>
-            Or enter one by hand
+            Or enter a receipt by hand
           </Text>
         </TouchableOpacity>
 
@@ -210,6 +232,26 @@ const styles = StyleSheet.create({
   scanText: { flex: 1, gap: 2 },
   scanTitle: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   scanHint: { color: "rgba(255,255,255,0.82)", fontSize: 12.5, fontFamily: "Inter_400Regular" },
+
+  shopCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 14,
+    paddingHorizontal: 15,
+    marginTop: -8,
+  },
+  shopIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shopTitle: { fontSize: 15.5, fontFamily: "Inter_600SemiBold" },
+  shopHint: { fontSize: 12.5, fontFamily: "Inter_400Regular" },
 
   manualRow: {
     flexDirection: "row",
