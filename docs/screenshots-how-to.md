@@ -3,8 +3,11 @@
 Both halves are scripted now: capture, then framing. End to end it's three
 commands and about ten minutes, most of which is the browser loading.
 
-**Target size: 1290 × 2796.** That fills App Store Connect's *iPhone 6.9"* slot,
-which accepts either 1320 × 2868 or 1290 × 2796. The app is iPhone-only
+**Finished size: 1320 × 2868** — the native iPhone 6.9" resolution, and one of
+the two sizes App Store Connect accepts for that slot (1290 × 2796 is the other).
+Capture happens at 1290 × 2796 and `compose-appstore.sh` places it on the larger
+canvas, scaling the phone image *down* to 986px wide, so nothing is ever
+upscaled. The app is iPhone-only
 (`supportsTablet: false`), so Apple never asks for iPad — `compose-appstore-ipad.sh`
 exists but is not needed for submission.
 
@@ -107,7 +110,7 @@ Open `screenshots/raw/` and check each one. Things that have gone wrong before:
 bash scripts/src/compose-appstore.sh
 ```
 
-Finished images land in `screenshots/appstore/`, one 1290 × 2796 PNG each:
+Finished images land in `screenshots/appstore/`, one 1320 × 2868 PNG each:
 rounded device corners, drop shadow, teal gradient background
 (`#06687e` → `#032f3c`), white headline.
 

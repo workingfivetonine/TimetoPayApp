@@ -26,7 +26,10 @@ EVERYTHING IS FREE
 Subscriptions and scan limits are gone. Unlimited AI receipt scanning, multi-page PDF imports, full price history and every analytics view are now open to everyone. No trial, no tiers, no card required.
 
 A BRAND-NEW LOOK
-The whole app has been redesigned around a deep teal palette, with a proper dark mode that follows your system setting — including a dark launch screen instead of a white flash.
+The whole app has been redesigned around a deep teal palette, with a proper dark mode that follows your system setting, and a clean new launch screen built around the teal mark.
+
+A NEW HOME SCREEN
+The app now opens on a hub instead of dropping you straight into a list: one tap to scan, and everything else — receipts, shopping list, stores, analytics, the catalog and the community board — one tap from there.
 
 SHOPPING MODE
 The shopping tab is now three sub-tabs, with a dedicated Shopping Mode for while you're actually in the store: tick items off as you go, and your progress sticks around.
@@ -57,16 +60,17 @@ Thanks for using TimetoPay. Questions or ideas? Just reply — we read everythin
 *Play Console → Release → Release notes (max 500)*
 
 ```
-TimetoPay is now completely free — no subscriptions, no scan limits.
+TimetoPay is now completely free — no subscriptions, no limits.
 
-• Unlimited AI receipt scanning and PDF imports for everyone
+• Unlimited AI receipt scanning and PDF imports
 • Fresh dark-teal design with full dark mode
-• New Shopping Mode: tick items off while you shop
-• Snap receipts with the in-app camera, or share them in from Photos/Files
+• New home screen: scan or jump anywhere in one tap
+• Shopping Mode: tick items off while you shop
+• In-app camera, or share receipts from Photos/Files
 • Tax and discounts now captured properly
 • Multi-page PDF receipts (up to 10 pages)
 • Scanned items matched to past purchases
-• Pinch to zoom receipts; fix a receipt's store after saving
+• Pinch to zoom; fix a receipt's store after saving
 ```
 
 ---
@@ -120,10 +124,20 @@ These cannot be done from the codebase and are easy to forget:
 
 ## Screenshots
 
-Not generated in this release — see the blocker note in
-`.agents/memory/appstore-screenshots.md`. The documented pipeline needs
-ImageMagick plus authentic signed-in captures driven through a browser, and it
-referenced a Replit environment the project has since disconnected from. The
-existing `scripts/src/compose-appstore.sh` and `compose-appstore-ipad.sh` still
-hardcode the old purple gradient (`#8b5cf6` → `#5b21b6`) and would need the teal
-values before use.
+The pipeline works now, both halves. Full instructions in
+[docs/screenshots-how-to.md](screenshots-how-to.md); the short version is three
+commands:
+
+```powershell
+pnpm --filter @workspace/scripts run capture:login   # once, opens a browser to sign in
+pnpm --filter @workspace/scripts run capture         # six screens into screenshots/raw/
+```
+
+```bash
+bash scripts/src/compose-appstore.sh                 # framed images into screenshots/appstore/
+```
+
+Six screenshots, Home first. The old blocker notes are obsolete: ImageMagick is
+installed, the gradient is teal (`#06687e` → `#032f3c`), the Replit dependency is
+gone, and signed-in capture is handled by a saved session rather than a dev auth
+bypass.
