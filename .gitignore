@@ -52,6 +52,11 @@ Thumbs.db
 # Screenshot pipeline intermediates (scripts/src/compose-appstore.sh).
 # raw/ and appstore/ are kept: raw are the source captures, appstore are the
 # finished store images. work/ is pure throwaway.
+# Framed App Store images. Derived: compose-appstore.sh rebuilds them from
+# screenshots/raw/ in well under a minute, so they would only add ~6MB to git
+# history permanently for no information gain. The raw captures ARE committed.
+screenshots/appstore/
+screenshots/appstore-ipad/
 screenshots/work/
 screenshots/work-ipad/
 # Cached signed-in browser session used by the screenshot capture — real cookies.

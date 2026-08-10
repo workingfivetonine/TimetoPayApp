@@ -11,9 +11,9 @@ upscaled. The app is iPhone-only
 (`supportsTablet: false`), so Apple never asks for iPad — `compose-appstore-ipad.sh`
 exists but is not needed for submission.
 
-**Seven screenshots**, Home first, because Home is the first screen in the app
+**Eight screenshots**, Home first, because Home is the first screen in the app
 and so the first thing anyone sees on the listing. Apple allows up to ten. All
-seven are scriptable — the shopping and analytics sub-tabs each take a query
+eight are scriptable — the shopping and analytics sub-tabs each take a query
 param, so they have addressable URLs.
 
 ---
@@ -78,14 +78,14 @@ in step 2 rather than as a bad screenshot.
 > where the six identical marketing-page screenshots came from. It now waits on
 > Clerk's `__session` cookie, and the capture step re-checks it per screen.
 
-## Step 2 — capture the seven screens
+## Step 2 — capture the eight screens
 
 ```powershell
 pnpm --filter @workspace/scripts run capture
 ```
 
 It warms the bundle once (Expo's first paint is slow enough to ruin the first
-frame otherwise), then walks the seven routes at a 430 × 932 viewport with a 3×
+frame otherwise), then walks the eight routes at a 430 × 932 viewport with a 3×
 pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
 
 | File | Route | What should be visible |
@@ -97,16 +97,17 @@ pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
 | `05-analytics.png` | `/analytics?tab=items` | Store comparison, "Cheapest by category" |
 | `06-catalog.png` | `/catalog` | Categories with prices |
 | `07-createlist.png` | `/shopping?view=create` | Build your list, with RAN OUT badges |
+| `08-shopmode.png` | `/shopping?view=shop` | Shopping Mode: items grouped by store |
 
-Sub-tabs are addressable, which is why the last three are scriptable at all.
+Sub-tabs are addressable, which is why the last four are scriptable at all.
 `/shopping` takes `?view=items|create|shop` and `/analytics` takes
 `?tab=calendar|items`; an unrecognised value falls back to the default rather
 than erroring. Two of those defaults are deliberately overridden here:
 
 - **Analytics** opens on Calendar, which is an empty month grid unless you
   shopped this month. `?tab=items` lands on the store comparison instead.
-- **Create list** is a sub-tab, not a top-level screen, so without `?view=` the
-  capture would just re-shoot the Items list.
+- **Create list** and **Shopping Mode** are sub-tabs, not top-level screens, so
+  without `?view=` both would just re-shoot the Items list.
 
 Catalog sorts by Category out of the box, which opens on produce. If you switch
 it to A–Z you get "12 Bottle Deposit" and "Ami Magazine" at the top — accurate,
@@ -127,9 +128,14 @@ To redo a single screen without repeating the set:
 node scripts/src/capture-one.mjs 04-shopping /shopping "Regular,One-off,Best"
 ```
 
-## Step 3 — look at all seven
+## Step 3 — look at all eight
 
-Open `screenshots/raw/` and check each one. Things that have gone wrong before:
+Open `screenshots/raw/` and check each one. They are committed, quantized to a
+256-colour palette (~23% of the original bytes, visually identical on flat UI);
+the framed output in `screenshots/appstore/` is gitignored because the script
+rebuilds it from these in under a minute.
+
+Things to check: Things that have gone wrong before:
 
 - A view still loading, so the frame is blank white
 - A screen with one item on it
@@ -157,6 +163,7 @@ it there, not in the composite step:
 | 5 | See where your money really goes |
 | 6 | Every feature. Completely free. |
 | 7 | Know what ran out before you go |
+| 8 | Grouped by store. Ticked off as you go. |
 
 A slot with no raw capture is skipped with a `SKIP` line and summarised in a
 warning at the end, rather than aborting the run — so you can frame what you
@@ -165,7 +172,7 @@ have while the rest are still being collected.
 ## Step 5 — upload
 
 App Store Connect → your version → **Previews and Screenshots** → *iPhone 6.9"
-Display*. Drag all seven in. Order matters and is not inferred from filenames —
+Display*. Drag all eight in. Order matters and is not inferred from filenames —
 check it after dropping them; the numeric prefixes are the intended order.
 
 ---

@@ -38,7 +38,7 @@ BOT_GRAD="#032f3c"
 
 # Home leads — it is the first screen in the app, so it is the first screen on
 # the listing. Apple allows up to ten images, so adding it costs nothing.
-names=("01-home" "02-receipts" "03-stores" "04-shopping" "05-analytics" "06-catalog" "07-createlist")
+names=("01-home" "02-receipts" "03-stores" "04-shopping" "05-analytics" "06-catalog" "07-createlist" "08-shopmode")
 heads=(
   "Turn receipts into\nreal savings"
   "Snap a receipt.\nWe handle the rest."
@@ -47,6 +47,7 @@ heads=(
   "See where your\nmoney really goes"
   "Every feature.\nCompletely free."
   "Know what ran out\nbefore you go"
+  "Grouped by store.\nTicked off as you go."
 )
 
 missing=()
