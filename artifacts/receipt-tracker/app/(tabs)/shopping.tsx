@@ -108,6 +108,23 @@ export default function ShoppingScreen() {
     const next = paramToView(viewParam);
     if (next) setView(next);
   }, [viewParam]);
+
+  // Every user-driven view change goes through here so the URL stays in step
+  // with what's on screen — that's what makes a sub-tab linkable, bookmarkable
+  // and reachable by the screenshot capture script.
+  //
+  // `setParams` rather than `push`: the three views are one screen sharing one
+  // set of state, and pushing would stack duplicate copies of this route. The
+  // trade is that the browser Back button leaves the screen instead of stepping
+  // back through sub-tabs.
+  //
+  // Note the seeding above and the effect must NOT call this — they react to the
+  // param, and writing it back from there would be a loop.
+  const selectView = (next: ShoppingView) => {
+    setView(next);
+    router.setParams({ view: next });
+  };
+
   // Everything the list builder accumulates lives here, not inside it. Switching
   // sub-tabs UNMOUNTS the builder, so anything it held locally would be gone on
   // the way back — and Shopping Mode needs to read what was ticked. `excluded`
@@ -129,6 +146,14 @@ export default function ShoppingScreen() {
   // beyond the screen — a stale half-ticked list on the next trip is worse than
   // starting clean — so it's cleared on "Done shopping".
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Keep a ref to the current picked set so handleDoneShopping can read the IDs
+  // that are still ticked. State updates are async, so reading `picked` directly
+  // would read the prior render's value. The ref is synced on every render.
+  const pickedRef = useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    pickedRef.current = picked;
+  }, [picked]);
+
   // Screen-awake preference for Shopping Mode. Held here rather than in the view
   // for the same unmount reason, and deliberately not persisted across launches:
   // silently holding a phone awake on a later trip the user never opted into is
@@ -290,7 +315,15 @@ export default function ShoppingScreen() {
   // Ending a trip is deliberate — only this fires the upload reminder, never a
   // tab switch or backgrounding, both of which happen constantly mid-shop.
   const handleDoneShopping = async ({ picked }: { picked: number; total: number }) => {
-    setView("items");
+    // Read the basket BEFORE clearing it. Anything still ticked at this moment
+    // went home with the shopper, so its "ran out" flag is stale — but only now,
+    // on close. A tick mid-trip is reversible and must not commit anything.
+    const pickedItemIds = [...pickedRef.current]
+      .filter((key) => key.startsWith("i"))
+      .map((key) => Number(key.slice(1)))
+      .filter((id) => Number.isInteger(id));
+
+    selectView("items");
     // The trip is over, so the basket resets. This is the ONLY thing that clears
     // it — a tab switch must not.
     setPicked(new Set());
@@ -313,8 +346,18 @@ export default function ShoppingScreen() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ itemsPicked: picked, itemsPlanned: selectedItems.length + customItems.length }),
+        body: JSON.stringify({
+          itemsPicked: picked,
+          itemsPlanned: selectedItems.length + customItems.length,
+          pickedItemIds,
+        }),
       });
+      // The same call clears "ran out" on what was ticked, so the list on screen
+      // is now stale — refetch rather than leave items showing as out of stock
+      // the user just bought.
+      if (pickedItemIds.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+      }
     } catch {
       // Non-fatal by design — see above.
     }
@@ -373,7 +416,7 @@ export default function ShoppingScreen() {
               <TouchableOpacity
                 key={v.key}
                 style={[styles.viewTab, active && { borderBottomColor: colors.primary }]}
-                onPress={() => setView(v.key)}
+                onPress={() => selectView(v.key)}
                 activeOpacity={0.7}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
@@ -422,7 +465,7 @@ export default function ShoppingScreen() {
         <ShoppingListPdfModal
           inline
           visible
-          onClose={() => setView("items")}
+          onClose={() => selectView("items")}
           recurring={list?.recurring ?? []}
           oneOff={list?.oneOff ?? []}
           preparedFor={preparedFor}

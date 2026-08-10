@@ -31,9 +31,14 @@ const screens = [
   { name: "01-home", path: "/", expect: ["Scan a receipt", "Shopping List", "Browse Catalog"] },
   { name: "02-receipts", path: "/receipts", expect: STORES },
   { name: "03-stores", path: "/stores", expect: STORES },
-  { name: "04-shopping", path: "/shopping", expect: ["Regular", "One-off", "Best", "$"] },
-  { name: "05-analytics", path: "/analytics", expect: ["week", "Spend", "Avg", "Highest", "Lowest", "$"] },
+  { name: "04-shopping", path: "/shopping?view=items", expect: ["Regular", "One-off", "Best", "$"] },
+  // Analytics defaults to the Calendar tab, which is an empty grid in any month
+  // you haven't shopped. ?tab=items lands on the store comparison instead.
+  { name: "05-analytics", path: "/analytics?tab=items", expect: ["Cheapest", "category", "Spend", "$"] },
   { name: "06-catalog", path: "/catalog", expect: ["Produce", "Dairy", "Pantry", "Add", "Browse", "$"] },
+  // Sub-tab of /shopping, reachable since the views became addressable. Shows
+  // the RAN OUT badges, quantity steppers and the PDF/Share export in one frame.
+  { name: "07-createlist", path: "/shopping?view=create", expect: ["Build your list", "selected", "PDF", "Share"] },
 ];
 
 if (process.argv.includes("--login")) {

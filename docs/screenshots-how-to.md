@@ -12,9 +12,9 @@ upscaled. The app is iPhone-only
 exists but is not needed for submission.
 
 **Seven screenshots**, Home first, because Home is the first screen in the app
-and so the first thing anyone sees on the listing. Apple allows up to ten. Six
-of the seven are scriptable; `07-createlist` is a sub-tab with no route of its
-own and has to be captured by hand.
+and so the first thing anyone sees on the listing. Apple allows up to ten. All
+seven are scriptable — the shopping and analytics sub-tabs each take a query
+param, so they have addressable URLs.
 
 ---
 
@@ -71,7 +71,7 @@ pnpm --filter @workspace/scripts run capture
 ```
 
 It warms the bundle once (Expo's first paint is slow enough to ruin the first
-frame otherwise), then walks the six scriptable routes at a 430 × 932 viewport with a 3×
+frame otherwise), then walks the seven routes at a 430 × 932 viewport with a 3×
 pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
 
 | File | Route | What should be visible |
@@ -79,20 +79,24 @@ pixel ratio — which is exactly 1290 × 2796, so nothing is ever upscaled.
 | `01-home.png` | `/` | The hub: Scan card, six tiles |
 | `02-receipts.png` | `/receipts` | Several receipts with store names and totals |
 | `03-stores.png` | `/stores` | Stores with delivery fees |
-| `04-shopping.png` | `/shopping` | Items sub-tab, Regulars and One-offs |
-| `05-analytics.png` | `/analytics` | Analytics **Items** tab, not Calendar |
-| `06-catalog.png` | `/catalog` | Categories with prices, **Category** sort not A–Z |
-| `07-createlist.png` | `/shopping` | Create list sub-tab, with RAN OUT badges visible |
+| `04-shopping.png` | `/shopping?view=items` | Items sub-tab, Regulars and One-offs |
+| `05-analytics.png` | `/analytics?tab=items` | Store comparison, "Cheapest by category" |
+| `06-catalog.png` | `/catalog` | Categories with prices |
+| `07-createlist.png` | `/shopping?view=create` | Build your list, with RAN OUT badges |
 
-The last three carry a preference the capture script can't express, because it
-lands on each route's default view:
+Sub-tabs are addressable, which is why the last three are scriptable at all.
+`/shopping` takes `?view=items|create|shop` and `/analytics` takes
+`?tab=calendar|items`; an unrecognised value falls back to the default rather
+than erroring. Two of those defaults are deliberately overridden here:
 
-- **Analytics** defaults to Calendar, which is an empty month grid unless you
-  shopped this month. Switch to Items before capturing.
-- **Catalog** sorted A–Z opens on "12 Bottle Deposit" and "Ami Magazine".
-  Category sort opens on produce, which shows the feature far better.
-- **Create list** has no route of its own — it's a sub-tab of `/shopping`, so it
-  needs a manual capture.
+- **Analytics** opens on Calendar, which is an empty month grid unless you
+  shopped this month. `?tab=items` lands on the store comparison instead.
+- **Create list** is a sub-tab, not a top-level screen, so without `?view=` the
+  capture would just re-shoot the Items list.
+
+Catalog sorts by Category out of the box, which opens on produce. If you switch
+it to A–Z you get "12 Bottle Deposit" and "Ami Magazine" at the top — accurate,
+but a much weaker first impression. Don't.
 
 Each line prints `OK (content matched)` or `captured (NO content match — check
 this one)`. The second is not fatal — it usually means that screen has no data

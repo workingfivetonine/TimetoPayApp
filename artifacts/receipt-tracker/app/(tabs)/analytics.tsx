@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import * as XLSX from "xlsx";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   useGetSpendAnalytics,
   getGetSpendAnalyticsQueryKey,
@@ -48,6 +48,12 @@ import { notify } from "@/lib/confirm";
 import { Feather } from "@expo/vector-icons";
 
 type Tab = "calendar" | "items";
+
+/** Narrows a `?tab=` query value; anything unrecognised falls through to null. */
+function paramToTab(value: string | string[] | undefined): Tab | null {
+  const v = Array.isArray(value) ? value[0] : value;
+  return v === "calendar" || v === "items" ? v : null;
+}
 
 type InactiveItem = {
   itemId: number;
@@ -126,7 +132,22 @@ export default function AnalyticsScreen() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("calendar");
+  // Mirrors the sub-tab into `?tab=`, same as /shopping?view= — see the note on
+  // `selectView` there for why this uses setParams rather than push. Analytics
+  // holds no working state across its two tabs, so this is purely about making
+  // the view addressable.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<Tab>(() => paramToTab(tabParam) ?? "calendar");
+
+  useEffect(() => {
+    const next = paramToTab(tabParam);
+    if (next) setActiveTab(next);
+  }, [tabParam]);
+
+  const selectTab = (next: Tab) => {
+    setActiveTab(next);
+    router.setParams({ tab: next });
+  };
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<DaySpend | null>(null);
@@ -379,7 +400,7 @@ export default function AnalyticsScreen() {
               styles.tabBtn,
               activeTab === tab && { backgroundColor: colors.card },
             ]}
-            onPress={() => setActiveTab(tab)}
+            onPress={() => selectTab(tab)}
             activeOpacity={0.7}
           >
             <Feather
