@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { fetch as expoFetch } from "expo/fetch";
 import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
@@ -37,9 +38,15 @@ import { canUseWebCamera, captureWithWebCamera } from "@/lib/webCamera";
 
 interface PendingImage {
   uri: string;
-  base64: string;
   width: number;
   height: number;
+}
+
+// A photo as it comes back from a picker, before we've read any bytes.
+interface PickedAsset {
+  uri: string;
+  width?: number;
+  height?: number;
 }
 
 // Minimal shape we need from a saved-receipt response (parse-and-save / each
@@ -88,6 +95,33 @@ async function readFileAsBase64(uri: string): Promise<string> {
   return base64;
 }
 
+// Re-encode a picked photo to JPEG and hand back its base64.
+//
+// Two reasons this can't be skipped by asking the picker for base64 directly.
+// The server wraps whatever we send in a `data:image/jpeg;base64,` URL, and on
+// iOS expo-image-picker takes a fast path that copies the ORIGINAL file — HEIC
+// on any modern iPhone — so photos sent straight through were being handed to
+// the model mislabelled as JPEG. And the picker's own base64 is read natively
+// with `try?`: a full-resolution photo that fails to load under memory pressure
+// comes back with base64 silently nil, which used to abort the whole scan with
+// no error at all. Reading it here means a failure is an exception we can report.
+//
+// The long edge is capped the same way the crop editor caps it, so photos that
+// bypass the editor (multi-select) can't blow the upload size limit either.
+async function toJpegBase64(uri: string, width?: number, height?: number): Promise<string> {
+  const actions: Parameters<typeof manipulateAsync>[1] = [];
+  if (width && height && Math.max(width, height) > 2400) {
+    actions.push(width >= height ? { resize: { width: 2400 } } : { resize: { height: 2400 } });
+  }
+  const result = await manipulateAsync(uri, actions, {
+    format: SaveFormat.JPEG,
+    compress: 0.9,
+    base64: true,
+  });
+  if (!result.base64) throw new Error("Empty image");
+  return result.base64;
+}
+
 function toSummary(saved: SavedReceipt): BatchReceiptSummary {
   return {
     id: saved.id,
@@ -131,6 +165,18 @@ export default function ScanScreen() {
     const file = takeSharedFile();
     if (!file) return;
     void (async () => {
+      if (file.kind !== "pdf") {
+        // Same crop-then-scan path as a picked photo — the editor reads and
+        // re-encodes the file itself, so nothing is read here. Dimensions can be
+        // absent from a share intent; the editor needs numbers, so fall back to a
+        // square and let it re-measure.
+        setPendingImage({
+          uri: file.uri,
+          width: file.width ?? 1000,
+          height: file.height ?? 1000,
+        });
+        return;
+      }
       let base64: string;
       try {
         base64 = await readFileAsBase64(file.uri);
@@ -141,19 +187,7 @@ export default function ScanScreen() {
         );
         return;
       }
-      if (file.kind === "pdf") {
-        await parsePdf(base64);
-      } else {
-        // Same crop-then-scan path as a picked photo. Dimensions can be absent
-        // from a share intent; the editor needs numbers, so fall back to a square
-        // and let it re-measure.
-        setPendingImage({
-          uri: file.uri,
-          base64,
-          width: file.width ?? 1000,
-          height: file.height ?? 1000,
-        });
-      }
+      await parsePdf(base64);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared]);
@@ -239,14 +273,15 @@ export default function ScanScreen() {
       );
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 1.0 });
+    // No `base64: true` — the crop editor re-encodes from the uri anyway, and
+    // asking the picker for it only adds a full-resolution read that can fail
+    // silently. See toJpegBase64.
+    const result = await ImagePicker.launchCameraAsync({ quality: 1.0 });
     if (result.canceled || result.assets.length === 0) return;
     const asset = result.assets[0];
-    if (!asset.base64) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPendingImage({
       uri: asset.uri,
-      base64: asset.base64,
       width: asset.width,
       height: asset.height,
     });
@@ -289,16 +324,19 @@ export default function ScanScreen() {
   };
 
   const handlePickImage = async () => {
+    // Deliberately no `base64: true`. Every path below reads the bytes itself
+    // (crop editor, or toJpegBase64) — asking the picker for base64 as well made
+    // it read every selected photo at full resolution up front, and a photo it
+    // failed to read came back with base64 quietly missing, which was then
+    // filtered out and left the scan doing nothing at all.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      base64: true,
       quality: 1.0,
       allowsMultipleSelection: true,
     });
     if (result.canceled || result.assets.length === 0) return;
 
-    const assets = result.assets.filter((a) => a.base64);
-    if (assets.length === 0) return;
+    const assets: PickedAsset[] = result.assets;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Single photo → the existing crop-and-review flow. Multiple photos →
@@ -308,23 +346,21 @@ export default function ScanScreen() {
       const asset = assets[0];
       setPendingImage({
         uri: asset.uri,
-        base64: asset.base64!,
-        width: asset.width,
-        height: asset.height,
+        width: asset.width ?? 1000,
+        height: asset.height ?? 1000,
       });
     } else {
-      const imagesBase64 = assets.map((a) => a.base64!);
       Alert.alert(
         "Multiple photos selected",
         "Are these photos of the same receipt, or different receipts?",
         [
           {
             text: "Same receipt",
-            onPress: () => parseCombinedReceipt(imagesBase64),
+            onPress: () => void parseCombinedReceipt(assets),
           },
           {
             text: "Different receipts",
-            onPress: () => parseMultipleImages(imagesBase64),
+            onPress: () => void parseMultipleImages(assets),
           },
           { text: "Cancel", style: "cancel" },
         ],
@@ -334,10 +370,27 @@ export default function ScanScreen() {
 
   // Send all photos as one combined AI call — used when multiple images are
   // different angles/sections of the same physical receipt.
-  const parseCombinedReceipt = async (imagesBase64: string[]) => {
+  const parseCombinedReceipt = async (assets: PickedAsset[]) => {
     setScanning(true);
     setScanningLabel("Combining photos and analyzing receipt…");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Read the photos before the upload try/catch: a file we can't open is a
+    // different problem from a scan that failed, and deserves its own message.
+    let imagesBase64: string[];
+    try {
+      imagesBase64 = await Promise.all(
+        assets.map((a) => toJpegBase64(a.uri, a.width, a.height)),
+      );
+    } catch {
+      setScanning(false);
+      showErrorToast(
+        "Couldn't open those photos",
+        "One of the selected photos couldn't be read. Try picking them again, or add the details manually.",
+      );
+      return;
+    }
+
     try {
       const result = await callApi<SavedReceipt>("parse-and-save-batch", { imagesBase64 });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -345,7 +398,7 @@ export default function ScanScreen() {
       showSuccessToast("Receipt scanned", "Combined photos processed");
       router.replace(`/receipt/${result.id}`);
     } catch (err) {
-      showUploadFailure(err, "image", () => parseCombinedReceipt(imagesBase64));
+      showUploadFailure(err, "image", () => parseCombinedReceipt(assets));
     } finally {
       setScanning(false);
     }
@@ -353,16 +406,19 @@ export default function ScanScreen() {
 
   // Parse several photos at once, saving each as its own receipt. Failures on
   // individual photos are collected and reported without aborting the rest.
-  const parseMultipleImages = async (imagesBase64: string[]) => {
+  const parseMultipleImages = async (assets: PickedAsset[]) => {
     setScanning(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const summaries: BatchReceiptSummary[] = [];
     let failures = 0;
     try {
       await Promise.all(
-        imagesBase64.map(async (base64, index) => {
-          setScanningLabel(`Analyzing photo ${index + 1} of ${imagesBase64.length}…`);
+        assets.map(async (asset, index) => {
+          setScanningLabel(`Analyzing photo ${index + 1} of ${assets.length}…`);
           try {
+            // Reading the photo is inside the per-photo try on purpose: one
+            // unreadable file counts as that photo failing, not the whole batch.
+            const base64 = await toJpegBase64(asset.uri, asset.width, asset.height);
             const result = await callApi<SavedReceipt>("parse-and-save", { imageBase64: base64 });
             summaries.push(toSummary(result));
           } catch {
@@ -376,7 +432,7 @@ export default function ScanScreen() {
 
     if (summaries.length === 0) {
       showUploadFailure(new UploadError(422), "image", () =>
-        parseMultipleImages(imagesBase64),
+        parseMultipleImages(assets),
       );
       return;
     }
@@ -387,7 +443,7 @@ export default function ScanScreen() {
     if (failures > 0) {
       showErrorToast(
         "Some photos couldn't be read",
-        `Saved ${summaries.length} of ${imagesBase64.length} photos. Add the rest manually.`,
+        `Saved ${summaries.length} of ${assets.length} photos. Add the rest manually.`,
       );
     } else {
       showSuccessToast("Receipt scanned", `${summaries.length} photo${summaries.length === 1 ? "" : "s"} processed`);
