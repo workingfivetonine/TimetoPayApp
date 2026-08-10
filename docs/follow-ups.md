@@ -94,6 +94,19 @@ rather than scaling the existing rounded-square icon.
 
 ---
 
+## Dead `image_uri` column on receipts
+
+`receiptsTable.imageUri` exists in
+[the schema](../lib/db/src/schema/receipts.ts) but **nothing writes it** — no
+API-server code sets it and the client never sends it. Receipt images go to
+OpenAI for parsing and are discarded.
+
+Worth removing, because it actively misleads: it reads as "we store receipt
+photos", which matters when answering App Store / Play privacy questionnaires.
+Either drop the column or comment why it's reserved.
+
+---
+
 ## Cosmetic: `--purple` variables now hold teal
 
 `public/help.html` still names its CSS variables `--purple`, `--purple-dark`,

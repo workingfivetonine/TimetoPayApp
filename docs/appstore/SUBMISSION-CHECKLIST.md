@@ -104,10 +104,14 @@ prompt you don't need.
 
 ### Photos — be precise
 
-Receipt images are **sent to OpenAI for parsing and not stored**. There is no
-image column on the receipts table. Declare Photos as collected (they do leave
-the device) with purpose **App Functionality**, but you are not building a photo
-library.
+Receipt images are **sent to OpenAI for parsing, then discarded**. Declare Photos
+as collected — they do leave the device — with purpose **App Functionality**. But
+you are not building a photo library and are not retaining images.
+
+Verified rather than assumed: the `receipts` table does have an `image_uri`
+column, but it is **dead** — nothing in the API server writes it and the client
+never sends it. So a grep of the schema looks alarming while the behaviour is
+genuinely "not stored". (Logged in [../follow-ups.md](../follow-ups.md).)
 
 ### Not collected — leave unticked
 
