@@ -343,6 +343,47 @@ async function ensureSchemaColumns(): Promise<void> {
     sql`CREATE UNIQUE INDEX IF NOT EXISTS "board_thanks_post_user_idx" ON "board_thanks" ("post_id", "user_id")`,
   );
 
+  // Board moderation: report (ask a moderator to look) and block (hide someone
+  // from yourself, immediately). Required for user-generated content.
+  //
+  // post_id / reply_id are plain integers, NOT foreign keys — a report has to
+  // outlive the content it reported, or the record disappears exactly when a
+  // moderator needs it.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "board_reports" (
+    "id" serial PRIMARY KEY,
+    "reporter_id" text NOT NULL,
+    "post_id" integer,
+    "reply_id" integer,
+    "reason" text NOT NULL,
+    "detail" text,
+    "status" text NOT NULL DEFAULT 'open',
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "reviewed_at" timestamptz,
+    "reviewed_by" text
+  )`);
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "board_reports_reporter_post_idx" ON "board_reports" ("reporter_id", "post_id")`,
+  );
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "board_reports_reporter_reply_idx" ON "board_reports" ("reporter_id", "reply_id")`,
+  );
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "board_reports_status_idx" ON "board_reports" ("status", "created_at")`,
+  );
+
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "board_blocks" (
+    "id" serial PRIMARY KEY,
+    "blocker_id" text NOT NULL,
+    "blocked_id" text NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "board_blocks_pair_idx" ON "board_blocks" ("blocker_id", "blocked_id")`,
+  );
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "board_blocks_blocker_idx" ON "board_blocks" ("blocker_id")`,
+  );
+
   // Notification opt-ins must default OFF, but the live DB created these columns
   // with DEFAULT true (the schema default was flipped to false in code only AFTER
   // the columns were already pushed). Re-assert the correct default so new users

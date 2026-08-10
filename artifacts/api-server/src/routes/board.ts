@@ -1,11 +1,13 @@
 import { Router } from "express";
-import { eq, and, desc, sql, gt, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gt, inArray, notInArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   boardPostsTable,
   boardRepliesTable,
   boardAgreesTable,
   boardThanksTable,
+  boardReportsTable,
+  boardBlocksTable,
   receiptsTable,
   usersTable,
 } from "@workspace/db";
@@ -18,6 +20,20 @@ const MAX_CONTENT_LENGTH = 500;
 
 const VALID_TAGS = new Set(["recipe", "advice", "cool_idea", "hot_deal", "other"]);
 const HOT_THRESHOLD = 5; // agrees in 24 h to be considered trending
+
+const VALID_REPORT_REASONS = new Set(["spam", "harassment", "hate", "sexual", "off_topic", "other"]);
+const MAX_REPORT_DETAIL = 500;
+
+/** IDs of everyone `userId` has blocked. A post/reply from any of these is
+ * filtered out before it reaches the client — blocking is meant to feel like
+ * the person's content stopped existing, not like it's merely marked. */
+async function getBlockedUserIds(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ blockedId: boardBlocksTable.blockedId })
+    .from(boardBlocksTable)
+    .where(eq(boardBlocksTable.blockerId, userId));
+  return rows.map((r) => r.blockedId);
+}
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: "United States", GB: "United Kingdom", CA: "Canada", AU: "Australia",
@@ -84,6 +100,8 @@ router.get("/", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, userId))
     .catch(() => {/* non-fatal */});
 
+  const blockedIds = await getBlockedUserIds(userId);
+
   const posts = await db
     .select({
       id: boardPostsTable.id,
@@ -101,7 +119,11 @@ router.get("/", async (req, res): Promise<void> => {
     })
     .from(boardPostsTable)
     .leftJoin(usersTable, eq(usersTable.id, boardPostsTable.userId))
-    .where(eq(boardPostsTable.status, "approved"))
+    .where(
+      blockedIds.length
+        ? and(eq(boardPostsTable.status, "approved"), notInArray(boardPostsTable.userId, blockedIds))
+        : eq(boardPostsTable.status, "approved"),
+    )
     .orderBy(desc(boardPostsTable.approvedAt));
 
   const postIds = posts.map((p) => p.id);
@@ -393,6 +415,8 @@ router.get("/:id/replies", async (req, res): Promise<void> => {
   const postId = parseInt(req.params.id as string);
   if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const blockedIds = await getBlockedUserIds(req.userId!);
+
   const replies = await db
     .select({
       id: boardRepliesTable.id,
@@ -402,11 +426,19 @@ router.get("/:id/replies", async (req, res): Promise<void> => {
       userId: boardRepliesTable.userId,
     })
     .from(boardRepliesTable)
-    .where(and(eq(boardRepliesTable.postId, postId), eq(boardRepliesTable.status, "approved")))
+    .where(
+      blockedIds.length
+        ? and(
+            eq(boardRepliesTable.postId, postId),
+            eq(boardRepliesTable.status, "approved"),
+            notInArray(boardRepliesTable.userId, blockedIds),
+          )
+        : and(eq(boardRepliesTable.postId, postId), eq(boardRepliesTable.status, "approved")),
+    )
     .orderBy(boardRepliesTable.createdAt);
 
-  // Replies display anonymously, so `isOwn` is the only ownership signal sent —
-  // it drives the author's delete control. The raw userId stays server-side.
+  // Replies display anonymously, so `isOwn` and `id` (for report/block targets)
+  // are the only identity-adjacent signals sent — the raw userId stays server-side.
   res.json(
     replies.map(({ userId, ...r }) => ({
       ...r,
@@ -566,6 +598,184 @@ router.post("/admin/user/:userId/auto-approve", requireAdmin, async (req, res): 
 
   if (!updated) { res.status(404).json({ error: "User not found" }); return; }
   res.json({ id: updated.id, boardAutoApprove: updated.boardAutoApprove });
+});
+
+// ── Moderation: report + block ───────────────────────────────────────────────
+// Required for any app with user-generated content (App Store Guideline 1.2):
+// a way to report objectionable content, and a way to block the person who
+// posted it. See lib/db/src/schema/boardModeration.ts for why the two are
+// separate tables with different semantics.
+
+// POST /board/report — flag a post or reply for a moderator. Exactly one of
+// postId/replyId must be present; the target's author is resolved server-side
+// so the client never needs to know who wrote it (replies are anonymous).
+router.post("/report", async (req, res): Promise<void> => {
+  const reporterId = req.userId!;
+  const { postId, replyId, reason, detail } = req.body as {
+    postId?: unknown;
+    replyId?: unknown;
+    reason?: unknown;
+    detail?: unknown;
+  };
+
+  const hasPost = typeof postId === "number" && Number.isInteger(postId);
+  const hasReply = typeof replyId === "number" && Number.isInteger(replyId);
+  if (hasPost === hasReply) {
+    res.status(400).json({ error: "Exactly one of postId or replyId is required" });
+    return;
+  }
+  if (typeof reason !== "string" || !VALID_REPORT_REASONS.has(reason)) {
+    res.status(400).json({ error: `reason must be one of: ${[...VALID_REPORT_REASONS].join(", ")}` });
+    return;
+  }
+  const trimmedDetail =
+    typeof detail === "string" && detail.trim() ? detail.trim().slice(0, MAX_REPORT_DETAIL) : null;
+
+  // Confirm the target actually exists before recording a report against it —
+  // otherwise a stale client could file reports against deleted content forever.
+  if (hasPost) {
+    const [post] = await db.select({ id: boardPostsTable.id }).from(boardPostsTable).where(eq(boardPostsTable.id, postId as number));
+    if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+  } else {
+    const [reply] = await db.select({ id: boardRepliesTable.id }).from(boardRepliesTable).where(eq(boardRepliesTable.id, replyId as number));
+    if (!reply) { res.status(404).json({ error: "Reply not found" }); return; }
+  }
+
+  // Idempotent: reporting the same thing twice isn't a stronger signal, and the
+  // unique index would otherwise turn a duplicate tap into a 500.
+  await db
+    .insert(boardReportsTable)
+    .values({
+      reporterId,
+      postId: hasPost ? (postId as number) : null,
+      replyId: hasReply ? (replyId as number) : null,
+      reason,
+      detail: trimmedDetail,
+    })
+    .onConflictDoNothing();
+
+  res.status(201).json({ success: true });
+});
+
+// POST /board/block — hide everything from a post or reply's author, for the
+// caller only, effective immediately. Resolves the author server-side for the
+// same reason as report: the client never has to know who wrote a reply.
+router.post("/block", async (req, res): Promise<void> => {
+  const blockerId = req.userId!;
+  const { postId, replyId } = req.body as { postId?: unknown; replyId?: unknown };
+
+  const hasPost = typeof postId === "number" && Number.isInteger(postId);
+  const hasReply = typeof replyId === "number" && Number.isInteger(replyId);
+  if (hasPost === hasReply) {
+    res.status(400).json({ error: "Exactly one of postId or replyId is required" });
+    return;
+  }
+
+  const [target] = hasPost
+    ? await db.select({ userId: boardPostsTable.userId }).from(boardPostsTable).where(eq(boardPostsTable.id, postId as number))
+    : await db.select({ userId: boardRepliesTable.userId }).from(boardRepliesTable).where(eq(boardRepliesTable.id, replyId as number));
+
+  if (!target) { res.status(404).json({ error: "Not found" }); return; }
+  if (target.userId === blockerId) { res.status(400).json({ error: "You can't block yourself" }); return; }
+
+  await db
+    .insert(boardBlocksTable)
+    .values({ blockerId, blockedId: target.userId })
+    .onConflictDoNothing();
+
+  res.status(201).json({ success: true });
+});
+
+// GET /board/blocked — accounts the caller has blocked, for the "Blocked
+// accounts" list in Account settings.
+router.get("/blocked", async (req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      userId: boardBlocksTable.blockedId,
+      username: usersTable.username,
+      avatar: usersTable.avatar,
+      blockedAt: boardBlocksTable.createdAt,
+    })
+    .from(boardBlocksTable)
+    .leftJoin(usersTable, eq(usersTable.id, boardBlocksTable.blockedId))
+    .where(eq(boardBlocksTable.blockerId, req.userId!))
+    .orderBy(desc(boardBlocksTable.createdAt));
+
+  res.json(
+    rows.map((r) => ({
+      userId: r.userId,
+      username: r.username ?? "Member",
+      avatar: r.avatar ?? null,
+      blockedAt: r.blockedAt.toISOString(),
+    })),
+  );
+});
+
+// DELETE /board/blocked/:userId — unblock. No-op (still 200) if they weren't
+// blocked, so a client retry or a stale list can't produce a confusing error.
+router.delete("/blocked/:userId", async (req, res): Promise<void> => {
+  await db
+    .delete(boardBlocksTable)
+    .where(and(eq(boardBlocksTable.blockerId, req.userId!), eq(boardBlocksTable.blockedId, req.params.userId as string)));
+  res.json({ success: true });
+});
+
+// GET /board/admin/reports — open reports, newest first, with a resolved
+// snapshot of the reported content (posts/replies can be deleted out from
+// under a report, so this reads what's still there rather than joining).
+router.get("/admin/reports", requireAdmin, async (_req, res): Promise<void> => {
+  const reports = await db
+    .select()
+    .from(boardReportsTable)
+    .where(eq(boardReportsTable.status, "open"))
+    .orderBy(desc(boardReportsTable.createdAt));
+
+  const postIds = reports.filter((r) => r.postId != null).map((r) => r.postId as number);
+  const replyIds = reports.filter((r) => r.replyId != null).map((r) => r.replyId as number);
+
+  const [posts, replies] = await Promise.all([
+    postIds.length
+      ? db.select({ id: boardPostsTable.id, content: boardPostsTable.content }).from(boardPostsTable).where(inArray(boardPostsTable.id, postIds))
+      : Promise.resolve([]),
+    replyIds.length
+      ? db.select({ id: boardRepliesTable.id, content: boardRepliesTable.content }).from(boardRepliesTable).where(inArray(boardRepliesTable.id, replyIds))
+      : Promise.resolve([]),
+  ]);
+  const postContent = new Map(posts.map((p) => [p.id, p.content]));
+  const replyContent = new Map(replies.map((r) => [r.id, r.content]));
+
+  res.json(
+    reports.map((r) => ({
+      id: r.id,
+      postId: r.postId,
+      replyId: r.replyId,
+      reason: r.reason,
+      detail: r.detail,
+      createdAt: r.createdAt.toISOString(),
+      // Null means the reported content was deleted since the report was filed.
+      content: r.postId != null ? postContent.get(r.postId) ?? null : replyContent.get(r.replyId!) ?? null,
+    })),
+  );
+});
+
+// POST /board/admin/reports/:id/resolve — mark a report reviewed. `action` is
+// stored as the report's terminal status; deleting the reported content (if
+// warranted) is a separate call to the existing delete endpoints.
+router.post("/admin/reports/:id/resolve", requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { action } = req.body as { action?: unknown };
+  if (action !== "actioned" && action !== "dismissed") {
+    res.status(400).json({ error: 'action must be "actioned" or "dismissed"' });
+    return;
+  }
+
+  await db
+    .update(boardReportsTable)
+    .set({ status: action, reviewedAt: new Date(), reviewedBy: req.userId! })
+    .where(eq(boardReportsTable.id, id));
+
+  res.json({ success: true });
 });
 
 export default router;

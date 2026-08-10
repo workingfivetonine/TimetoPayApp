@@ -27,6 +27,7 @@ import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import { confirmDestructive } from "@/lib/confirm";
 import { useGetCurrentUser } from "@workspace/api-client-react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ReportBlockSheet } from "@/components/ReportBlockSheet";
 
 const MAX_CHARS = 500;
 
@@ -328,6 +329,49 @@ export default function BoardScreen() {
       onConfirm: () => deleteMutation.mutate(postId),
     });
   };
+
+  // Report + block. One target at a time — {postId} XOR {replyId} — set when the
+  // "⋯" on a post or reply is tapped, cleared when the sheet closes.
+  const [moderationTarget, setModerationTarget] = useState<{ postId?: number; replyId?: number } | null>(null);
+
+  const reportMutation = useMutation({
+    mutationFn: async ({ target, reason }: { target: { postId?: number; replyId?: number }; reason: string }) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ ...target, reason }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      setModerationTarget(null);
+      showSuccessToast("Reported", "A moderator will take a look.");
+    },
+    onError: () => showErrorToast("Couldn't send report", "Please try again."),
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: async (target: { postId?: number; replyId?: number }) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(target),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      // The blocked person's other posts are still sitting in the cached list
+      // until the next refetch. Refetching is simpler and more correct than
+      // trying to track down every post/reply of theirs client-side.
+      queryClient.invalidateQueries({ queryKey: ["board"] });
+      queryClient.invalidateQueries({ queryKey: ["board-replies"] });
+      setModerationTarget(null);
+      showSuccessToast("Blocked", "You won't see their posts or replies anymore.");
+    },
+    onError: () => showErrorToast("Couldn't block", "Please try again."),
+  });
 
   const thanksMutation = useMutation({
     mutationFn: async (postId: number) => {
@@ -687,8 +731,23 @@ export default function BoardScreen() {
               onEdit={() => setEditingPost({ id: item.id, content: item.content })}
               onDelete={() => confirmDeletePost(item.id)}
               onDeleteReply={(replyId) => confirmDeleteReply(replyId, item.id)}
+              onReportPost={() => setModerationTarget({ postId: item.id })}
+              onReportReply={(replyId) => setModerationTarget({ replyId })}
             />
           );
+        }}
+      />
+
+      <ReportBlockSheet
+        visible={moderationTarget != null}
+        onClose={() => setModerationTarget(null)}
+        reportPending={reportMutation.isPending}
+        blockPending={blockMutation.isPending}
+        onReport={(reason) => {
+          if (moderationTarget) reportMutation.mutate({ target: moderationTarget, reason });
+        }}
+        onBlock={() => {
+          if (moderationTarget) blockMutation.mutate(moderationTarget);
         }}
       />
 
@@ -875,6 +934,10 @@ interface PostCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onDeleteReply: (replyId: number) => void;
+  // Not offered on the caller's own content — reporting or blocking yourself
+  // is meaningless, and canEdit/isOwn already tell us that.
+  onReportPost: () => void;
+  onReportReply: (replyId: number) => void;
 }
 
 function PostCard({
@@ -882,6 +945,7 @@ function PostCard({
   replyMutationPending, getToken, onAgree, onThank, onToggleReplies,
   onStartReply, onCancelReply, onReplyTextChange, onReplySubmit,
   canEdit, canDelete, canModerate, onEdit, onDelete, onDeleteReply,
+  onReportPost, onReportReply,
 }: PostCardProps) {
   const { data: replies, isLoading: repliesLoading } = useQuery({
     queryKey: ["board-replies", item.id],
@@ -990,8 +1054,18 @@ function PostCard({
 
         {/* Moderation / author controls, pushed to the right so they read as a
             separate group from the reactions. */}
-        {(canEdit || canDelete) && (
+        {(canEdit || canDelete || !item.isOwn) && (
           <View style={postStyles.ownerActions}>
+            {!item.isOwn && (
+              <TouchableOpacity
+                style={postStyles.actionBtn}
+                onPress={onReportPost}
+                activeOpacity={0.7}
+                accessibilityLabel="Report or block"
+              >
+                <Feather name="more-horizontal" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
             {canEdit && (
               <TouchableOpacity
                 style={postStyles.actionBtn}
@@ -1067,15 +1141,26 @@ function PostCard({
                   <Text style={[postStyles.replyMeta, { color: colors.mutedForeground }]}>
                     Anonymous{r.region ? ` · ${r.region}` : ""}{"  ·  "}{timeAgo(r.createdAt)}
                   </Text>
-                  {(r.isOwn || canModerate) && (
-                    <TouchableOpacity
-                      onPress={() => onDeleteReply(r.id)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      accessibilityLabel={r.isOwn ? "Delete your reply" : "Remove this reply"}
-                    >
-                      <Feather name="trash-2" size={12} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                  )}
+                  <View style={{ flexDirection: "row", gap: 14 }}>
+                    {!r.isOwn && (
+                      <TouchableOpacity
+                        onPress={() => onReportReply(r.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel="Report or block"
+                      >
+                        <Feather name="more-horizontal" size={13} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    )}
+                    {(r.isOwn || canModerate) && (
+                      <TouchableOpacity
+                        onPress={() => onDeleteReply(r.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel={r.isOwn ? "Delete your reply" : "Remove this reply"}
+                      >
+                        <Feather name="trash-2" size={12} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
             ))

@@ -1,7 +1,7 @@
 import { useAuth, useClerk, useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import React from "react";
 import {
   ActivityIndicator,
@@ -36,7 +36,7 @@ import { InstallAppButton } from "@/components/InstallAppButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify } from "@/lib/confirm";
-import { showSuccessToast } from "@/lib/toast";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 // Optional donation link (a Stripe Payment Link) for the "Support us" button.
 // Defaults to the live donation page; override with EXPO_PUBLIC_DONATE_URL if it
@@ -302,6 +302,8 @@ export default function AccountScreen() {
         ) : null}
 
         <NotificationsSection />
+
+        <BlockedAccountsSection />
 
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -579,6 +581,88 @@ function NotificationsSection() {
       <Text style={[styles.notifNote, { color: colors.mutedForeground }]}>
         At minimum, you'll receive one email per month per active type.
       </Text>
+    </View>
+  );
+}
+
+// ── Blocked accounts (Community Board moderation) ──────────────────────────────
+//
+// Board block/report satisfies App Store Guideline 1.2 (user-generated content
+// needs report + block). Blocking happens from a post/reply's "⋯" menu; this
+// is the other half — seeing and undoing it. Hidden entirely when the list is
+// empty, so most accounts never see an empty settings section.
+
+interface BlockedAccount {
+  userId: string;
+  username: string;
+  avatar: string | null;
+  blockedAt: string;
+}
+
+function BlockedAccountsSection() {
+  const colors = useColors();
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: blocked } = useQuery({
+    queryKey: ["board-blocked"],
+    queryFn: async (): Promise<BlockedAccount[]> => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/blocked`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<BlockedAccount[]>;
+    },
+  });
+
+  const unblock = useMutation({
+    mutationFn: async (userId: string) => {
+      const token = await getToken();
+      const res = await fetch(`${getApiOrigin()}/api/board/blocked/${userId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: (_result, userId) => {
+      queryClient.setQueryData<BlockedAccount[]>(["board-blocked"], (old) =>
+        old ? old.filter((b) => b.userId !== userId) : old,
+      );
+      showSuccessToast("Unblocked", "You'll see their posts and replies again.");
+    },
+    onError: () => showErrorToast("Couldn't unblock", "Please try again."),
+  });
+
+  if (!blocked?.length) return null;
+
+  return (
+    <View style={[styles.notifCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.notifHeader}>
+        <Feather name="slash" size={18} color={colors.primary} />
+        <Text style={[styles.rowText, { color: colors.foreground }]}>Blocked accounts</Text>
+      </View>
+      {blocked.map((b, idx) => (
+        <View
+          key={b.userId}
+          style={[
+            styles.notifRow,
+            idx < blocked.length - 1 && {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.notifLabel, { color: colors.foreground, flex: 1 }]}>{b.username}</Text>
+          <TouchableOpacity
+            onPress={() => unblock.mutate(b.userId)}
+            disabled={unblock.isPending}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium", fontSize: 14 }}>Unblock</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
     </View>
   );
 }

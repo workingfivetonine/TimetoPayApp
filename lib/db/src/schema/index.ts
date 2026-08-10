@@ -11,5 +11,6 @@ export * from "./boardPosts";
 export * from "./boardReplies";
 export * from "./boardAgrees";
 export * from "./boardThanks";
+export * from "./boardModeration";
 export * from "./shoppingTrips";
 export * from "./savedShoppingLists";
