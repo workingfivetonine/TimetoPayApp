@@ -220,6 +220,32 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(
     sql`CREATE INDEX IF NOT EXISTS "shopping_trips_user_closed_idx" ON "shopping_trips" ("user_id", "closed_at")`,
   );
+  // Saved shopping lists — user-created snapshots of list selections for reuse
+  // and browsing for inspiration. Written by POST /shopping-list/saved-lists and
+  // read by GET /shopping-list/saved-lists + the Saved tab.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "saved_shopping_lists" (
+    "id" serial PRIMARY KEY,
+    "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "name" text NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "updated_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "saved_shopping_lists_user_idx" ON "saved_shopping_lists" ("user_id")`,
+  );
+  // Items within a saved list: itemId points to a real item (if it still exists
+  // and belongs to this user); itemName is always present so the row is still
+  // displayable even after the original item was deleted.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "saved_shopping_list_items" (
+    "id" serial PRIMARY KEY,
+    "saved_list_id" integer NOT NULL REFERENCES "saved_shopping_lists"("id") ON DELETE CASCADE,
+    "item_id" integer REFERENCES "items"("id") ON DELETE SET NULL,
+    "item_name" text NOT NULL,
+    "quantity" integer
+  )`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS "saved_shopping_list_items_saved_list_idx" ON "saved_shopping_list_items" ("saved_list_id")`,
+  );
   // Optional user home address + geocoded coordinates for store "distance from".
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "address" text`);
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "latitude" numeric(9, 6)`);

@@ -577,6 +577,120 @@ paths:
               schema:
                 $ref: "#/components/schemas/ShoppingList"
 
+  /shopping-list/saved-lists:
+    get:
+      operationId: getSavedShoppingLists
+      tags: [shopping-list]
+      summary: List user's saved shopping lists
+      responses:
+        "200":
+          description: Array of saved list summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedShoppingList"
+    post:
+      operationId: createSavedShoppingList
+      tags: [shopping-list]
+      summary: Save a new shopping list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSavedShoppingListInput"
+      responses:
+        "201":
+          description: Created saved list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedShoppingList"
+
+  /shopping-list/saved-lists/{id}:
+    get:
+      operationId: getSavedShoppingList
+      tags: [shopping-list]
+      summary: Get saved list with full item details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saved list detail with items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedShoppingListDetail"
+        "404":
+          description: Not found or not owned by user
+    patch:
+      operationId: renameSavedShoppingList
+      tags: [shopping-list]
+      summary: Rename a saved list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameSavedShoppingListInput"
+      responses:
+        "200":
+          description: Updated saved list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedShoppingList"
+        "404":
+          description: Not found or not owned by user
+    delete:
+      operationId: deleteSavedShoppingList
+      tags: [shopping-list]
+      summary: Delete a saved list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found or not owned by user
+
+  /shopping-list/saved-lists/{id}/apply:
+    post:
+      operationId: applySavedShoppingList
+      tags: [shopping-list]
+      summary: Add all items from a saved list to the user's shopping list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Number of items added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyListResult"
+        "404":
+          description: Not found or not owned by user
+
   /receipts/parse:
     post:
       operationId: parseReceiptImage
@@ -2278,6 +2392,91 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ShoppingListItem"
+
+    SavedShoppingListItem:
+      type: object
+      required: [id, itemId, itemName]
+      properties:
+        id:
+          type: integer
+        itemId:
+          type: ["integer", "null"]
+          description: Null if the original item was deleted
+        itemName:
+          type: string
+        quantity:
+          type: ["integer", "null"]
+          description: Null means 1
+
+    SavedShoppingList:
+      type: object
+      required: [id, name, itemCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        itemCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SavedShoppingListDetail:
+      type: object
+      required: [id, name, items, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedShoppingListItem"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateSavedShoppingListInput:
+      type: object
+      required: [name, items]
+      properties:
+        name:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            required: [itemId, itemName]
+            properties:
+              itemId:
+                type: ["integer", "null"]
+              itemName:
+                type: string
+              quantity:
+                type: ["integer", "null"]
+
+    RenameSavedShoppingListInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    ApplyListResult:
+      type: object
+      required: [addedCount]
+      properties:
+        addedCount:
+          type: integer
+          description: Number of items added to the user's shopping list
 
     ParsedReceiptLineItem:
       type: object

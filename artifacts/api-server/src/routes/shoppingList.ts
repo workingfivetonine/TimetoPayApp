@@ -1,8 +1,10 @@
 import { Router } from "express";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, desc, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { lineItemsTable, receiptsTable, storesTable, itemsTable, shoppingTripsTable } from "@workspace/db";
+import { lineItemsTable, receiptsTable, storesTable, itemsTable, shoppingTripsTable, savedShoppingListsTable, savedShoppingListItemsTable } from "@workspace/db";
 import { isRealPrice, priceStats } from "../lib/prices";
+import { iconForItemName } from "../lib/itemIcon";
+import { categoryForItemName } from "../lib/categories";
 
 const router = Router();
 
@@ -191,6 +193,254 @@ router.post("/trips", async (req, res): Promise<void> => {
   }
 
   res.status(201).json({ id: trip!.id, closedAt: trip!.closedAt.toISOString(), ranOutCleared: cleared });
+});
+
+// GET /shopping-list/saved-lists — list all user's saved lists
+router.get("/saved-lists", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+
+  const lists = await db
+    .select({
+      id: savedShoppingListsTable.id,
+      name: savedShoppingListsTable.name,
+      createdAt: savedShoppingListsTable.createdAt,
+      updatedAt: savedShoppingListsTable.updatedAt,
+    })
+    .from(savedShoppingListsTable)
+    .where(eq(savedShoppingListsTable.userId, userId))
+    .orderBy(desc(savedShoppingListsTable.updatedAt));
+
+  // Count items per list
+  const result = await Promise.all(
+    lists.map(async (list) => {
+      const [row] = await db
+        .select({ count: sql<number>`cast(count(*) as int)` })
+        .from(savedShoppingListItemsTable)
+        .where(eq(savedShoppingListItemsTable.savedListId, list.id));
+      return {
+        ...list,
+        itemCount: Number(row?.count ?? 0),
+        createdAt: list.createdAt?.toISOString(),
+        updatedAt: list.updatedAt?.toISOString(),
+      };
+    }),
+  );
+
+  res.json(result);
+});
+
+// POST /shopping-list/saved-lists — create a new saved list
+router.post("/saved-lists", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const { name, items } = req.body as { name?: unknown; items?: unknown };
+
+  // Minimal validation
+  if (typeof name !== "string" || !name.trim()) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+
+  if (!Array.isArray(items)) {
+    res.status(400).json({ error: "items must be an array" });
+    return;
+  }
+
+  // Insert in a transaction
+  const [list] = await db
+    .insert(savedShoppingListsTable)
+    .values({ userId, name: name.trim() })
+    .returning({ id: savedShoppingListsTable.id, createdAt: savedShoppingListsTable.createdAt, updatedAt: savedShoppingListsTable.updatedAt });
+
+  // Insert items
+  if (items.length > 0) {
+    const itemsToInsert = (items as Array<Record<string, unknown>>).map((item) => ({
+      savedListId: list.id,
+      itemId: typeof item.itemId === "number" ? item.itemId : null,
+      itemName: String(item.itemName || ""),
+      quantity: typeof item.quantity === "number" ? item.quantity : null,
+    }));
+    await db.insert(savedShoppingListItemsTable).values(itemsToInsert);
+  }
+
+  res.status(201).json({
+    id: list.id,
+    name: name.trim(),
+    itemCount: items.length,
+    createdAt: list.createdAt?.toISOString(),
+    updatedAt: list.updatedAt?.toISOString(),
+  });
+});
+
+// GET /shopping-list/saved-lists/:id — get full saved list with items
+router.get("/saved-lists/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = Number(req.params.id);
+
+  const [list] = await db
+    .select()
+    .from(savedShoppingListsTable)
+    .where(and(eq(savedShoppingListsTable.id, id), eq(savedShoppingListsTable.userId, userId)));
+
+  if (!list) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const items = await db
+    .select()
+    .from(savedShoppingListItemsTable)
+    .where(eq(savedShoppingListItemsTable.savedListId, id));
+
+  res.json({
+    id: list.id,
+    name: list.name,
+    items: items.map((item) => ({
+      id: item.id,
+      itemId: item.itemId,
+      itemName: item.itemName,
+      quantity: item.quantity,
+    })),
+    createdAt: list.createdAt?.toISOString(),
+    updatedAt: list.updatedAt?.toISOString(),
+  });
+});
+
+// PATCH /shopping-list/saved-lists/:id — rename a list
+router.patch("/saved-lists/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = Number(req.params.id);
+  const { name } = req.body as { name?: unknown };
+
+  if (typeof name !== "string" || !name.trim()) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+
+  const [list] = await db
+    .update(savedShoppingListsTable)
+    .set({ name: name.trim(), updatedAt: new Date() })
+    .where(and(eq(savedShoppingListsTable.id, id), eq(savedShoppingListsTable.userId, userId)))
+    .returning({ id: savedShoppingListsTable.id, createdAt: savedShoppingListsTable.createdAt, updatedAt: savedShoppingListsTable.updatedAt });
+
+  if (!list) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  // Count items
+  const [row] = await db
+    .select({ count: sql<number>`cast(count(*) as int)` })
+    .from(savedShoppingListItemsTable)
+    .where(eq(savedShoppingListItemsTable.savedListId, id));
+
+  res.json({
+    id: list.id,
+    name: name.trim(),
+    itemCount: Number(row?.count ?? 0),
+    createdAt: list.createdAt?.toISOString(),
+    updatedAt: list.updatedAt?.toISOString(),
+  });
+});
+
+// DELETE /shopping-list/saved-lists/:id — delete a list (cascade deletes items)
+router.delete("/saved-lists/:id", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = Number(req.params.id);
+
+  // Verify ownership before deleting
+  const [list] = await db
+    .select({ id: savedShoppingListsTable.id })
+    .from(savedShoppingListsTable)
+    .where(and(eq(savedShoppingListsTable.id, id), eq(savedShoppingListsTable.userId, userId)));
+
+  if (!list) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  await db.delete(savedShoppingListsTable).where(eq(savedShoppingListsTable.id, id));
+  res.status(204).send();
+});
+
+// POST /shopping-list/saved-lists/:id/apply — add all items from the list to user's shopping list
+router.post("/saved-lists/:id/apply", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = Number(req.params.id);
+
+  const [list] = await db
+    .select({ id: savedShoppingListsTable.id })
+    .from(savedShoppingListsTable)
+    .where(and(eq(savedShoppingListsTable.id, id), eq(savedShoppingListsTable.userId, userId)));
+
+  if (!list) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const items = await db
+    .select()
+    .from(savedShoppingListItemsTable)
+    .where(eq(savedShoppingListItemsTable.savedListId, id));
+
+  let addedCount = 0;
+  const now = new Date();
+
+  for (const item of items) {
+    if (item.itemId != null) {
+      // Check that the item still belongs to this user
+      const [userItem] = await db
+        .select({ id: itemsTable.id })
+        .from(itemsTable)
+        .where(and(eq(itemsTable.id, item.itemId), eq(itemsTable.userId, userId)));
+
+      if (userItem) {
+        // Restore it (clear dismissed, set addedToListAt)
+        await db
+          .update(itemsTable)
+          .set({ addedToListAt: now, dismissedAt: null })
+          .where(eq(itemsTable.id, userItem.id));
+        addedCount++;
+        continue;
+      }
+    }
+
+    // itemId is null or doesn't belong to user: match by exact case-insensitive name
+    const [existing] = await db
+      .select({ id: itemsTable.id })
+      .from(itemsTable)
+      .where(
+        and(
+          eq(itemsTable.userId, userId),
+          sql`lower(${itemsTable.name}) = lower(${item.itemName})`,
+        ),
+      );
+
+    if (existing) {
+      // Update existing
+      await db
+        .update(itemsTable)
+        .set({ addedToListAt: now, dismissedAt: null })
+        .where(eq(itemsTable.id, existing.id));
+      addedCount++;
+    } else {
+      // Create new item
+      const [newItem] = await db
+        .insert(itemsTable)
+        .values({
+          userId,
+          name: item.itemName,
+          icon: iconForItemName(item.itemName),
+          category: categoryForItemName(item.itemName),
+          addedToListAt: now,
+          purchaseCount: 0,
+        })
+        .returning({ id: itemsTable.id });
+
+      if (newItem) addedCount++;
+    }
+  }
+
+  res.json({ addedCount });
 });
 
 export default router;
