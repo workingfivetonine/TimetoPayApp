@@ -159,6 +159,32 @@ export function ShoppingModeView({
 
   return (
     <View style={styles.root}>
+      <View style={[styles.topBar, { backgroundColor: colors.accent }]}>
+        <TouchableOpacity
+          style={styles.keepAwakeRow}
+          onPress={() => onKeepAwakeChange(!keepAwake)}
+          activeOpacity={0.7}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: keepAwake }}
+          accessibilityLabel="Keep the screen on while shopping"
+        >
+          <View
+            style={[
+              styles.keepAwakeBox,
+              {
+                borderColor: keepAwake ? colors.primary : colors.border,
+                backgroundColor: keepAwake ? colors.primary : "transparent",
+              },
+            ]}
+          >
+            {keepAwake ? <Feather name="check" size={12} color="#fff" /> : null}
+          </View>
+          <Text style={[styles.keepAwakeText, { color: colors.mutedForeground }]}>
+            Keep screen on
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={[styles.progressBar, { borderBottomColor: colors.border }]}>
         <Text style={[styles.progressText, { color: colors.foreground }]}>
           {remaining === 0 ? "All done — nice work" : `${remaining} to go`}
@@ -274,30 +300,6 @@ export function ShoppingModeView({
         ]}
       >
         <TouchableOpacity
-          style={styles.keepAwakeRow}
-          onPress={() => onKeepAwakeChange(!keepAwake)}
-          activeOpacity={0.7}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: keepAwake }}
-          accessibilityLabel="Keep the screen on while shopping"
-        >
-          <View
-            style={[
-              styles.keepAwakeBox,
-              {
-                borderColor: keepAwake ? colors.primary : colors.border,
-                backgroundColor: keepAwake ? colors.primary : "transparent",
-              },
-            ]}
-          >
-            {keepAwake ? <Feather name="check" size={12} color="#fff" /> : null}
-          </View>
-          <Text style={[styles.keepAwakeText, { color: colors.mutedForeground }]}>
-            Keep screen on while shopping
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.doneBtn, { backgroundColor: colors.primary }]}
           onPress={() => onDoneShopping({ picked: picked.size, total: basketTotal })}
           activeOpacity={0.85}
@@ -312,6 +314,10 @@ export function ShoppingModeView({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  topBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+  },
   progressBar: {
     flexDirection: "row",
     alignItems: "center",

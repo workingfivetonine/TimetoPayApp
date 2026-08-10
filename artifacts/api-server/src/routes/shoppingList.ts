@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { lineItemsTable, receiptsTable, storesTable, itemsTable, shoppingTripsTable } from "@workspace/db";
 import { isRealPrice, priceStats } from "../lib/prices";
@@ -142,9 +142,10 @@ router.get("/", async (req, res): Promise<void> => {
 // into a reminder for shopping that didn't happen.
 router.post("/trips", async (req, res): Promise<void> => {
   const userId = req.userId!;
-  const { itemsPicked, itemsPlanned } = req.body as {
+  const { itemsPicked, itemsPlanned, pickedItemIds } = req.body as {
     itemsPicked?: unknown;
     itemsPlanned?: unknown;
+    pickedItemIds?: unknown;
   };
 
   // Counts are cosmetic (they only colour the reminder copy), so a bad value is
@@ -162,7 +163,34 @@ router.post("/trips", async (req, res): Promise<void> => {
     })
     .returning({ id: shoppingTripsTable.id, closedAt: shoppingTripsTable.closedAt });
 
-  res.status(201).json({ id: trip!.id, closedAt: trip!.closedAt.toISOString() });
+  // Finishing a trip with an item still ticked means it went in the basket, so
+  // it is no longer "run out". Ticking alone does NOT do this — a tick is
+  // reversible while you shop, and only closing the trip commits it.
+  //
+  // Clears ranOutAt only. `dismissedAt` is a separate decision ("stop showing me
+  // this") that buying the item does not reverse, and lastPurchased belongs to
+  // receipt data — nothing here should invent a purchase record from a checkbox.
+  const ids = Array.isArray(pickedItemIds)
+    ? [...new Set(pickedItemIds.filter((v): v is number => typeof v === "number" && Number.isInteger(v)))].slice(0, 500)
+    : [];
+
+  let cleared = 0;
+  if (ids.length > 0) {
+    const rows = await db
+      .update(itemsTable)
+      .set({ ranOutAt: null })
+      .where(
+        and(
+          eq(itemsTable.userId, userId),
+          inArray(itemsTable.id, ids),
+          isNotNull(itemsTable.ranOutAt),
+        ),
+      )
+      .returning({ id: itemsTable.id });
+    cleared = rows.length;
+  }
+
+  res.status(201).json({ id: trip!.id, closedAt: trip!.closedAt.toISOString(), ranOutCleared: cleared });
 });
 
 export default router;
