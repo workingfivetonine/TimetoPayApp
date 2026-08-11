@@ -1378,6 +1378,20 @@ export const AdminGetCustomChartMetaResponse = zod.object({
 
 
 /**
+ * @summary Distinct values a category field actually has, to populate a filter dropdown (admin only)
+ */
+export const AdminGetCustomChartFieldValuesQueryParams = zod.object({
+  "source": zod.coerce.string(),
+  "field": zod.coerce.string().describe('A category-field key from that source (e.g. \"storeCountry\", \"itemName\").')
+})
+
+export const AdminGetCustomChartFieldValuesResponse = zod.object({
+  "values": zod.array(zod.string()),
+  "truncated": zod.boolean().describe('True if more distinct values existed than were returned.')
+})
+
+
+/**
  * @summary Run an admin-built chart query against a whitelisted data source (admin only)
  */
 export const AdminGetCustomChartQueryParams = zod.object({
@@ -1386,7 +1400,8 @@ export const AdminGetCustomChartQueryParams = zod.object({
   "granularity": zod.enum(['day', 'week', 'month', 'year']).optional().describe('Only used when groupBy is a date field. Defaults to month.'),
   "splitBy": zod.coerce.string().optional().describe('A category-field key for a second line\/series per value. Only valid when groupBy is a date field.'),
   "aggregation": zod.enum(['count', 'sum', 'avg', 'min', 'max']),
-  "measure": zod.coerce.string().optional().describe('A number-field key. Required unless aggregation is count.')
+  "measure": zod.coerce.string().optional().describe('A number-field key. Required unless aggregation is count.'),
+  "filters": zod.coerce.string().optional().describe('A JSON-encoded object of categoryFieldKey -> exact value, ANDed together (e.g. {\"storeCountry\":\"US\",\"category\":\"Dairy\"}). This is also how a currency\/country filter works — there\'s no separate currency column, so pinning storeCountry (or countryCode) to one value is what makes summing money meaningful.\n')
 })
 
 export const AdminGetCustomChartResponse = zod.object({

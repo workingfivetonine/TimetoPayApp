@@ -99,6 +99,12 @@ export interface AdminCustomChartMetaResult {
   sources: AdminCustomChartSource[];
 }
 
+export interface AdminCustomChartFieldValuesResult {
+  values: string[];
+  /** True if more distinct values existed than were returned. */
+  truncated: boolean;
+}
+
 export interface AdminCustomChartPoint {
   /** A date-bucket key (e.g. "2026-03") when grouped by date, or a category label otherwise. */
   bucket: string;
@@ -1090,6 +1096,18 @@ export type SearchItemNamesParams = {
 q: string;
 };
 
+export type AdminGetCustomChartFieldValuesParams = {
+source: string;
+/**
+ * A category-field key from that source (e.g. "storeCountry", "itemName").
+ */
+field: string;
+};
+
+export type AdminGetCustomChartFieldValues400 = {
+  error: string;
+};
+
 export type AdminGetCustomChartParams = {
 /**
  * A source key from the meta endpoint (e.g. "receipts").
@@ -1112,6 +1130,10 @@ aggregation: AdminGetCustomChartAggregation;
  * A number-field key. Required unless aggregation is count.
  */
 measure?: string;
+/**
+ * A JSON-encoded object of categoryFieldKey -> exact value, ANDed together (e.g. {"storeCountry":"US","category":"Dairy"}). This is also how a currency/country filter works — there's no separate currency column, so pinning storeCountry (or countryCode) to one value is what makes summing money meaningful.
+ */
+filters?: string;
 };
 
 export type AdminGetCustomChartGranularity = typeof AdminGetCustomChartGranularity[keyof typeof AdminGetCustomChartGranularity];

@@ -21,9 +21,12 @@ import type {
 
 import type {
   AdminActionResult,
+  AdminCustomChartFieldValuesResult,
   AdminCustomChartMetaResult,
   AdminCustomChartResult,
   AdminGetCustomChart400,
+  AdminGetCustomChartFieldValues400,
+  AdminGetCustomChartFieldValuesParams,
   AdminGetCustomChartParams,
   AdminGetPriceGrowthParams,
   AdminMergeResult,
@@ -4717,6 +4720,90 @@ export function useAdminGetCustomChartMeta<TData = Awaited<ReturnType<typeof adm
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetCustomChartMetaQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetCustomChartFieldValuesUrl = (params: AdminGetCustomChartFieldValuesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/custom-chart/field-values?${stringifiedParams}` : `/api/admin/analytics/custom-chart/field-values`
+}
+
+/**
+ * @summary Distinct values a category field actually has, to populate a filter dropdown (admin only)
+ */
+export const adminGetCustomChartFieldValues = async (params: AdminGetCustomChartFieldValuesParams, options?: RequestInit): Promise<AdminCustomChartFieldValuesResult> => {
+
+  return customFetch<AdminCustomChartFieldValuesResult>(getAdminGetCustomChartFieldValuesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetCustomChartFieldValuesQueryKey = (params?: AdminGetCustomChartFieldValuesParams,) => {
+    return [
+    `/api/admin/analytics/custom-chart/field-values`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetCustomChartFieldValuesQueryOptions = <TData = Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>, TError = ErrorType<AdminGetCustomChartFieldValues400>>(params: AdminGetCustomChartFieldValuesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetCustomChartFieldValuesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>> = ({ signal }) => adminGetCustomChartFieldValues(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetCustomChartFieldValuesQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>>
+export type AdminGetCustomChartFieldValuesQueryError = ErrorType<AdminGetCustomChartFieldValues400>
+
+
+/**
+ * @summary Distinct values a category field actually has, to populate a filter dropdown (admin only)
+ */
+
+export function useAdminGetCustomChartFieldValues<TData = Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>, TError = ErrorType<AdminGetCustomChartFieldValues400>>(
+ params: AdminGetCustomChartFieldValuesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChartFieldValues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetCustomChartFieldValuesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

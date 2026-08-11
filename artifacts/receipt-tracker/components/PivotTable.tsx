@@ -1,7 +1,7 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
-import { useCurrency } from "@/hooks/useCurrency";
+import { formatPrice } from "@workspace/geo";
 import { formatBucket } from "@/components/CustomLineChart";
 import type { CustomChartSeries } from "@/components/CustomLineChart";
 
@@ -18,14 +18,17 @@ export function PivotTable({
   series,
   granularity,
   unit,
+  // See CustomLineChart.tsx for why this is explicit rather than pulled from
+  // useCurrency().
+  countryCode = null,
 }: {
   series: CustomChartSeries[];
   granularity: string;
   unit: "currency" | "count";
+  countryCode?: string | null;
 }) {
   const colors = useColors();
-  const { format } = useCurrency();
-  const fmt = (v: number) => (unit === "currency" ? format(v) : v.toLocaleString());
+  const fmt = (v: number) => (unit === "currency" ? formatPrice(v, countryCode) : v.toLocaleString());
 
   const buckets = Array.from(new Set(series.flatMap((s) => s.points.map((p) => p.bucket)))).sort();
 

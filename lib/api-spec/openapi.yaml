@@ -1198,6 +1198,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminCustomChartMetaResult"
 
+  /admin/analytics/custom-chart/field-values:
+    get:
+      operationId: adminGetCustomChartFieldValues
+      tags: [admin]
+      summary: Distinct values a category field actually has, to populate a filter dropdown (admin only)
+      parameters:
+        - name: source
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: field
+          in: query
+          required: true
+          schema:
+            type: string
+          description: A category-field key from that source (e.g. "storeCountry", "itemName").
+      responses:
+        "200":
+          description: Every distinct value seen for that field, sorted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCustomChartFieldValuesResult"
+        "400":
+          description: source/field isn't a valid combination
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
   /admin/analytics/custom-chart:
     get:
       operationId: adminGetCustomChart
@@ -1241,6 +1276,17 @@ paths:
           schema:
             type: string
           description: A number-field key. Required unless aggregation is count.
+        - name: filters
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >
+            A JSON-encoded object of categoryFieldKey -> exact value, ANDed
+            together (e.g. {"storeCountry":"US","category":"Dairy"}). This is
+            also how a currency/country filter works — there's no separate
+            currency column, so pinning storeCountry (or countryCode) to one
+            value is what makes summing money meaningful.
       responses:
         "200":
           description: The chart data
@@ -1648,6 +1694,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminCustomChartSource"
+
+    AdminCustomChartFieldValuesResult:
+      type: object
+      required: [values, truncated]
+      properties:
+        values:
+          type: array
+          items:
+            type: string
+        truncated:
+          type: boolean
+          description: True if more distinct values existed than were returned.
 
     AdminCustomChartPoint:
       type: object

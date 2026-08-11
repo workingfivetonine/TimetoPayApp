@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
-import { useCurrency } from "@/hooks/useCurrency";
+import { formatPrice } from "@workspace/geo";
 import type { CustomChartPoint } from "./CustomLineChart";
 
 // A ranked breakdown by category — already sorted descending by the server.
@@ -13,17 +13,21 @@ export function CustomBarChart({
   points,
   unit,
   otherCount,
+  // See CustomLineChart.tsx for why this is explicit rather than pulled from
+  // useCurrency() — this breakdown may be scoped to a filtered country, or to
+  // none at all, neither of which is "the viewer's own account country".
+  countryCode = null,
 }: {
   points: CustomChartPoint[];
   unit: "currency" | "count";
   otherCount: number;
+  countryCode?: string | null;
 }) {
   const colors = useColors();
-  const { format } = useCurrency();
   if (points.length === 0) return null;
 
   const max = Math.max(...points.map((p) => p.value), 0.01);
-  const fmt = (v: number) => (unit === "currency" ? format(v) : v.toLocaleString());
+  const fmt = (v: number) => (unit === "currency" ? formatPrice(v, countryCode) : v.toLocaleString());
 
   return (
     <View style={styles.wrap}>

@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, Line as SvgLine, Path, Rect, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
-import { useCurrency } from "@/hooks/useCurrency";
+import { formatPrice } from "@workspace/geo";
 import { ChartTooltip, type TooltipData } from "@/components/ChartTooltip";
 import { webHoverProps } from "@/lib/chartHover";
 
@@ -42,13 +42,19 @@ export function CustomLineChart({
   series,
   granularity,
   unit,
+  // The country a currency-typed measure should format as. Explicit rather
+  // than pulled from useCurrency() (the viewer's OWN account country) — this
+  // chart's rows might be scoped to a different country's data entirely via a
+  // filter, and there is no per-app "the" currency to fall back on when they
+  // aren't scoped to any single one.
+  countryCode = null,
 }: {
   series: CustomChartSeries[];
   granularity: string;
   unit: "currency" | "count";
+  countryCode?: string | null;
 }) {
   const colors = useColors();
-  const { format } = useCurrency();
   // Measured from the card's own rendered width, not the window's — see the
   // identical fix and reasoning in PriceGrowthChart.tsx. Sizing off the window
   // drew this chart far wider than its card on any wide (desktop web) viewport.
@@ -82,7 +88,7 @@ export function CustomLineChart({
     buckets.length === 1 ? (cLeft + cRight) / 2 : cLeft + (i / (buckets.length - 1)) * cW;
   const toY = (v: number) => cBottom - ((v - minV) / (maxV - minV)) * cH;
 
-  const fmt = (v: number) => (unit === "currency" ? format(v) : v.toLocaleString());
+  const fmt = (v: number) => (unit === "currency" ? formatPrice(v, countryCode) : v.toLocaleString());
 
   const yTicks = [minV, maxV];
   if (maxV - minV > 0.02) yTicks.push((minV + maxV) / 2);

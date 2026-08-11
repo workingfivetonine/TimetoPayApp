@@ -30,4 +30,8 @@ aggregation: AdminGetCustomChartAggregation;
  * A number-field key. Required unless aggregation is count.
  */
 measure?: string;
+/**
+ * A JSON-encoded object of categoryFieldKey -> exact value, ANDed together (e.g. {"storeCountry":"US","category":"Dairy"}). This is also how a currency/country filter works — there's no separate currency column, so pinning storeCountry (or countryCode) to one value is what makes summing money meaningful.
+ */
+filters?: string;
 };

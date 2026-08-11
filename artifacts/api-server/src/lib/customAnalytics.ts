@@ -302,6 +302,13 @@ export interface ChartQueryInput {
   splitBy?: string;
   aggregation: string;
   measure?: string;
+  // Restrict to rows where each named category field equals its given value —
+  // an AND of equality filters, applied before grouping. This is also how a
+  // "currency" or "country" filter works: there's no separate currency column,
+  // so pinning storeCountry/countryCode to one value is what makes summing
+  // money meaningful (mixed countries otherwise silently added incompatible
+  // currencies together as if they were the same unit).
+  filters?: Record<string, string>;
 }
 
 export async function computeCustomChart(
@@ -346,6 +353,14 @@ export async function computeCustomChart(
     splitBy = input.splitBy;
   }
 
+  const filters: Record<string, string> = {};
+  for (const [field, value] of Object.entries(input.filters ?? {})) {
+    if (!meta.categoryFields.some((f) => f.key === field)) {
+      return { error: `"${field}" is not a field on ${meta.label}` };
+    }
+    filters[field] = value;
+  }
+
   // Granularity is a display nicety, not a correctness question, so an
   // invalid/absent one falls back to "month" rather than 400ing — same pattern
   // as the price-growth window.
@@ -355,7 +370,7 @@ export async function computeCustomChart(
     ? (input.granularity as Granularity)
     : "month";
 
-  return runQuery(src, { groupBy: input.groupBy, isDateGroupBy, granularity, splitBy, aggregation, measure, unit });
+  return runQuery(src, { groupBy: input.groupBy, isDateGroupBy, granularity, splitBy, aggregation, measure, unit, filters });
 }
 
 async function runQuery(
@@ -368,12 +383,37 @@ async function runQuery(
     aggregation: Aggregation;
     measure?: string;
     unit: "currency" | "count";
+    filters: Record<string, string>;
   },
 ): Promise<ChartResult> {
-  const rows = await src.load();
+  const filterEntries = Object.entries(q.filters);
+  const rows = (await src.load()).filter((r) =>
+    filterEntries.every(([field, value]) => r.cats[field] === value),
+  );
   return q.isDateGroupBy
     ? buildTimeResult(rows, q.granularity, q.splitBy, q.aggregation, q.measure, q.unit)
     : buildCategoryResult(rows, q.groupBy, q.aggregation, q.measure, q.unit);
+}
+
+// Distinct values a category field actually has, for a filter dropdown. Same
+// load-and-scan approach as everything else here — fine at this app's scale.
+export async function listFieldValues(
+  source: string,
+  field: string,
+): Promise<{ values: string[]; truncated: boolean } | { error: string }> {
+  const src = SOURCES[source];
+  if (!src) return { error: `Unknown data source "${source}"` };
+  if (!src.meta.categoryFields.some((f) => f.key === field)) {
+    return { error: `"${field}" is not a field on ${src.meta.label}` };
+  }
+
+  const rows = await src.load();
+  const distinct = new Set<string>();
+  for (const r of rows) distinct.add(r.cats[field] ?? "");
+
+  const MAX_VALUES = 1000;
+  const sorted = Array.from(distinct).sort((a, b) => a.localeCompare(b));
+  return { values: sorted.slice(0, MAX_VALUES), truncated: sorted.length > MAX_VALUES };
 }
 
 function buildTimeResult(

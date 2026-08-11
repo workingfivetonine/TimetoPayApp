@@ -9,6 +9,7 @@
 export * from './adminActionResult';
 export * from './adminCustomChartField';
 export * from './adminCustomChartFieldUnit';
+export * from './adminCustomChartFieldValuesResult';
 export * from './adminCustomChartMetaResult';
 export * from './adminCustomChartPoint';
 export * from './adminCustomChartResult';
@@ -18,6 +19,8 @@ export * from './adminCustomChartSeries';
 export * from './adminCustomChartSource';
 export * from './adminGetCustomChart400';
 export * from './adminGetCustomChartAggregation';
+export * from './adminGetCustomChartFieldValues400';
+export * from './adminGetCustomChartFieldValuesParams';
 export * from './adminGetCustomChartGranularity';
 export * from './adminGetCustomChartParams';
 export * from './adminGetPriceGrowthParams';
