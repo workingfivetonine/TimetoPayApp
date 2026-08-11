@@ -11,7 +11,7 @@ import type { GetCatalogPriceGrowthWindowDays, AdminPriceGrowthItem } from "@wor
 import { useColors } from "@/hooks/useColors";
 import { formatPrice } from "@workspace/geo";
 import { EmptyState } from "@/components/EmptyState";
-import { PriceGrowthChart } from "@/components/PriceGrowthChart";
+import { PriceGrowthChart, growthChartDomain } from "@/components/PriceGrowthChart";
 
 const WINDOWS: { days: GetCatalogPriceGrowthWindowDays; label: string }[] = [
   { days: 90, label: "90 days" },
@@ -120,8 +120,7 @@ export function UserPriceGrowth() {
             key={item.catalogItemId}
             item={item}
             colors={colors}
-            domainStart={windowDays === 0 ? undefined : data.windowStart}
-            domainEnd={windowDays === 0 ? undefined : data.windowEnd}
+            {...growthChartDomain(windowDays, data)}
             expanded={!!open[item.catalogItemId]}
             onToggle={() => setOpen((o) => ({ ...o, [item.catalogItemId]: !o[item.catalogItemId] }))}
           />

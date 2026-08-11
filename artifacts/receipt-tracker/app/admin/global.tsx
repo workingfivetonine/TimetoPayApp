@@ -20,7 +20,7 @@ import type {
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
-import { PriceGrowthChart } from "@/components/PriceGrowthChart";
+import { PriceGrowthChart, growthChartDomain } from "@/components/PriceGrowthChart";
 import { formatPrice, countryName } from "@workspace/geo";
 
 // The generated CatalogGlobalItem type is drifted and lacks the new country
@@ -361,12 +361,7 @@ function GrowthTab() {
           <GrowthCard
             item={item}
             colors={colors}
-            // All time: omit the shared domain so each chart falls back to its
-            // own first-to-last extent (PriceGrowthChart's default) instead of
-            // being squeezed into one axis alongside items with very different
-            // histories.
-            domainStart={windowDays === 0 ? undefined : data?.windowStart}
-            domainEnd={windowDays === 0 ? undefined : data?.windowEnd}
+            {...growthChartDomain(windowDays, data)}
             expanded={!!open[item.catalogItemId]}
             onToggle={() => setOpen((o) => ({ ...o, [item.catalogItemId]: !o[item.catalogItemId] }))}
           />

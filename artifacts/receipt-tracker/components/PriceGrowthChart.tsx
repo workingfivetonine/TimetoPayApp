@@ -39,6 +39,18 @@ function shortDate(date: string): string {
   return d.toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+// Shared x-domain for a list of PriceGrowthChart cards fed by a windowed
+// price-growth response. For "All time" (windowDays 0) there's no fixed
+// window to share — each chart falls back to its own extent — otherwise every
+// card shares the response's windowStart/windowEnd so they read side by side.
+export function growthChartDomain(
+  windowDays: number,
+  data: { windowStart: string; windowEnd: string } | undefined,
+): { domainStart: string | undefined; domainEnd: string | undefined } {
+  if (windowDays === 0 || !data) return { domainStart: undefined, domainEnd: undefined };
+  return { domainStart: data.windowStart, domainEnd: data.windowEnd };
+}
+
 // One line per store over a real time axis. The x position is the actual date,
 // not the point's index, so lines from stores sampled at different times stay
 // comparable — indexing by position would silently align a store's 3 purchases
