@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -31,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceipts";
+import { ScanProgress, type ScanProgressValue } from "@/components/ScanProgress";
 import { takeSharedFiles } from "@/stores/sharedFile";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
@@ -148,6 +148,10 @@ export default function ScanScreen() {
   const queryClient = useQueryClient();
   const [scanning, setScanning] = useState(false);
   const [scanningLabel, setScanningLabel] = useState("");
+  // Counted work, for a real progress bar. Null when there is nothing genuine to
+  // count (a single file is one opaque server call), in which case the overlay
+  // shows a moving bar and no number rather than a made-up percentage.
+  const [scanProgress, setScanProgress] = useState<ScanProgressValue | null>(null);
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
   // "Save & Next" on the review screen routes here with ?autoOpen=1 so the next
@@ -456,10 +460,16 @@ export default function ScanScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const summaries: BatchReceiptSummary[] = [];
     let failures = 0;
+    // These run CONCURRENTLY, so progress has to count what has finished. The
+    // old label was set from the loop index before each request started, which
+    // meant all of them fired at once and it read "photo 5 of 5" while nothing
+    // had actually come back yet.
+    let done = 0;
+    setScanningLabel("Analyzing your photos…");
+    setScanProgress({ done: 0, total: assets.length });
     try {
       await Promise.all(
-        assets.map(async (asset, index) => {
-          setScanningLabel(`Analyzing photo ${index + 1} of ${assets.length}…`);
+        assets.map(async (asset) => {
           try {
             // Reading the photo is inside the per-photo try on purpose: one
             // unreadable file counts as that photo failing, not the whole batch.
@@ -468,11 +478,17 @@ export default function ScanScreen() {
             summaries.push(toSummary(result));
           } catch {
             failures++;
+          } finally {
+            // Counted in `finally` so a failed photo still advances the bar —
+            // otherwise the bar stalls short of the end and looks stuck.
+            done++;
+            setScanProgress({ done, total: assets.length });
           }
         })
       );
     } finally {
       setScanning(false);
+      setScanProgress(null);
     }
 
     if (summaries.length === 0) {
@@ -600,9 +616,10 @@ export default function ScanScreen() {
     let duplicates = 0;
     let skippedPages = 0;
 
+    setScanningLabel("Analyzing your PDFs…");
+    setScanProgress({ done: 0, total: files.length });
     try {
       for (const [index, base64] of files.entries()) {
-        setScanningLabel(`Analyzing PDF ${index + 1} of ${files.length}…`);
         try {
           const { receipts, pagesSkipped = 0 } = await callApi<{
             receipts: (SavedReceipt | DuplicateReceipt)[];
@@ -615,10 +632,15 @@ export default function ScanScreen() {
           summaries.push(...saved.map(toSummary));
         } catch {
           failed++;
+        } finally {
+          // A failed PDF still advances the bar, so it can't stall short of the
+          // end and look stuck.
+          setScanProgress({ done: index + 1, total: files.length });
         }
       }
     } finally {
       setScanning(false);
+      setScanProgress(null);
     }
 
     if (summaries.length === 0) {
@@ -831,10 +853,7 @@ export default function ScanScreen() {
       {scanning && (
         <View style={styles.overlay}>
           <View style={[styles.overlayCard, { backgroundColor: colors.card }]}>
-            <ActivityIndicator color={colors.primary} size="large" />
-            <Text style={[styles.overlayText, { color: colors.foreground }]}>
-              {scanningLabel}
-            </Text>
+            <ScanProgress label={scanningLabel} progress={scanProgress} />
           </View>
         </View>
       )}
