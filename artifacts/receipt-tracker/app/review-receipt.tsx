@@ -85,9 +85,21 @@ export default function ReviewReceiptScreen() {
   // Existing item names that scanned lines almost match. Advisory: scan-time
   // matching won't merge these on its own (an abbreviation scores below the
   // auto-merge bar), so without this each scan quietly mints a duplicate item
-  // and splits the price history. Keyed by line index.
-  const [nameHints, setNameHints] = useState<Record<number, string>>({});
-  const [dismissedHints, setDismissedHints] = useState<Record<number, boolean>>({});
+  // and splits the price history.
+  //
+  // Keyed by a stable per-row id, NOT the array index: a line item carries no
+  // id of its own (it doesn't exist in the DB yet), but the index shifts the
+  // moment a row above it is deleted. Keying by index would leave a hint
+  // meant for one item silently pointing at whatever row slid into its old
+  // position, for the whole window until the debounced suggestion fetch below
+  // catches up.
+  const keyCounterRef = React.useRef(0);
+  const nextLineKey = () => `li-${keyCounterRef.current++}`;
+  const [lineItemKeys, setLineItemKeys] = useState<string[]>(() =>
+    Array.from({ length: initialReceipt?.lineItems.length ?? 0 }, nextLineKey),
+  );
+  const [nameHints, setNameHints] = useState<Record<string, string>>({});
+  const [dismissedHints, setDismissedHints] = useState<Record<string, boolean>>({});
   const { mutateAsync: fetchNameSuggestions } = useSuggestItemNames();
 
   // Re-run whenever the store changes: the candidate pool is "what you've bought
@@ -107,12 +119,18 @@ export default function ReviewReceiptScreen() {
     let cancelled = false;
     void (async () => {
       try {
+        // storeKey (lowercased) is only the "is there a store name yet" gate
+        // and effect dependency — the server does its own case-insensitive
+        // match, so send the real name rather than a pre-lowercased one.
         const res = await fetchNameSuggestions({
-          data: { storeName: storeKey, names: lineNames },
+          data: { storeName: receipt?.storeName?.trim() ?? "", names: lineNames },
         });
         if (cancelled) return;
-        const map: Record<number, string> = {};
-        for (const s of res.suggestions) map[s.index] = s.suggestedName;
+        const map: Record<string, string> = {};
+        for (const s of res.suggestions) {
+          const key = lineItemKeys[s.index];
+          if (key) map[key] = s.suggestedName;
+        }
         setNameHints(map);
       } catch {
         // A failed suggestion lookup must never block the review — the receipt
@@ -322,9 +340,11 @@ export default function ReviewReceiptScreen() {
       );
       return { ...r, lineItems: items };
     });
-  const removeItem = (idx: number) =>
+  const removeItem = (idx: number) => {
     setReceipt((r) => r && { ...r, lineItems: r.lineItems.filter((_, i) => i !== idx) });
-  const addItem = () =>
+    setLineItemKeys((keys) => keys.filter((_, i) => i !== idx));
+  };
+  const addItem = () => {
     setReceipt((r) =>
       r && {
         ...r,
@@ -334,6 +354,8 @@ export default function ReviewReceiptScreen() {
         ],
       }
     );
+    setLineItemKeys((keys) => [...keys, nextLineKey()]);
+  };
 
   const fieldStyle = (uncertain?: boolean) => ({
     backgroundColor: uncertain ? warnBg : colors.card,
@@ -537,9 +559,10 @@ export default function ReviewReceiptScreen() {
 
         {receipt.lineItems.map((li, idx) => {
           const rowUncertain = li.nameUncertain || li.priceUncertain;
+          const lineKey = lineItemKeys[idx] ?? `idx-${idx}`;
           return (
             <View
-              key={idx}
+              key={lineKey}
               style={[
                 styles.itemCard,
                 {
@@ -574,21 +597,21 @@ export default function ReviewReceiptScreen() {
                   corrupts price history silently, so the decision is the
                   user's. Accepting it keeps one item and one price history
                   instead of minting a near-duplicate. */}
-              {nameHints[idx] && !dismissedHints[idx] && nameHints[idx] !== li.name ? (
+              {nameHints[lineKey] && !dismissedHints[lineKey] && nameHints[lineKey] !== li.name ? (
                 <View style={[styles.hintRow, { backgroundColor: colors.accent, borderColor: colors.border }]}>
                   <Feather name="link-2" size={12} color={colors.primary} />
                   <Text style={[styles.hintText, { color: colors.foreground }]} numberOfLines={2}>
                     You usually call this{" "}
-                    <Text style={{ fontFamily: "Inter_600SemiBold" }}>{nameHints[idx]}</Text> here
+                    <Text style={{ fontFamily: "Inter_600SemiBold" }}>{nameHints[lineKey]}</Text> here
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setItemField(idx, "name", nameHints[idx]!)}
+                    onPress={() => setItemField(idx, "name", nameHints[lineKey]!)}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   >
                     <Text style={[styles.hintUse, { color: colors.primary }]}>Use it</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => setDismissedHints((d) => ({ ...d, [idx]: true }))}
+                    onPress={() => setDismissedHints((d) => ({ ...d, [lineKey]: true }))}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
                     accessibilityLabel="Dismiss name suggestion"
                   >
