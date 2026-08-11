@@ -68,6 +68,30 @@ export interface ItemNameSuggestionResult {
   suggestions: ItemNameSuggestion[];
 }
 
+export interface ItemSimilarInput {
+  /** Candidate name to check against the user's other items. */
+  name: string;
+}
+
+/**
+ * The closest match among the user's OTHER items, if any clears the suggestion bar.
+ * @nullable
+ */
+export type ItemSimilarResultMatch = {
+  itemId: number;
+  name: string;
+  /** Similarity, 0-1. */
+  score: number;
+} | null;
+
+export interface ItemSimilarResult {
+  /**
+     * The closest match among the user's OTHER items, if any clears the suggestion bar.
+     * @nullable
+     */
+  match?: ItemSimilarResultMatch;
+}
+
 /**
  * Only present on a measure field; tells the client how to format its values.
  */
@@ -543,6 +567,35 @@ export interface StoreUpdate {
   minimumOrderAmount?: number | null;
   /** @nullable */
   notes?: string | null;
+}
+
+export interface StoreSimilarInput {
+  /** Candidate name to check against the user's other stores. */
+  name: string;
+}
+
+/**
+ * The closest match among the user's OTHER stores, if any clears the suggestion bar.
+ * @nullable
+ */
+export type StoreSimilarResultMatch = {
+  storeId: number;
+  name: string;
+  /** Similarity, 0-1. */
+  score: number;
+} | null;
+
+export interface StoreSimilarResult {
+  /**
+     * The closest match among the user's OTHER stores, if any clears the suggestion bar.
+     * @nullable
+     */
+  match?: StoreSimilarResultMatch;
+}
+
+export interface MergeStoreInput {
+  /** The id of the store to merge this store into */
+  targetId: number;
 }
 
 export interface Item {

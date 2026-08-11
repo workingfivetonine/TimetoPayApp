@@ -8,7 +8,7 @@ import {
   storesTable,
   catalogItemsTable,
 } from "@workspace/db";
-import { CreateItemBody, MergeItemBody } from "@workspace/api-zod";
+import { CreateItemBody, MergeItemBody, FindSimilarItemBody } from "@workspace/api-zod";
 import { isValidCategory } from "../lib/categories";
 import {
   bestFuzzyMatchScored,
@@ -261,6 +261,46 @@ router.post("/:id/ran-out", async (req, res): Promise<void> => {
   res.json({ ranOutAt: ranOutAt.toISOString(), daysSinceLastPurchase });
 });
 
+// Check a candidate item name against the user's OTHER items, for the
+// rename screen: "this looks like an item you already have — merge instead?"
+// Unlike /name-suggestions (which excludes anything scan-time matching would
+// already auto-merge, since asking would be noise), renaming has no separate
+// auto-merge step of its own, so there's no upper bound here — even a
+// near-exact match is worth surfacing, since nothing else will catch it.
+router.post("/:id/similar", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = parseInt(req.params.id);
+  const parsed = FindSimilarItemBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const trimmed = parsed.data.name.trim();
+  if (!trimmed) {
+    res.json({ match: null });
+    return;
+  }
+
+  const others = await db
+    .select({ id: itemsTable.id, name: itemsTable.name })
+    .from(itemsTable)
+    .where(and(eq(itemsTable.userId, userId), sql`${itemsTable.id} != ${id}`));
+
+  const best = bestFuzzyMatchScored(trimmed, others, (c) => c.name);
+  if (!best || best.score < SUGGESTION_THRESHOLD) {
+    res.json({ match: null });
+    return;
+  }
+
+  res.json({
+    match: {
+      itemId: best.candidate.id,
+      name: best.candidate.name,
+      score: Math.round(best.score * 100) / 100,
+    },
+  });
+});
+
 // Merge this item into another of the user's items: reassign all of this
 // item's line items (purchase history) to the target, add up purchase counts,
 // then delete this item. Both items must belong to the requesting user.
@@ -300,13 +340,24 @@ router.post("/:id/merge", async (req, res): Promise<void> => {
       .set({ itemId: targetId })
       .where(eq(lineItemsTable.itemId, id));
 
-    // Combine purchase counts and keep the target on the list.
+    // Combine purchase counts and keep the target on the list. The target's
+    // own icon/category/brand/size/global-price snapshot wins on a conflict,
+    // but a field the target never set is backfilled from the source rather
+    // than silently dropped — otherwise merging into a bare-bones target
+    // (e.g. one just added from the catalog with no icon yet) could erase
+    // detail the source item already had.
     const [updated] = await tx
       .update(itemsTable)
       .set({
         purchaseCount: target.purchaseCount + source.purchaseCount,
         dismissedAt: null,
         ranOutAt: target.ranOutAt ?? source.ranOutAt,
+        icon: target.icon ?? source.icon,
+        category: target.category ?? source.category,
+        brand: target.brand ?? source.brand,
+        size: target.size ?? source.size,
+        globalPrice: target.globalPrice ?? source.globalPrice,
+        globalStoreName: target.globalStoreName ?? source.globalStoreName,
       })
       .where(and(eq(itemsTable.id, targetId), eq(itemsTable.userId, userId)))
       .returning();

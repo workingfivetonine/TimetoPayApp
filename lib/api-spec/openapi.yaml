@@ -134,6 +134,59 @@ paths:
         "204":
           description: Deleted
 
+  /stores/{id}/similar:
+    post:
+      operationId: findSimilarStore
+      tags: [stores]
+      summary: Check a candidate store name against the user's other stores, for a rename-time merge suggestion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Excluded from the candidate pool (this is the store being renamed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreSimilarInput"
+      responses:
+        "200":
+          description: Best match among the user's other stores, or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreSimilarResult"
+
+  /stores/{id}/merge:
+    post:
+      operationId: mergeStore
+      tags: [stores]
+      summary: Merge this store into another store (reassigns receipts, deletes this store)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeStoreInput"
+      responses:
+        "200":
+          description: Merged store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+        "404":
+          description: Store not found
+
   /items:
     get:
       operationId: listItems
@@ -249,6 +302,32 @@ paths:
                 $ref: "#/components/schemas/DismissResponse"
         "404":
           description: Item not found
+
+  /items/{id}/similar:
+    post:
+      operationId: findSimilarItem
+      tags: [items]
+      summary: Check a candidate item name against the user's other items, for a rename-time merge suggestion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Excluded from the candidate pool (this is the item being renamed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemSimilarInput"
+      responses:
+        "200":
+          description: Best match among the user's other items, or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemSimilarResult"
 
   /items/{id}/merge:
     post:
@@ -1728,6 +1807,30 @@ components:
           items:
             $ref: "#/components/schemas/ItemNameSuggestion"
 
+    ItemSimilarInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Candidate name to check against the user's other items.
+
+    ItemSimilarResult:
+      type: object
+      properties:
+        match:
+          type: ["object", "null"]
+          description: The closest match among the user's OTHER items, if any clears the suggestion bar.
+          required: [itemId, name, score]
+          properties:
+            itemId:
+              type: integer
+            name:
+              type: string
+            score:
+              type: number
+              description: Similarity, 0-1.
+
     AdminCustomChartField:
       type: object
       required: [key, label]
@@ -2409,6 +2512,38 @@ components:
           type: ["number", "null"]
         notes:
           type: ["string", "null"]
+
+    StoreSimilarInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Candidate name to check against the user's other stores.
+
+    StoreSimilarResult:
+      type: object
+      properties:
+        match:
+          type: ["object", "null"]
+          description: The closest match among the user's OTHER stores, if any clears the suggestion bar.
+          required: [storeId, name, score]
+          properties:
+            storeId:
+              type: integer
+            name:
+              type: string
+            score:
+              type: number
+              description: Similarity, 0-1.
+
+    MergeStoreInput:
+      type: object
+      required: [targetId]
+      properties:
+        targetId:
+          type: integer
+          description: The id of the store to merge this store into
 
     Item:
       type: object

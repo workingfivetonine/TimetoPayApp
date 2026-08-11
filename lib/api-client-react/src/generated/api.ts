@@ -69,6 +69,8 @@ import type {
   ItemNameSuggestionInput,
   ItemNameSuggestionResult,
   ItemPriceHistory,
+  ItemSimilarInput,
+  ItemSimilarResult,
   ItemUpdate,
   LineItem,
   LineItemInput,
@@ -76,6 +78,7 @@ import type {
   ManualEntryInput,
   MergeItemInput,
   MergeReceiptsInput,
+  MergeStoreInput,
   NotificationPreferences,
   NotificationPreferencesInput,
   ParsePdfInput,
@@ -97,6 +100,8 @@ import type {
   SpendAnalytics,
   Store,
   StoreInput,
+  StoreSimilarInput,
+  StoreSimilarResult,
   StoreSummary,
   StoreUpdate,
   StoreVisitsReport
@@ -556,6 +561,148 @@ export const useDeleteStore = <TError = ErrorType<unknown>,
       return useMutation(getDeleteStoreMutationOptions(options));
     }
 
+export const getFindSimilarStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/similar`
+}
+
+/**
+ * @summary Check a candidate store name against the user's other stores, for a rename-time merge suggestion
+ */
+export const findSimilarStore = async (id: number,
+    storeSimilarInput: StoreSimilarInput, options?: RequestInit): Promise<StoreSimilarResult> => {
+
+  return customFetch<StoreSimilarResult>(getFindSimilarStoreUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(storeSimilarInput)
+  }
+);}
+
+
+
+
+export const getFindSimilarStoreMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof findSimilarStore>>, TError,{id: number;data: BodyType<StoreSimilarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof findSimilarStore>>, TError,{id: number;data: BodyType<StoreSimilarInput>}, TContext> => {
+
+const mutationKey = ['findSimilarStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof findSimilarStore>>, {id: number;data: BodyType<StoreSimilarInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  findSimilarStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FindSimilarStoreMutationResult = NonNullable<Awaited<ReturnType<typeof findSimilarStore>>>
+    export type FindSimilarStoreMutationBody = BodyType<StoreSimilarInput>
+    export type FindSimilarStoreMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Check a candidate store name against the user's other stores, for a rename-time merge suggestion
+ */
+export const useFindSimilarStore = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof findSimilarStore>>, TError,{id: number;data: BodyType<StoreSimilarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof findSimilarStore>>,
+        TError,
+        {id: number;data: BodyType<StoreSimilarInput>},
+        TContext
+      > => {
+      return useMutation(getFindSimilarStoreMutationOptions(options));
+    }
+
+export const getMergeStoreUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/merge`
+}
+
+/**
+ * @summary Merge this store into another store (reassigns receipts, deletes this store)
+ */
+export const mergeStore = async (id: number,
+    mergeStoreInput: MergeStoreInput, options?: RequestInit): Promise<Store> => {
+
+  return customFetch<Store>(getMergeStoreUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mergeStoreInput)
+  }
+);}
+
+
+
+
+export const getMergeStoreMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeStore>>, TError,{id: number;data: BodyType<MergeStoreInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mergeStore>>, TError,{id: number;data: BodyType<MergeStoreInput>}, TContext> => {
+
+const mutationKey = ['mergeStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergeStore>>, {id: number;data: BodyType<MergeStoreInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  mergeStore(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MergeStoreMutationResult = NonNullable<Awaited<ReturnType<typeof mergeStore>>>
+    export type MergeStoreMutationBody = BodyType<MergeStoreInput>
+    export type MergeStoreMutationError = ErrorType<void>
+
+    /**
+ * @summary Merge this store into another store (reassigns receipts, deletes this store)
+ */
+export const useMergeStore = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeStore>>, TError,{id: number;data: BodyType<MergeStoreInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mergeStore>>,
+        TError,
+        {id: number;data: BodyType<MergeStoreInput>},
+        TContext
+      > => {
+      return useMutation(getMergeStoreMutationOptions(options));
+    }
+
 export const getListItemsUrl = () => {
 
 
@@ -995,6 +1142,77 @@ export const useDismissItem = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDismissItemMutationOptions(options));
+    }
+
+export const getFindSimilarItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/items/${id}/similar`
+}
+
+/**
+ * @summary Check a candidate item name against the user's other items, for a rename-time merge suggestion
+ */
+export const findSimilarItem = async (id: number,
+    itemSimilarInput: ItemSimilarInput, options?: RequestInit): Promise<ItemSimilarResult> => {
+
+  return customFetch<ItemSimilarResult>(getFindSimilarItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(itemSimilarInput)
+  }
+);}
+
+
+
+
+export const getFindSimilarItemMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof findSimilarItem>>, TError,{id: number;data: BodyType<ItemSimilarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof findSimilarItem>>, TError,{id: number;data: BodyType<ItemSimilarInput>}, TContext> => {
+
+const mutationKey = ['findSimilarItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof findSimilarItem>>, {id: number;data: BodyType<ItemSimilarInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  findSimilarItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FindSimilarItemMutationResult = NonNullable<Awaited<ReturnType<typeof findSimilarItem>>>
+    export type FindSimilarItemMutationBody = BodyType<ItemSimilarInput>
+    export type FindSimilarItemMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Check a candidate item name against the user's other items, for a rename-time merge suggestion
+ */
+export const useFindSimilarItem = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof findSimilarItem>>, TError,{id: number;data: BodyType<ItemSimilarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof findSimilarItem>>,
+        TError,
+        {id: number;data: BodyType<ItemSimilarInput>},
+        TContext
+      > => {
+      return useMutation(getFindSimilarItemMutationOptions(options));
     }
 
 export const getMergeItemUrl = (id: number,) => {

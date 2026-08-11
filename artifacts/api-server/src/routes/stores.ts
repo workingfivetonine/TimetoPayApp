@@ -1,14 +1,17 @@
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { storesTable, usersTable } from "@workspace/db";
+import { storesTable, usersTable, receiptsTable } from "@workspace/db";
 import {
   CreateStoreBody,
   UpdateStoreBody,
+  FindSimilarStoreBody,
+  MergeStoreBody,
 } from "@workspace/api-zod";
 import { isValidCountry, isValidUsState, isStateScoped, normalizeRegionCode } from "@workspace/geo";
 import { resolveStoreLogo } from "../lib/storeLogo";
 import { geocodeAddress, haversineKm, type LatLng } from "../lib/geocode";
+import { bestFuzzyMatchScored, SUGGESTION_THRESHOLD } from "../lib/textSimilarity";
 
 // Lazily geocode up to a few of the caller's stores that have an address but no
 // coordinates yet (e.g. addresses backfilled before geocoding existed). Kept
@@ -264,6 +267,116 @@ router.delete("/:id", async (req, res): Promise<void> => {
     .delete(storesTable)
     .where(and(eq(storesTable.id, id), eq(storesTable.userId, userId)));
   res.status(204).send();
+});
+
+// Check a candidate store name against the user's OTHER stores, for the
+// rename screen: "this looks like a store you already have — merge instead?"
+// No upper bound on the score (unlike scan-time store matching, if any):
+// renaming has no separate auto-merge step, so even a near-exact match is
+// worth surfacing.
+router.post("/:id/similar", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = parseInt(req.params.id);
+  const parsed = FindSimilarStoreBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const trimmed = parsed.data.name.trim();
+  if (!trimmed) {
+    res.json({ match: null });
+    return;
+  }
+
+  const others = await db
+    .select({ id: storesTable.id, name: storesTable.name })
+    .from(storesTable)
+    .where(and(eq(storesTable.userId, userId), sql`${storesTable.id} != ${id}`));
+
+  const best = bestFuzzyMatchScored(trimmed, others, (c) => c.name);
+  if (!best || best.score < SUGGESTION_THRESHOLD) {
+    res.json({ match: null });
+    return;
+  }
+
+  res.json({
+    match: {
+      storeId: best.candidate.id,
+      name: best.candidate.name,
+      score: Math.round(best.score * 100) / 100,
+    },
+  });
+});
+
+// Merge this store into another of the user's stores: repoint every receipt
+// at the target, then delete this store. Both stores must belong to the
+// requesting user. The target's own fields win on a conflict, but a field the
+// target never set (address, delivery fee, logo, etc.) is backfilled from the
+// source rather than silently dropped.
+router.post("/:id/merge", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const id = parseInt(req.params.id);
+  const parsed = MergeStoreBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const targetId = parsed.data.targetId;
+  if (targetId === id) {
+    res.status(400).json({ error: "Cannot merge a store into itself" });
+    return;
+  }
+
+  const [source] = await db
+    .select()
+    .from(storesTable)
+    .where(and(eq(storesTable.id, id), eq(storesTable.userId, userId)));
+  const [target] = await db
+    .select()
+    .from(storesTable)
+    .where(and(eq(storesTable.id, targetId), eq(storesTable.userId, userId)));
+  if (!source || !target) {
+    res.status(404).json({ error: "Store not found" });
+    return;
+  }
+
+  const merged = await db.transaction(async (tx) => {
+    // Reassign every receipt logged at the source store to the target.
+    await tx
+      .update(receiptsTable)
+      .set({ storeId: targetId })
+      .where(eq(receiptsTable.storeId, id));
+
+    const [updated] = await tx
+      .update(storesTable)
+      .set({
+        countryCode: target.countryCode ?? source.countryCode,
+        stateCode: target.stateCode ?? source.stateCode,
+        address: target.address ?? source.address,
+        latitude: target.latitude ?? source.latitude,
+        longitude: target.longitude ?? source.longitude,
+        phone: target.phone ?? source.phone,
+        website: target.website ?? source.website,
+        openTimes: target.openTimes ?? source.openTimes,
+        deliveryFee: target.deliveryFee ?? source.deliveryFee,
+        minimumOrderAmount: target.minimumOrderAmount ?? source.minimumOrderAmount,
+        notes: target.notes ?? source.notes,
+        logoUrl: target.logoUrl ?? source.logoUrl,
+      })
+      .where(and(eq(storesTable.id, targetId), eq(storesTable.userId, userId)))
+      .returning();
+
+    await tx.delete(storesTable).where(and(eq(storesTable.id, id), eq(storesTable.userId, userId)));
+
+    return updated;
+  });
+
+  res.json({
+    ...merged,
+    deliveryFee: merged.deliveryFee ? Number(merged.deliveryFee) : null,
+    minimumOrderAmount: merged.minimumOrderAmount ? Number(merged.minimumOrderAmount) : null,
+    createdAt: merged.createdAt.toISOString(),
+  });
 });
 
 export default router;

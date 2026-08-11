@@ -142,6 +142,54 @@ export const DeleteStoreResponse = zod.void()
 
 
 /**
+ * @summary Check a candidate store name against the user's other stores, for a rename-time merge suggestion
+ */
+export const FindSimilarStoreParams = zod.object({
+  "id": zod.coerce.number().describe('Excluded from the candidate pool (this is the store being renamed).')
+})
+
+export const FindSimilarStoreBody = zod.object({
+  "name": zod.string().describe('Candidate name to check against the user\'s other stores.')
+})
+
+export const FindSimilarStoreResponse = zod.object({
+  "match": zod.object({
+  "storeId": zod.number(),
+  "name": zod.string(),
+  "score": zod.number().describe('Similarity, 0-1.')
+}).nullish().describe('The closest match among the user\'s OTHER stores, if any clears the suggestion bar.')
+})
+
+
+/**
+ * @summary Merge this store into another store (reassigns receipts, deletes this store)
+ */
+export const MergeStoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MergeStoreBody = zod.object({
+  "targetId": zod.number().describe('The id of the store to merge this store into')
+})
+
+export const MergeStoreResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "countryCode": zod.string().nullish().describe('ISO-3166 alpha-2 country code'),
+  "stateCode": zod.string().nullish().describe('USPS 2-letter state code; only set when countryCode is \"US\"'),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "openTimes": zod.string().nullish(),
+  "deliveryAvailable": zod.boolean(),
+  "deliveryFee": zod.number().nullish(),
+  "minimumOrderAmount": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary List all items
  */
 export const ListItemsResponseItem = zod.object({
@@ -229,6 +277,26 @@ export const DismissItemParams = zod.object({
 
 export const DismissItemResponse = zod.object({
   "dismissedAt": zod.string()
+})
+
+
+/**
+ * @summary Check a candidate item name against the user's other items, for a rename-time merge suggestion
+ */
+export const FindSimilarItemParams = zod.object({
+  "id": zod.coerce.number().describe('Excluded from the candidate pool (this is the item being renamed).')
+})
+
+export const FindSimilarItemBody = zod.object({
+  "name": zod.string().describe('Candidate name to check against the user\'s other items.')
+})
+
+export const FindSimilarItemResponse = zod.object({
+  "match": zod.object({
+  "itemId": zod.number(),
+  "name": zod.string(),
+  "score": zod.number().describe('Similarity, 0-1.')
+}).nullish().describe('The closest match among the user\'s OTHER items, if any clears the suggestion bar.')
 })
 
 

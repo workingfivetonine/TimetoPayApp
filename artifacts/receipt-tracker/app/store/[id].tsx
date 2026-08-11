@@ -12,12 +12,28 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGetStoreSummary, useGetStoreVisits } from "@workspace/api-client-react";
+import {
+  useGetStoreSummary,
+  useGetStoreVisits,
+  useUpdateStore,
+  useFindSimilarStore,
+  useMergeStore,
+  useListStores,
+  getGetStoreSummaryQueryKey,
+  getListStoresQueryKey,
+  getListReceiptsQueryKey,
+  getGetSpendAnalyticsQueryKey,
+  getGetDailySpendQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { resolveStoreLink } from "@/lib/storeLink";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { notify } from "@/lib/confirm";
+import { RenameMergeModal, type SimilarMatch } from "@/components/RenameMergeModal";
+import { MergePickerModal, type MergeCandidate } from "@/components/MergePickerModal";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -30,12 +46,86 @@ export default function StoreDetailScreen() {
   const { format } = useCurrency();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const [visitsExpanded, setVisitsExpanded] = useState(true);
   const [itemsExpanded, setItemsExpanded] = useState(true);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [mergePickerOpen, setMergePickerOpen] = useState(false);
 
   const storeId = parseInt(id ?? "0");
   const { data: summary, isLoading, dataUpdatedAt } = useGetStoreSummary(storeId);
   const { data: visits } = useGetStoreVisits(storeId);
+  const { mutate: renameStore, isPending: renameSaving } = useUpdateStore();
+  const { mutateAsync: findSimilarStore } = useFindSimilarStore();
+  const { mutate: mergeStore, isPending: mergePending } = useMergeStore();
+  // Only fetched once the picker actually opens — every other visit to this
+  // screen has no use for the full store list.
+  const { data: allStores, isLoading: allStoresLoading } = useListStores({
+    query: { queryKey: getListStoresQueryKey(), enabled: mergePickerOpen },
+  });
+
+  const invalidateAfterStoreMerge = () => {
+    queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        typeof q.queryKey[0] === "string" &&
+        ((q.queryKey[0] as string).startsWith("/api/receipts") ||
+          (q.queryKey[0] as string).startsWith("/api/stores") ||
+          (q.queryKey[0] as string).startsWith("/api/analytics/stores")),
+    });
+  };
+
+  const checkSimilarStore = async (name: string): Promise<SimilarMatch | null> => {
+    const res = await findSimilarStore({ id: storeId, data: { name } });
+    return res.match ? { id: res.match.storeId, name: res.match.name, score: res.match.score } : null;
+  };
+
+  const handleSaveStoreName = (name: string) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to rename this store.");
+      return;
+    }
+    renameStore(
+      { id: storeId, data: { name } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetStoreSummaryQueryKey(storeId) });
+          queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
+          setRenameOpen(false);
+        },
+        onError: () => notify("Couldn't rename", "Please try again."),
+      },
+    );
+  };
+
+  const runStoreMerge = (targetId: number, onDone?: () => void) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to merge stores.");
+      return;
+    }
+    mergeStore(
+      { id: storeId, data: { targetId } },
+      {
+        onSuccess: (merged) => {
+          invalidateAfterStoreMerge();
+          onDone?.();
+          router.replace(`/store/${merged.id}`);
+        },
+        onError: () => notify("Couldn't merge", "Please try again."),
+      },
+    );
+  };
+
+  const handleMergeStoreFromRename = (match: SimilarMatch) => runStoreMerge(match.id, () => setRenameOpen(false));
+  const handlePickStoreMergeTarget = (targetId: number) => runStoreMerge(targetId, () => setMergePickerOpen(false));
+
+  const mergeStoreCandidates: MergeCandidate[] = (allStores ?? [])
+    .filter((s) => s.id !== storeId)
+    .map((s) => ({ id: s.id, title: s.name, subtitle: s.address ?? undefined }));
 
   const paddingTop = Platform.OS === "web" ? 67 : insets.top + 8;
 
@@ -61,9 +151,12 @@ export default function StoreDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
-          {summary.storeName}
-        </Text>
+        <TouchableOpacity style={styles.storeNameRow} onPress={() => setRenameOpen(true)} activeOpacity={0.7}>
+          <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
+            {summary.storeName}
+          </Text>
+          <Feather name="edit-2" size={14} color={colors.mutedForeground} />
+        </TouchableOpacity>
       </View>
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
@@ -274,7 +367,41 @@ export default function StoreDetailScreen() {
               })}
           </View>
         )}
+
+        <TouchableOpacity
+          style={[styles.mergeBtn, { borderColor: colors.border }]}
+          onPress={() => setMergePickerOpen(true)}
+          activeOpacity={0.7}
+        >
+          <Feather name="git-merge" size={16} color={colors.foreground} />
+          <Text style={[styles.mergeBtnText, { color: colors.foreground }]}>Merge With Another Store</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      <RenameMergeModal
+        visible={renameOpen}
+        title="Rename store"
+        label="Store name"
+        initialName={summary.storeName}
+        saving={renameSaving || mergePending}
+        checkSimilar={checkSimilarStore}
+        onSave={handleSaveStoreName}
+        onMerge={handleMergeStoreFromRename}
+        onClose={() => setRenameOpen(false)}
+      />
+
+      <MergePickerModal
+        visible={mergePickerOpen}
+        title="Merge with which store?"
+        hint={`"${summary.storeName}" will be folded into the store you pick, and its own row removed. Every receipt logged here moves with it.`}
+        candidates={mergeStoreCandidates}
+        isLoading={allStoresLoading}
+        pending={mergePending}
+        searchPlaceholder="Find a store…"
+        emptyText="You have no other stores to merge into."
+        onPick={handlePickStoreMergeTarget}
+        onClose={() => setMergePickerOpen(false)}
+      />
     </View>
   );
 }
@@ -290,8 +417,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backBtn: { padding: 4 },
+  storeNameRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   storeName: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1 },
   scroll: { paddingHorizontal: 16, paddingTop: 8 },
+  mergeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  mergeBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
   statCard: {
     flex: 1,

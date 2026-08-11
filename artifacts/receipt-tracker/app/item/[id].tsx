@@ -28,6 +28,9 @@ import {
   useMarkRanOut,
   useUpdateItem,
   useDeleteItem,
+  useFindSimilarItem,
+  useMergeItem,
+  useListItems,
   getGetShoppingListQueryKey,
   getGetItemHistoryQueryKey,
   getGetItemPriceHistoryQueryKey,
@@ -44,6 +47,8 @@ import { useAuth } from "@clerk/expo";
 import { getApiOrigin } from "@/lib/apiBase";
 import { confirmDestructive, notify } from "@/lib/confirm";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { RenameMergeModal, type SimilarMatch } from "@/components/RenameMergeModal";
+import { MergePickerModal, type MergeCandidate } from "@/components/MergePickerModal";
 import type { ItemHistoryEntry } from "@workspace/api-client-react";
 
 function formatDate(iso: string): string {
@@ -213,11 +218,21 @@ export default function ItemHistoryScreen() {
   const { data, isLoading, refetch, dataUpdatedAt } = useGetItemHistory(itemId);
   const { mutateAsync: markRanOut, isPending: ranOutPending } = useMarkRanOut();
   const { mutate: updateItem, isPending: iconSaving } = useUpdateItem();
+  const { mutate: renameItem, isPending: renameSaving } = useUpdateItem();
   const { mutate: deleteItem, isPending: deletePending } = useDeleteItem();
+  const { mutateAsync: findSimilarItem } = useFindSimilarItem();
+  const { mutate: mergeItem, isPending: mergePending } = useMergeItem();
   const isOnline = useOnlineStatus();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [mergePickerOpen, setMergePickerOpen] = useState(false);
+  // Only fetched once the picker actually opens — every other visit to this
+  // screen has no use for the full item list.
+  const { data: allItems, isLoading: allItemsLoading } = useListItems({
+    query: { queryKey: getListItemsQueryKey(), enabled: mergePickerOpen },
+  });
 
   // Editable details (category / brand / size) loaded from GET /items/:id.
   const { getToken } = useAuth();
@@ -369,6 +384,75 @@ export default function ItemHistoryScreen() {
     });
   };
 
+  // A merge reassigns purchase history across receipts, same blast radius as
+  // deleting the item outright, so it invalidates the same set of caches.
+  const invalidateAfterMerge = () => {
+    queryClient.invalidateQueries({ queryKey: getGetShoppingListQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetSpendAnalyticsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetDailySpendQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        typeof q.queryKey[0] === "string" &&
+        ((q.queryKey[0] as string).startsWith("/api/receipts") ||
+          (q.queryKey[0] as string).startsWith("/api/analytics/stores") ||
+          (q.queryKey[0] as string).startsWith("/api/items")),
+    });
+  };
+
+  const checkSimilarItem = async (name: string): Promise<SimilarMatch | null> => {
+    const res = await findSimilarItem({ id: itemId, data: { name } });
+    return res.match ? { id: res.match.itemId, name: res.match.name, score: res.match.score } : null;
+  };
+
+  const handleSaveName = (name: string) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to rename this item.");
+      return;
+    }
+    renameItem(
+      { id: itemId, data: { name } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetItemHistoryQueryKey(itemId) });
+          queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+          setRenameOpen(false);
+        },
+        onError: () => notify("Couldn't rename", "Please try again."),
+      },
+    );
+  };
+
+  const runMerge = (targetId: number, onDone?: () => void) => {
+    if (!isOnline) {
+      notify("You're offline", "Connect to the internet to merge items.");
+      return;
+    }
+    mergeItem(
+      { id: itemId, data: { targetId } },
+      {
+        onSuccess: (merged) => {
+          invalidateAfterMerge();
+          onDone?.();
+          router.replace(`/item/${merged.id}`);
+        },
+        onError: () => notify("Couldn't merge", "Please try again."),
+      },
+    );
+  };
+
+  const handleMergeFromRename = (match: SimilarMatch) => runMerge(match.id, () => setRenameOpen(false));
+  const handlePickMergeTarget = (targetId: number) => runMerge(targetId, () => setMergePickerOpen(false));
+
+  const mergeCandidates: MergeCandidate[] = (allItems ?? [])
+    .filter((i) => i.id !== itemId)
+    .map((i) => ({
+      id: i.id,
+      title: i.name,
+      subtitle: `${i.purchaseCount} purchase${i.purchaseCount === 1 ? "" : "s"}`,
+    }));
+
   if (isLoading) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -422,9 +506,12 @@ export default function ItemHistoryScreen() {
             <Feather name="edit-2" size={9} color={colors.background} />
           </View>
         </TouchableOpacity>
-        <Text style={[styles.itemName, { color: colors.foreground }]} numberOfLines={2}>
-          {data.itemName}
-        </Text>
+        <TouchableOpacity style={styles.itemNameRow} onPress={() => setRenameOpen(true)} activeOpacity={0.7}>
+          <Text style={[styles.itemName, { color: colors.foreground }]} numberOfLines={2}>
+            {data.itemName}
+          </Text>
+          <Feather name="edit-2" size={14} color={colors.mutedForeground} />
+        </TouchableOpacity>
       </View>
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
@@ -651,6 +738,15 @@ export default function ItemHistoryScreen() {
         )}
 
         <TouchableOpacity
+          style={[styles.mergeBtn, { borderColor: colors.border }]}
+          onPress={() => setMergePickerOpen(true)}
+          activeOpacity={0.7}
+        >
+          <Feather name="git-merge" size={16} color={colors.foreground} />
+          <Text style={[styles.mergeBtnText, { color: colors.foreground }]}>Merge With Another Item</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.deleteBtn, { borderColor: colors.destructive }]}
           onPress={handleDelete}
           disabled={deletePending}
@@ -666,6 +762,31 @@ export default function ItemHistoryScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      <RenameMergeModal
+        visible={renameOpen}
+        title="Rename item"
+        label="Item name"
+        initialName={data.itemName}
+        saving={renameSaving || mergePending}
+        checkSimilar={checkSimilarItem}
+        onSave={handleSaveName}
+        onMerge={handleMergeFromRename}
+        onClose={() => setRenameOpen(false)}
+      />
+
+      <MergePickerModal
+        visible={mergePickerOpen}
+        title="Merge with which item?"
+        hint={`"${data.itemName}" will be folded into the item you pick, and its own row removed.`}
+        candidates={mergeCandidates}
+        isLoading={allItemsLoading}
+        pending={mergePending}
+        searchPlaceholder="Find an item…"
+        emptyText="You have no other items to merge into."
+        onPick={handlePickMergeTarget}
+        onClose={() => setMergePickerOpen(false)}
+      />
 
       {/* Emoji picker modal */}
       <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={() => setPickerOpen(false)}>
@@ -763,6 +884,17 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   deleteBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  mergeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 24,
+  },
+  mergeBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row",
@@ -791,6 +923,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  itemNameRow: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 6 },
   itemName: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1, lineHeight: 28 },
   scroll: { paddingHorizontal: 16, paddingTop: 4 },
   statsRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
