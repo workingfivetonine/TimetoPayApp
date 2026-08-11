@@ -1,8 +1,10 @@
 import React from "react";
 import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import Svg, { Circle, Line as SvgLine, Path, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Line as SvgLine, Path, Rect, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
+import { ChartTooltip, type TooltipData } from "@/components/ChartTooltip";
+import { webHoverProps } from "@/lib/chartHover";
 
 const CHART_H = 190;
 const PAD = { left: 54, right: 14, top: 16, bottom: 28 };
@@ -23,7 +25,7 @@ export interface CustomChartSeries {
 // the right model here: two purchases three months apart shouldn't be plotted
 // three times farther apart than two purchases one month apart when the x-axis
 // is itself a sequence of month buckets.
-function formatBucket(bucket: string, granularity: string): string {
+export function formatBucket(bucket: string, granularity: string): string {
   if (granularity === "year") return bucket;
   if (granularity === "month") {
     const [y, m] = bucket.split("-");
@@ -55,6 +57,7 @@ export function CustomLineChart({
     const w = Math.round(e.nativeEvent.layout.width);
     if (w > 0 && w !== containerW) setContainerW(w);
   };
+  const [active, setActive] = React.useState<(TooltipData & { id: string }) | null>(null);
 
   const shown = series.slice(0, MAX_SERIES_SHOWN);
   const buckets = Array.from(new Set(shown.flatMap((s) => s.points.map((p) => p.bucket)))).sort();
@@ -91,6 +94,10 @@ export function CustomLineChart({
   return (
     <View onLayout={onLayout} style={{ overflow: "hidden" }}>
       <Svg width={svgW} height={svgH}>
+        {/* Tapping empty chart area dismisses an open tooltip on native, where
+            there's no hover to leave. Sits behind everything else. */}
+        <Rect x={0} y={0} width={svgW} height={svgH} fill={colors.card} fillOpacity={0.001} onPress={() => setActive(null)} />
+
         {yTicks.map((tick, i) => (
           <SvgLine
             key={`g${i}`}
@@ -120,17 +127,35 @@ export function CustomLineChart({
               {pts.length > 1 ? (
                 <Path d={d} stroke={stroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
               ) : null}
-              {pts.map((p, i) => (
-                <Circle
-                  key={i}
-                  cx={toX(bucketIndex.get(p.bucket)!)}
-                  cy={toY(p.value)}
-                  r={pts.length === 1 ? 5 : 3.5}
-                  fill={stroke}
-                  stroke={colors.card}
-                  strokeWidth={1.5}
-                />
-              ))}
+              {pts.map((p, i) => {
+                const px = toX(bucketIndex.get(p.bucket)!);
+                const py = toY(p.value);
+                const id = `${s.key}:${p.bucket}`;
+                const tooltipLines =
+                  shown.length > 1
+                    ? [s.key, formatBucket(p.bucket, granularity), fmt(p.value)]
+                    : [formatBucket(p.bucket, granularity), fmt(p.value)];
+                const toggle = () =>
+                  setActive((a) => (a?.id === id ? null : { id, x: px, y: py, lines: tooltipLines, color: stroke }));
+                const show = () => setActive({ id, x: px, y: py, lines: tooltipLines, color: stroke });
+                const hide = () => setActive((a) => (a?.id === id ? null : a));
+                return (
+                  <React.Fragment key={i}>
+                    <Circle
+                      cx={px}
+                      cy={py}
+                      r={pts.length === 1 ? 5 : 3.5}
+                      fill={stroke}
+                      stroke={colors.card}
+                      strokeWidth={1.5}
+                    />
+                    {/* Invisible larger hit target — see PriceGrowthChart.tsx
+                        for why (a bare 3.5px dot is too small to reliably tap)
+                        and how the web hover / native tap split works. */}
+                    <Circle cx={px} cy={py} r={12} fill={stroke} fillOpacity={0.001} onPress={toggle} {...webHoverProps(show, hide)} />
+                  </React.Fragment>
+                );
+              })}
             </React.Fragment>
           );
         })}
@@ -147,6 +172,8 @@ export function CustomLineChart({
             {formatBucket(buckets[i]!, granularity)}
           </SvgText>
         ))}
+
+        {active ? <ChartTooltip data={active} chartWidth={svgW} chartHeight={svgH} /> : null}
       </Svg>
 
       {/* A single unsplit series needs no legend — the card title already names

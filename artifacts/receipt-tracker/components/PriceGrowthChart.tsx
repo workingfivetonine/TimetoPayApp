@@ -1,8 +1,10 @@
 import React from "react";
 import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import Svg, { Circle, Line as SvgLine, Path, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Line as SvgLine, Path, Rect, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { formatPrice } from "@workspace/geo";
+import { ChartTooltip, type TooltipData } from "@/components/ChartTooltip";
+import { webHoverProps } from "@/lib/chartHover";
 
 const CHART_H = 190;
 const PAD = { left: 54, right: 14, top: 16, bottom: 28 };
@@ -67,6 +69,7 @@ export function PriceGrowthChart({
     const w = Math.round(e.nativeEvent.layout.width);
     if (w > 0 && w !== containerW) setContainerW(w);
   };
+  const [active, setActive] = React.useState<(TooltipData & { id: string }) | null>(null);
 
   const shown = series.slice(0, MAX_SERIES);
   const hiddenCount = series.length - shown.length;
@@ -114,6 +117,10 @@ export function PriceGrowthChart({
     // before that measurement lands.
     <View onLayout={onLayout} style={{ overflow: "hidden" }}>
       <Svg width={svgW} height={svgH}>
+        {/* Tapping empty chart area dismisses an open tooltip on native, where
+            there's no hover to leave. Sits behind everything else. */}
+        <Rect x={0} y={0} width={svgW} height={svgH} fill={colors.card} fillOpacity={0.001} onPress={() => setActive(null)} />
+
         {yTicks.map((tick, i) => (
           <SvgLine
             key={`g${i}`}
@@ -160,19 +167,45 @@ export function PriceGrowthChart({
                   fill="none"
                 />
               ) : null}
-              {pts.map((p, i) => (
-                <Circle
-                  key={i}
-                  cx={toX(dayMs(p.date))}
-                  cy={toY(p.price)}
-                  r={pts.length === 1 ? 5 : 3.5}
-                  fill={stroke}
-                  // A surface-coloured ring keeps overlapping points from two
-                  // stores readable where their lines cross.
-                  stroke={colors.card}
-                  strokeWidth={1.5}
-                />
-              ))}
+              {pts.map((p, i) => {
+                const px = toX(dayMs(p.date));
+                const py = toY(p.price);
+                const id = `${s.catalogStoreId}:${i}`;
+                const tooltipLines =
+                  shown.length > 1
+                    ? [s.storeName, shortDate(p.date), formatPrice(p.price, countryCode ?? null)]
+                    : [shortDate(p.date), formatPrice(p.price, countryCode ?? null)];
+                const show = () => setActive({ id, x: px, y: py, lines: tooltipLines, color: stroke });
+                const hide = () => setActive((a) => (a?.id === id ? null : a));
+                const toggle = () => setActive((a) => (a?.id === id ? null : { id, x: px, y: py, lines: tooltipLines, color: stroke }));
+                return (
+                  <React.Fragment key={i}>
+                    <Circle
+                      cx={px}
+                      cy={py}
+                      r={pts.length === 1 ? 5 : 3.5}
+                      fill={stroke}
+                      // A surface-coloured ring keeps overlapping points from two
+                      // stores readable where their lines cross.
+                      stroke={colors.card}
+                      strokeWidth={1.5}
+                    />
+                    {/* Invisible larger hit target — a bare 3.5px dot is too
+                        small to reliably tap. Tap toggles it (mobile has no
+                        hover); on web it also shows on mouse-enter and hides on
+                        leave, which is the actual hover behaviour requested. */}
+                    <Circle
+                      cx={px}
+                      cy={py}
+                      r={12}
+                      fill={stroke}
+                      fillOpacity={0.001}
+                      onPress={toggle}
+                      {...webHoverProps(show, hide)}
+                    />
+                  </React.Fragment>
+                );
+              })}
             </React.Fragment>
           );
         })}
@@ -186,6 +219,8 @@ export function PriceGrowthChart({
         <SvgText x={cRight} y={svgH - 6} textAnchor="end" fontSize={9.5} fill={colors.mutedForeground}>
           {shortDate(new Date(maxT).toISOString().slice(0, 10))}
         </SvgText>
+
+        {active ? <ChartTooltip data={active} chartWidth={svgW} chartHeight={svgH} /> : null}
       </Svg>
 
       {/* Legend is mandatory, not decorative: several palette slots fall below
