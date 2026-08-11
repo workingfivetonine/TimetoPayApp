@@ -450,30 +450,48 @@ export const PRICE_GROWTH_DEFAULT_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Price trajectory per canonical item, split by store, for the admin growth
-// view. Unlike computeGlobalPrices (which keeps only the most recent price per
-// store) this keeps the whole series so it can be charted.
+// Price trajectory per canonical item, split by store. Unlike
+// computeGlobalPrices (which keeps only the most recent price per store) this
+// keeps the whole series so it can be charted.
 //
-// Admin-only and deliberately unsuppressed: this is the same visibility the
-// admin global view already has, including exact dates. Do NOT reuse it for a
-// user-facing endpoint without the region scoping and date coarsening that
-// computeGlobalPrices applies.
+// Unsuppressed (no opts) is the admin view: full cross-user visibility,
+// including exact dates. A user-facing caller MUST pass countryCode (region
+// scoping — a region-less caller sees nothing), excludeUserId (their own
+// purchases never drive what they're shown), and monthly:true (coarsens every
+// date to YYYY-MM, matching computeGlobalPrices's own date coarsening — this
+// view would otherwise be the one place in the app that hands back another
+// shopper's exact purchase day).
 export async function computePriceGrowth(
-  opts: { minSpanDays?: number; windowDays?: number } = {},
+  opts: {
+    minSpanDays?: number;
+    windowDays?: number;
+    countryCode?: string | null;
+    stateCode?: string | null;
+    excludeUserId?: string | null;
+    monthly?: boolean;
+  } = {},
 ): Promise<PriceGrowthResult> {
+  const monthly = opts.monthly ?? false;
   const minSpanDays = opts.minSpanDays ?? PRICE_GROWTH_MIN_SPAN_DAYS;
   const windowDays = opts.windowDays ?? PRICE_GROWTH_DEFAULT_WINDOW_DAYS;
+  const filterCountry = opts.countryCode ?? null;
+  const filterState = opts.stateCode ?? null;
+  const excludeUserId = opts.excludeUserId ?? null;
+  // A day key (YYYY-MM-DD) coarsens to a month key (YYYY-MM) by taking its
+  // first 7 characters — both are used purely as strings (bucket identity and
+  // lexicographic ordering), so the same slice works on either.
+  const keyLen = monthly ? 7 : 10;
 
-  // Whole-day bounds so every chart in a response shares an identical x-domain
-  // regardless of the hour the request landed.
+  // Whole-day (or whole-month) bounds so every chart in a response shares an
+  // identical x-domain regardless of the hour the request landed.
   const allTime = windowDays === PRICE_GROWTH_ALL_TIME;
   const todayMs = Math.floor(Date.now() / DAY_MS) * DAY_MS;
-  const windowEnd = new Date(todayMs).toISOString().slice(0, 10);
+  const windowEnd = new Date(todayMs).toISOString().slice(0, keyLen);
   // For all-time there is no lower bound to filter on; the real start is the
   // earliest surviving observation, which is only known after aggregating.
   const windowStart = allTime
     ? null
-    : new Date(todayMs - windowDays * DAY_MS).toISOString().slice(0, 10);
+    : new Date(todayMs - windowDays * DAY_MS).toISOString().slice(0, keyLen);
 
   const rows = await db
     .select({
@@ -482,6 +500,8 @@ export async function computePriceGrowth(
       price: lineItemsTable.price,
       purchasedAt: receiptsTable.purchasedAt,
       storeCountryCode: storesTable.countryCode,
+      storeStateCode: storesTable.stateCode,
+      userId: receiptsTable.userId,
     })
     .from(lineItemsTable)
     .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
@@ -515,12 +535,25 @@ export async function computePriceGrowth(
 
   for (const r of rows) {
     if (!isRealPrice(r.price)) continue;
+    // Region scoping (user-facing callers only — admin passes no country and
+    // this is a no-op): a row from outside the caller's region never counts
+    // toward, or appears in, what they're shown.
+    if (filterCountry) {
+      if (r.storeCountryCode !== filterCountry) continue;
+      if (filterState && r.storeStateCode !== filterState) continue;
+    }
+    // Own-data exclusion: the caller's own purchases never drive what a
+    // user-facing view shows them — this is cross-user data about OTHER
+    // shoppers, same rule as computeGlobalPrices.
+    if (excludeUserId && r.userId === excludeUserId) continue;
+
     const price = Number(r.price);
-    const day = r.purchasedAt.toISOString().slice(0, 10);
-    // Outside the reporting window. Compared as YYYY-MM-DD strings, which sort
-    // lexicographically, so this needs no date parsing. The upper bound applies
-    // even for all-time: a receipt mis-dated into the future would otherwise
-    // stretch every chart's axis to meet it.
+    const day = r.purchasedAt.toISOString().slice(0, keyLen);
+    // Outside the reporting window. Compared as same-length strings (either
+    // YYYY-MM-DD or YYYY-MM), which sort lexicographically, so this needs no
+    // date parsing. The upper bound applies even for all-time: a receipt
+    // mis-dated into the future would otherwise stretch every chart's axis to
+    // meet it.
     if (windowStart !== null && day < windowStart) continue;
     if (day > windowEnd) continue;
 
@@ -585,8 +618,12 @@ export async function computePriceGrowth(
 
     if (!earliest || !latest || stores.length === 0) continue;
 
+    // A month key (YYYY-MM) has no day component to parse — anchor it to the
+    // 1st explicitly rather than relying on a lenient Date parser to guess it.
+    const toParsableDate = (key: string) => (monthly ? `${key}-01` : key);
     const spanDays = Math.round(
-      (new Date(`${latest}T00:00:00Z`).getTime() - new Date(`${earliest}T00:00:00Z`).getTime()) /
+      (new Date(`${toParsableDate(latest)}T00:00:00Z`).getTime() -
+        new Date(`${toParsableDate(earliest)}T00:00:00Z`).getTime()) /
         DAY_MS,
     );
     if (spanDays < minSpanDays) continue;

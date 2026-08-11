@@ -13,6 +13,8 @@ import { AddCatalogItemToListBody } from "@workspace/api-zod";
 import {
   ensureCatalog,
   computeGlobalPrices,
+  computePriceGrowth,
+  PRICE_GROWTH_WINDOWS,
   normalizeName,
 } from "../lib/catalog";
 import { categoryOrder } from "../lib/categories";
@@ -51,6 +53,34 @@ async function aliasNormsByItem(): Promise<Map<number, string[]>> {
   }
   return normsByItem;
 }
+
+// How prices have moved for items with enough cross-user history, region-
+// scoped and month-coarsened — the same view admin's Growth tab has, minus
+// everything that would identify a specific purchase. Available to every
+// authenticated user, not just admin.
+router.get("/price-growth", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  await ensureCatalog();
+  const region = await userRegion(userId);
+  if (!region.countryCode) {
+    res.json({ windowDays: 0, windowStart: "", windowEnd: "", items: [] });
+    return;
+  }
+
+  const rawWindow = Number(req.query.windowDays);
+  const windowDays = (PRICE_GROWTH_WINDOWS as readonly number[]).includes(rawWindow)
+    ? rawWindow
+    : undefined;
+
+  const result = await computePriceGrowth({
+    windowDays,
+    countryCode: region.countryCode,
+    stateCode: region.stateCode,
+    excludeUserId: userId,
+    monthly: true,
+  });
+  res.json(result);
+});
 
 // Browse the global price catalog, grouped by category. Available to every
 // authenticated user (not just admin). Never exposes who bought what.

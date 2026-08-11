@@ -1104,6 +1104,23 @@ export type SearchItemNamesParams = {
 q: string;
 };
 
+export type GetCatalogPriceGrowthParams = {
+/**
+ * Reporting window; 0 means all time. Defaults to 90.
+ */
+windowDays?: GetCatalogPriceGrowthWindowDays;
+};
+
+export type GetCatalogPriceGrowthWindowDays = typeof GetCatalogPriceGrowthWindowDays[keyof typeof GetCatalogPriceGrowthWindowDays];
+
+
+export const GetCatalogPriceGrowthWindowDays = {
+  NUMBER_0: 0,
+  NUMBER_90: 90,
+  NUMBER_182: 182,
+  NUMBER_365: 365,
+} as const;
+
 export type AdminGetCustomChartFieldValuesParams = {
 source: string;
 /**

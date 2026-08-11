@@ -59,6 +59,7 @@ import type {
   DaySpend,
   DismissResponse,
   ExportData,
+  GetCatalogPriceGrowthParams,
   HealthStatus,
   InactiveItemsResult,
   Item,
@@ -4352,6 +4353,92 @@ export function useAdminGetUserLogins<TData = Awaited<ReturnType<typeof adminGet
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetUserLoginsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetCatalogPriceGrowthUrl = (params?: GetCatalogPriceGrowthParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/catalog/price-growth?${stringifiedParams}` : `/api/catalog/price-growth`
+}
+
+/**
+ * @summary How prices have moved for items with enough cross-user history, region- scoped to the caller and month-coarsened (all users). Empty if the caller has no region set.
+
+ */
+export const getCatalogPriceGrowth = async (params?: GetCatalogPriceGrowthParams, options?: RequestInit): Promise<AdminPriceGrowthResult> => {
+
+  return customFetch<AdminPriceGrowthResult>(getGetCatalogPriceGrowthUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogPriceGrowthQueryKey = (params?: GetCatalogPriceGrowthParams,) => {
+    return [
+    `/api/catalog/price-growth`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCatalogPriceGrowthQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogPriceGrowth>>, TError = ErrorType<unknown>>(params?: GetCatalogPriceGrowthParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCatalogPriceGrowth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogPriceGrowthQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogPriceGrowth>>> = ({ signal }) => getCatalogPriceGrowth(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogPriceGrowth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCatalogPriceGrowthQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogPriceGrowth>>>
+export type GetCatalogPriceGrowthQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary How prices have moved for items with enough cross-user history, region- scoped to the caller and month-coarsened (all users). Empty if the caller has no region set.
+
+ */
+
+export function useGetCatalogPriceGrowth<TData = Awaited<ReturnType<typeof getCatalogPriceGrowth>>, TError = ErrorType<unknown>>(
+ params?: GetCatalogPriceGrowthParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCatalogPriceGrowth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCatalogPriceGrowthQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

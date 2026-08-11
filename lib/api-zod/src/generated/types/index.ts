@@ -71,6 +71,8 @@ export * from './exportData';
 export * from './exportItem';
 export * from './exportLineItem';
 export * from './exportStore';
+export * from './getCatalogPriceGrowthParams';
+export * from './getCatalogPriceGrowthWindowDays';
 export * from './healthStatus';
 export * from './inactiveItem';
 export * from './inactiveItemsResult';

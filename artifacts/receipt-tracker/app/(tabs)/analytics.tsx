@@ -43,16 +43,17 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { WeeklySpendBar } from "@/components/WeeklySpendBar";
 import { EmptyState } from "@/components/EmptyState";
 import { SpendCalendar } from "@/components/SpendCalendar";
+import { UserPriceGrowth } from "@/components/UserPriceGrowth";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { notify } from "@/lib/confirm";
 import { Feather } from "@expo/vector-icons";
 
-type Tab = "calendar" | "items";
+type Tab = "calendar" | "items" | "growth";
 
 /** Narrows a `?tab=` query value; anything unrecognised falls through to null. */
 function paramToTab(value: string | string[] | undefined): Tab | null {
   const v = Array.isArray(value) ? value[0] : value;
-  return v === "calendar" || v === "items" ? v : null;
+  return v === "calendar" || v === "items" || v === "growth" ? v : null;
 }
 
 type InactiveItem = {
@@ -393,7 +394,7 @@ export default function AnalyticsScreen() {
 
       {/* Tab Switcher */}
       <View style={[styles.tabBar, { backgroundColor: colors.secondary, marginHorizontal: 16 }]}>
-        {(["calendar", "items"] as Tab[]).map((tab) => (
+        {(["calendar", "items", "growth"] as Tab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[
@@ -404,7 +405,7 @@ export default function AnalyticsScreen() {
             activeOpacity={0.7}
           >
             <Feather
-              name={tab === "calendar" ? "calendar" : "tag"}
+              name={tab === "calendar" ? "calendar" : tab === "items" ? "tag" : "trending-up"}
               size={14}
               color={activeTab === tab ? colors.primary : colors.mutedForeground}
             />
@@ -415,7 +416,7 @@ export default function AnalyticsScreen() {
                 activeTab === tab && { fontFamily: "Inter_600SemiBold" },
               ]}
             >
-              {tab === "calendar" ? "Calendar" : "Items"}
+              {tab === "calendar" ? "Calendar" : tab === "items" ? "Items" : "Growth"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -423,7 +424,15 @@ export default function AnalyticsScreen() {
 
       <OfflineBanner lastUpdated={dataUpdatedAt} />
 
-      {isLoading ? (
+      {activeTab === "growth" ? (
+        // Cross-user data about OTHER shoppers, entirely independent of
+        // whether THIS user has ever scanned a receipt — it must not be
+        // hidden behind the "no personal data yet" gate below, which is about
+        // the calendar/items tabs' own (this user's) spend history.
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom }]}>
+          <UserPriceGrowth />
+        </ScrollView>
+      ) : isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={colors.primary} />
         </View>

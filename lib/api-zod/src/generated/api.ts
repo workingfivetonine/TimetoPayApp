@@ -1277,6 +1277,46 @@ export const AdminGetUserLoginsResponse = zod.object({
 
 
 /**
+ * @summary How prices have moved for items with enough cross-user history, region- scoped to the caller and month-coarsened (all users). Empty if the caller has no region set.
+
+ */
+export const GetCatalogPriceGrowthQueryParams = zod.object({
+  "windowDays": zod.union([zod.literal(0),zod.literal(90),zod.literal(182),zod.literal(365)]).optional().describe('Reporting window; 0 means all time. Defaults to 90.')
+})
+
+export const GetCatalogPriceGrowthResponse = zod.object({
+  "windowDays": zod.number().describe('The window applied; 0 means all time.'),
+  "windowStart": zod.string().describe('First day of the reporting window, YYYY-MM-DD. For the all-time window this is the earliest price on record across the returned items, not a fixed offset from today.\n'),
+  "windowEnd": zod.string().describe('Last day of the reporting window, YYYY-MM-DD. Charts use windowStart\/windowEnd as a shared x-domain so two items are directly comparable.\n'),
+  "items": zod.array(zod.object({
+  "catalogItemId": zod.number(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "firstDate": zod.string(),
+  "lastDate": zod.string(),
+  "spanDays": zod.number(),
+  "purchaseCount": zod.number(),
+  "firstPrice": zod.number(),
+  "lastPrice": zod.number(),
+  "growthPct": zod.number().describe('Percent change from the earliest to the latest observation across all stores.'),
+  "stores": zod.array(zod.object({
+  "catalogStoreId": zod.number(),
+  "storeName": zod.string(),
+  "countryCode": zod.string().nullish(),
+  "firstPrice": zod.number(),
+  "lastPrice": zod.number(),
+  "growthPct": zod.number().nullish().describe('Null when this store has only one dated point — a single observation has no growth.'),
+  "points": zod.array(zod.object({
+  "date": zod.string().describe('Purchase day, YYYY-MM-DD. Same-day purchases are averaged into one point.'),
+  "price": zod.number()
+}))
+}))
+}))
+})
+
+
+/**
  * @summary Browse the global price catalog grouped by category (all users)
  */
 export const BrowseCatalogResponse = zod.object({

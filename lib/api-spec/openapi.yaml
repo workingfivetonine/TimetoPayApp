@@ -1123,6 +1123,30 @@ paths:
         "502":
           description: Clerk rejected the request
 
+  /catalog/price-growth:
+    get:
+      operationId: getCatalogPriceGrowth
+      tags: [catalog]
+      summary: >
+        How prices have moved for items with enough cross-user history, region-
+        scoped to the caller and month-coarsened (all users). Empty if the
+        caller has no region set.
+      parameters:
+        - name: windowDays
+          in: query
+          required: false
+          schema:
+            type: integer
+            enum: [0, 90, 182, 365]
+          description: Reporting window; 0 means all time. Defaults to 90.
+      responses:
+        "200":
+          description: Items ordered by steepest price growth first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPriceGrowthResult"
+
   /catalog/browse:
     get:
       operationId: browseCatalog
