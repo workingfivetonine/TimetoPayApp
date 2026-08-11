@@ -335,10 +335,13 @@ function GrowthTab() {
         ListHeaderComponent={
           <Text style={[styles.caption, { color: colors.mutedForeground }]}>
             {windowDays === 0
-              ? "How prices moved since each item was first recorded, for items with at least two weeks of history. "
-              : "How prices moved over the selected window, for items with at least two weeks of history inside it. "}
-            Every chart shares the same date range, so items can be compared
-            directly. Tap a card for the per-store trend.
+              // All time deliberately does NOT share one date range: an item
+              // bought for years and one bought last month have nothing useful
+              // to line up against, so each chart runs start-to-end on its own
+              // history instead of being squeezed into a shared axis.
+              ? "How prices moved since each item was first recorded, for items with at least two weeks of history. Each chart runs over its own history. "
+              : "How prices moved over the selected window, for items with at least two weeks of history inside it. Every chart shares the same date range, so items can be compared directly. "}
+            Tap a card for the per-store trend.
           </Text>
         }
         ListEmptyComponent={
@@ -358,8 +361,12 @@ function GrowthTab() {
           <GrowthCard
             item={item}
             colors={colors}
-            domainStart={data?.windowStart}
-            domainEnd={data?.windowEnd}
+            // All time: omit the shared domain so each chart falls back to its
+            // own first-to-last extent (PriceGrowthChart's default) instead of
+            // being squeezed into one axis alongside items with very different
+            // histories.
+            domainStart={windowDays === 0 ? undefined : data?.windowStart}
+            domainEnd={windowDays === 0 ? undefined : data?.windowEnd}
             expanded={!!open[item.catalogItemId]}
             onToggle={() => setOpen((o) => ({ ...o, [item.catalogItemId]: !o[item.catalogItemId] }))}
           />

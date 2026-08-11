@@ -29,9 +29,12 @@ function dayMs(date: string): number {
   return new Date(`${date}T00:00:00Z`).getTime();
 }
 
+// "year: 2-digit" used to render "Feb 26" for February 2026 — indistinguishable
+// from the 26th of February. Spelling the year out fully ("Feb 2026") removes
+// the ambiguity at the cost of a few extra characters.
 function shortDate(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);
-  return d.toLocaleDateString(undefined, { month: "short", year: "2-digit", timeZone: "UTC" });
+  return d.toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 // One line per store over a real time axis. The x position is the actual date,
