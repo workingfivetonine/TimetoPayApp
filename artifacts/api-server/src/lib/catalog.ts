@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gte, ne, sql, SQL } from "drizzle-orm";
 import {
   db,
   itemsTable,
@@ -240,6 +240,17 @@ export async function computeGlobalPrices(
     matureUserIds = new Set(matureRows.map((r) => r.id));
   }
 
+  // Push region/own-user filtering into SQL rather than loading every row for
+  // every store worldwide and discarding most of them in JS — this query now
+  // backs a per-request, region-scoped endpoint for every user, not just the
+  // occasional admin view.
+  const globalPricesConditions: SQL[] = [];
+  if (filterCountry) {
+    globalPricesConditions.push(eq(storesTable.countryCode, filterCountry));
+    if (filterState) globalPricesConditions.push(eq(storesTable.stateCode, filterState));
+  }
+  if (excludeUserId) globalPricesConditions.push(ne(receiptsTable.userId, excludeUserId));
+
   const rows = await db
     .select({
       catalogItemId: catalogItemAliasesTable.catalogItemId,
@@ -256,7 +267,8 @@ export async function computeGlobalPrices(
     .innerJoin(catalogItemAliasesTable, eq(catalogItemAliasesTable.normalizedName, normItemNameSql))
     .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
     .innerJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
-    .innerJoin(catalogStoreAliasesTable, eq(catalogStoreAliasesTable.normalizedName, normStoreNameSql));
+    .innerJoin(catalogStoreAliasesTable, eq(catalogStoreAliasesTable.normalizedName, normStoreNameSql))
+    .where(globalPricesConditions.length > 0 ? and(...globalPricesConditions) : undefined);
 
   const catItems = await db
     .select({ id: catalogItemsTable.id, name: catalogItemsTable.canonicalName, icon: catalogItemsTable.icon, category: catalogItemsTable.category })
@@ -276,15 +288,8 @@ export async function computeGlobalPrices(
     // the first row per store wins, so a single recent unpriced scan would
     // otherwise overwrite a real price with $0.00 for everyone in the region.
     // See lib/prices.ts — same rule the shopping list and analytics already use.
+    // Region and own-user exclusion are applied above in the SQL `.where()`.
     .filter((r) => isRealPrice(r.price))
-    // Drop rows whose store is outside the requested region before aggregating,
-    // so out-of-region prices never count toward the threshold or appear.
-    .filter((r) => {
-      if (!filterCountry) return true;
-      if (r.storeCountryCode !== filterCountry) return false;
-      if (filterState && r.storeStateCode !== filterState) return false;
-      return true;
-    })
     .map((r) => ({
       catalogItemId: r.catalogItemId,
       catalogStoreId: r.catalogStoreId,
@@ -313,9 +318,6 @@ export async function computeGlobalPrices(
   const agg = new Map<number, ItemAgg>();
 
   for (const r of sorted) {
-    // Privacy: never let the requester's own purchases drive (or unlock) the
-    // catalog they see.
-    if (excludeUserId && r.userId === excludeUserId) continue;
     let a = agg.get(r.catalogItemId);
     if (!a) {
       a = { stores: new Map() };
@@ -492,6 +494,22 @@ export async function computePriceGrowth(
   const windowStart = allTime
     ? null
     : new Date(todayMs - windowDays * DAY_MS).toISOString().slice(0, keyLen);
+  // Same string, parsed back to a real Date, so the lower bound can be pushed
+  // into SQL — anchoring a month key to its 1st, exactly matching the
+  // string-coarsened `day >= windowStart` comparison this replaces.
+  const windowStartDate =
+    windowStart === null ? null : new Date(`${monthly ? `${windowStart}-01` : windowStart}T00:00:00Z`);
+
+  // Push region/date/own-user filtering into SQL rather than loading every
+  // row for every item and store worldwide and discarding most of them in JS
+  // — this now backs a per-request, region-scoped endpoint for every user.
+  const priceGrowthConditions: SQL[] = [];
+  if (windowStartDate !== null) priceGrowthConditions.push(gte(receiptsTable.purchasedAt, windowStartDate));
+  if (filterCountry) {
+    priceGrowthConditions.push(eq(storesTable.countryCode, filterCountry));
+    if (filterState) priceGrowthConditions.push(eq(storesTable.stateCode, filterState));
+  }
+  if (excludeUserId) priceGrowthConditions.push(ne(receiptsTable.userId, excludeUserId));
 
   const rows = await db
     .select({
@@ -508,7 +526,8 @@ export async function computePriceGrowth(
     .innerJoin(catalogItemAliasesTable, eq(catalogItemAliasesTable.normalizedName, normItemNameSql))
     .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
     .innerJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
-    .innerJoin(catalogStoreAliasesTable, eq(catalogStoreAliasesTable.normalizedName, normStoreNameSql));
+    .innerJoin(catalogStoreAliasesTable, eq(catalogStoreAliasesTable.normalizedName, normStoreNameSql))
+    .where(priceGrowthConditions.length > 0 ? and(...priceGrowthConditions) : undefined);
 
   const catItems = await db
     .select({
@@ -535,26 +554,12 @@ export async function computePriceGrowth(
 
   for (const r of rows) {
     if (!isRealPrice(r.price)) continue;
-    // Region scoping (user-facing callers only — admin passes no country and
-    // this is a no-op): a row from outside the caller's region never counts
-    // toward, or appears in, what they're shown.
-    if (filterCountry) {
-      if (r.storeCountryCode !== filterCountry) continue;
-      if (filterState && r.storeStateCode !== filterState) continue;
-    }
-    // Own-data exclusion: the caller's own purchases never drive what a
-    // user-facing view shows them — this is cross-user data about OTHER
-    // shoppers, same rule as computeGlobalPrices.
-    if (excludeUserId && r.userId === excludeUserId) continue;
-
+    // Region, own-user, and the window's lower bound are all applied above in
+    // the SQL `.where()`. Only the upper bound is left to check here — it
+    // applies even for all-time, so a receipt mis-dated into the future
+    // doesn't stretch every chart's axis to meet it.
     const price = Number(r.price);
     const day = r.purchasedAt.toISOString().slice(0, keyLen);
-    // Outside the reporting window. Compared as same-length strings (either
-    // YYYY-MM-DD or YYYY-MM), which sort lexicographically, so this needs no
-    // date parsing. The upper bound applies even for all-time: a receipt
-    // mis-dated into the future would otherwise stretch every chart's axis to
-    // meet it.
-    if (windowStart !== null && day < windowStart) continue;
     if (day > windowEnd) continue;
 
     let stores = byItem.get(r.catalogItemId);
