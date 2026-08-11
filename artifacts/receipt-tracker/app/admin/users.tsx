@@ -14,6 +14,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdminListUsers } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
+import { ListControls, type SortOption } from "@/components/ListControls";
+
+type UsersSort = "recent" | "az" | "spend";
+const USERS_SORT: SortOption<UsersSort>[] = [
+  { key: "recent", label: "Recent" },
+  { key: "az", label: "A–Z" },
+  { key: "spend", label: "Spend" },
+];
 
 function roleLabel(role: string): string {
   if (role === "master_admin") return "Master admin";
@@ -38,8 +46,26 @@ export default function AdminUsersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: users, isLoading, error } = useAdminListUsers();
+  const [query, setQuery] = React.useState("");
+  const [sortKey, setSortKey] = React.useState<UsersSort>("recent");
 
   const paddingTop = Platform.OS === "web" ? 32 : insets.top + 8;
+
+  const visible = React.useMemo(() => {
+    const all = users ?? [];
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? all.filter(
+          (u) => (u.username ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q),
+        )
+      : all;
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortKey === "az") return (a.username ?? a.email ?? "").localeCompare(b.username ?? b.email ?? "");
+      if (sortKey === "spend") return b.totalSpend - a.totalSpend;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    return sorted;
+  }, [users, query, sortKey]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -60,45 +86,63 @@ export default function AdminUsersScreen() {
           <EmptyState icon="alert-triangle" title="Unable to load users" subtitle="You may not have admin access." />
         </View>
       ) : (
-        <FlatList
-          data={users ?? []}
-          keyExtractor={(u) => u.id}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<EmptyState icon="users" title="No users yet" subtitle="Users appear here once they sign up." />}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push(`/admin/${item.id}`)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  {/* Username leads — it's the handle shown on community posts,
-                      so it's how an admin actually recognises someone. Falls
-                      back to the email when profile setup isn't done yet. */}
-                  <Text style={[styles.email, { color: colors.foreground }]} numberOfLines={1}>
-                    {item.username ?? item.email ?? "(no email)"}
-                  </Text>
-                  <Text style={[styles.subline, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {item.username ? `${item.email ?? "(no email)"} · ` : ""}
-                    Joined {formatJoined(item.createdAt)}
-                    {item.countryCode ? ` · ${item.countryCode}` : ""}
-                    {item.username ? "" : " · profile setup incomplete"}
-                  </Text>
+        <>
+          {(users ?? []).length > 0 ? (
+            <ListControls
+              query={query}
+              onQueryChange={setQuery}
+              placeholder="Search username or email…"
+              sortOptions={USERS_SORT}
+              sortKey={sortKey}
+              onSortKeyChange={setSortKey}
+            />
+          ) : null}
+          <FlatList
+            data={visible}
+            keyExtractor={(u) => u.id}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <EmptyState
+                icon="users"
+                title={query ? "No matching users" : "No users yet"}
+                subtitle={query ? "Try a different search." : "Users appear here once they sign up."}
+              />
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => router.push(`/admin/${item.id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardTop}>
+                  <View style={{ flex: 1 }}>
+                    {/* Username leads — it's the handle shown on community posts,
+                        so it's how an admin actually recognises someone. Falls
+                        back to the email when profile setup isn't done yet. */}
+                    <Text style={[styles.email, { color: colors.foreground }]} numberOfLines={1}>
+                      {item.username ?? item.email ?? "(no email)"}
+                    </Text>
+                    <Text style={[styles.subline, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {item.username ? `${item.email ?? "(no email)"} · ` : ""}
+                      Joined {formatJoined(item.createdAt)}
+                      {item.countryCode ? ` · ${item.countryCode}` : ""}
+                      {item.username ? "" : " · profile setup incomplete"}
+                    </Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: colors.accent }]}>
+                    <Text style={[styles.badgeText, { color: colors.accentForeground }]}>{roleLabel(item.role)}</Text>
+                  </View>
                 </View>
-                <View style={[styles.badge, { backgroundColor: colors.accent }]}>
-                  <Text style={[styles.badgeText, { color: colors.accentForeground }]}>{roleLabel(item.role)}</Text>
+                <View style={styles.stats}>
+                  <Stat label="Receipts" value={String(item.receiptCount)} colors={colors} />
+                  <Stat label="Stores" value={String(item.storeCount)} colors={colors} />
+                  <Stat label="Items" value={String(item.itemCount)} colors={colors} />
+                  <Stat label="Spend" value={`$${item.totalSpend.toFixed(2)}`} colors={colors} />
                 </View>
-              </View>
-              <View style={styles.stats}>
-                <Stat label="Receipts" value={String(item.receiptCount)} colors={colors} />
-                <Stat label="Stores" value={String(item.storeCount)} colors={colors} />
-                <Stat label="Items" value={String(item.itemCount)} colors={colors} />
-                <Stat label="Spend" value={`$${item.totalSpend.toFixed(2)}`} colors={colors} />
-              </View>
-            </TouchableOpacity>
-          )}
-        />
+              </TouchableOpacity>
+            )}
+          />
+        </>
       )}
     </View>
   );
