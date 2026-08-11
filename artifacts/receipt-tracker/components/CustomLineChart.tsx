@@ -1,5 +1,5 @@
 import React from "react";
-import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, Line as SvgLine, Path, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -47,14 +47,22 @@ export function CustomLineChart({
 }) {
   const colors = useColors();
   const { format } = useCurrency();
-  const screenW = Dimensions.get("window").width;
-  const svgW = Math.max(240, screenW - 72);
-  const svgH = CHART_H;
+  // Measured from the card's own rendered width, not the window's — see the
+  // identical fix and reasoning in PriceGrowthChart.tsx. Sizing off the window
+  // drew this chart far wider than its card on any wide (desktop web) viewport.
+  const [containerW, setContainerW] = React.useState<number | null>(null);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0 && w !== containerW) setContainerW(w);
+  };
 
   const shown = series.slice(0, MAX_SERIES_SHOWN);
   const buckets = Array.from(new Set(shown.flatMap((s) => s.points.map((p) => p.bucket)))).sort();
   if (buckets.length === 0) return null;
   const bucketIndex = new Map(buckets.map((b, i) => [b, i]));
+
+  const svgW = Math.max(200, containerW ?? 240);
+  const svgH = CHART_H;
 
   const allValues = shown.flatMap((s) => s.points.map((p) => p.value));
   const minV = Math.min(0, ...allValues); // 0 is always in view — these are counts/sums, never meaningfully negative-only
@@ -81,7 +89,7 @@ export function CustomLineChart({
   const xLabelIdx = buckets.length >= 3 ? [0, Math.floor((buckets.length - 1) / 2), buckets.length - 1] : buckets.length === 2 ? [0, 1] : [0];
 
   return (
-    <View>
+    <View onLayout={onLayout} style={{ overflow: "hidden" }}>
       <Svg width={svgW} height={svgH}>
         {yTicks.map((tick, i) => (
           <SvgLine

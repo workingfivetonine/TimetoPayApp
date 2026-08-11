@@ -1,5 +1,5 @@
 import React from "react";
-import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, Line as SvgLine, Path, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { formatPrice } from "@workspace/geo";
@@ -56,15 +56,29 @@ export function PriceGrowthChart({
   domainEnd?: string;
 }) {
   const colors = useColors();
-  const screenW = Dimensions.get("window").width;
-  const svgW = Math.max(240, screenW - 72);
-  const svgH = CHART_H;
+  // Measured from the card's own rendered width, not the window's — the window
+  // is the whole browser viewport on web, which can be far wider than the
+  // ~720px-max, centred card this chart actually sits inside. Sizing the SVG
+  // off the window drew a chart wider than its container with nothing to clip
+  // it, spilling off the right edge of the page. `onLayout` reports the real
+  // box this component was given, already net of the card's own padding.
+  const [containerW, setContainerW] = React.useState<number | null>(null);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0 && w !== containerW) setContainerW(w);
+  };
 
   const shown = series.slice(0, MAX_SERIES);
   const hiddenCount = series.length - shown.length;
 
   const all = shown.flatMap((s) => s.points);
   if (all.length === 0) return null;
+
+  // Before the first layout pass, fall back to a small, definitely-safe width
+  // rather than guessing from the window — it corrects itself the moment
+  // onLayout fires, one frame later.
+  const svgW = Math.max(200, containerW ?? 240);
+  const svgH = CHART_H;
 
   const times = all.map((p) => dayMs(p.date));
   const prices = all.map((p) => p.price);
@@ -95,7 +109,10 @@ export function PriceGrowthChart({
   if (priceRange > 0.05) yTicks.push((minP + maxP) / 2);
 
   return (
-    <View>
+    // overflow:hidden is a backstop, not the fix — the real fix is svgW coming
+    // from measured layout, not the window. This just guards the single frame
+    // before that measurement lands.
+    <View onLayout={onLayout} style={{ overflow: "hidden" }}>
       <Svg width={svgW} height={svgH}>
         {yTicks.map((tick, i) => (
           <SvgLine
