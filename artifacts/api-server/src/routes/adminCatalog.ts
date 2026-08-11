@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   itemsTable,
@@ -8,6 +8,7 @@ import {
   catalogItemAliasesTable,
   catalogStoresTable,
   catalogStoreAliasesTable,
+  catalogSuggestionDismissalsTable,
 } from "@workspace/db";
 import {
   AdminMergeCatalogItemsBody,
@@ -74,13 +75,29 @@ function normalizeWebsiteUrl(raw: string | null): string | null | false {
 }
 type Suggestion = { ids: number[]; names: string[]; reason: string };
 
+// "minId:maxId" — the canonical, order-independent key for a pair of entry
+// ids, used both for the dismissed-pairs lookup set and for recording a new
+// dismissal, so a pair has exactly one representation regardless of which
+// order the two ids come in.
+function pairKey(a: number, b: number): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
 // Clusters catalog entries whose canonical names look like the same thing using
 // a union-find over three signals: identical loose key (alphanumerics only),
 // identical token-sort key (word reordering), and high edit-distance similarity
 // (typos / OCR garble). Only suggests groups of 2+; the admin confirms each.
-function buildSuggestions(entries: Entry[]): Suggestion[] {
+//
+// `dismissed` blocks the union between two SPECIFIC entries an admin has
+// already said "not a match" on — checked at every signal, not just one, since
+// an admin's "no" should hold regardless of which signal would otherwise have
+// connected them. It does not touch the OTHER members of a would-be cluster:
+// if C independently matches A via a different edge, A and C still group even
+// though A and B (dismissed) do not.
+function buildSuggestions(entries: Entry[], dismissed: Set<string>): Suggestion[] {
   const n = entries.length;
   const parent = entries.map((_, i) => i);
+  const ids = entries.map((e) => e.id);
   const find = (x: number): number => {
     let r = x;
     while (parent[r] !== r) r = parent[r];
@@ -92,6 +109,7 @@ function buildSuggestions(entries: Entry[]): Suggestion[] {
     return r;
   };
   const union = (a: number, b: number): void => {
+    if (dismissed.has(pairKey(ids[a], ids[b]))) return;
     const ra = find(a);
     const rb = find(b);
     if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb);
@@ -152,6 +170,34 @@ function buildSuggestions(entries: Entry[]): Suggestion[] {
     }
   }
   return suggestions;
+}
+
+async function loadDismissedPairs(kind: "item" | "store"): Promise<Set<string>> {
+  const rows = await db
+    .select({ idA: catalogSuggestionDismissalsTable.idA, idB: catalogSuggestionDismissalsTable.idB })
+    .from(catalogSuggestionDismissalsTable)
+    .where(eq(catalogSuggestionDismissalsTable.kind, kind));
+  return new Set(rows.map((r) => pairKey(r.idA, r.idB)));
+}
+
+// Records every pairwise combination within a rejected suggestion group as
+// dismissed — not just the group as a literal set, since the exact SET of ids
+// in a transitive cluster can shift as the catalog changes later, but the
+// specific edges between the members an admin looked at right now shouldn't
+// silently start reconnecting once that happens. ON CONFLICT DO NOTHING since
+// re-dismissing an already-dismissed pair (e.g. from two overlapping
+// suggestions) is a no-op, not an error.
+async function dismissSuggestionPairs(kind: "item" | "store", ids: number[]): Promise<void> {
+  const rows: { kind: "item" | "store"; idA: number; idB: number }[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = Math.min(ids[i]!, ids[j]!);
+      const b = Math.max(ids[i]!, ids[j]!);
+      rows.push({ kind, idA: a, idB: b });
+    }
+  }
+  if (rows.length === 0) return;
+  await db.insert(catalogSuggestionDismissalsTable).values(rows).onConflictDoNothing();
 }
 
 // ---- Global prices --------------------------------------------------------
@@ -235,7 +281,20 @@ router.get("/items", async (_req, res): Promise<void> => {
     })
     .sort((x, y) => x.canonicalName.localeCompare(y.canonicalName));
 
-  res.json({ entries, suggestions: buildSuggestions(entries) });
+  res.json({ entries, suggestions: buildSuggestions(entries, await loadDismissedPairs("item")) });
+});
+
+// Record a suggested group as "not a match" so it stops being re-suggested.
+// Every pairwise combination within the group is dismissed, not the group as
+// a literal set — see dismissSuggestionPairs for why.
+router.post("/items/suggestions/dismiss", async (req, res): Promise<void> => {
+  const { ids } = req.body as { ids?: unknown };
+  if (!Array.isArray(ids) || ids.length < 2 || !ids.every((id) => typeof id === "number")) {
+    res.status(400).json({ error: "ids must be an array of at least 2 catalog item ids" });
+    return;
+  }
+  await dismissSuggestionPairs("item", ids);
+  res.status(204).send();
 });
 
 router.get("/stores", async (_req, res): Promise<void> => {
@@ -289,7 +348,17 @@ router.get("/stores", async (_req, res): Promise<void> => {
     })
     .sort((x, y) => x.canonicalName.localeCompare(y.canonicalName));
 
-  res.json({ entries, suggestions: buildSuggestions(entries) });
+  res.json({ entries, suggestions: buildSuggestions(entries, await loadDismissedPairs("store")) });
+});
+
+router.post("/stores/suggestions/dismiss", async (req, res): Promise<void> => {
+  const { ids } = req.body as { ids?: unknown };
+  if (!Array.isArray(ids) || ids.length < 2 || !ids.every((id) => typeof id === "number")) {
+    res.status(400).json({ error: "ids must be an array of at least 2 catalog store ids" });
+    return;
+  }
+  await dismissSuggestionPairs("store", ids);
+  res.status(204).send();
 });
 
 // ---- Helpers to (re)build a single entry response -------------------------

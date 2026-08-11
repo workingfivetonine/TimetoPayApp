@@ -246,6 +246,18 @@ async function ensureSchemaColumns(): Promise<void> {
   await db.execute(
     sql`CREATE INDEX IF NOT EXISTS "saved_shopping_list_items_saved_list_idx" ON "saved_shopping_list_items" ("saved_list_id")`,
   );
+  // Pairs of catalog entries an admin has explicitly said do NOT belong
+  // together, so the merge-suggestion builder stops re-suggesting them.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS "catalog_suggestion_dismissals" (
+    "id" serial PRIMARY KEY,
+    "kind" text NOT NULL,
+    "id_a" integer NOT NULL,
+    "id_b" integer NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )`);
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS "catalog_suggestion_dismissals_pair_idx" ON "catalog_suggestion_dismissals" ("kind", "id_a", "id_b")`,
+  );
   // Optional user home address + geocoded coordinates for store "distance from".
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "address" text`);
   await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "latitude" numeric(9, 6)`);

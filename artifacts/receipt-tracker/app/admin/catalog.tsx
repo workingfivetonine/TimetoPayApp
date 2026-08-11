@@ -28,6 +28,8 @@ import {
   useAdminSuggestCatalogItemCategories,
   useAdminSuggestCatalogItemDuplicates,
   useAdminSuggestCatalogStoreDuplicates,
+  useAdminDismissCatalogItemSuggestion,
+  useAdminDismissCatalogStoreSuggestion,
 } from "@workspace/api-client-react";
 import type { CatalogEntry, CatalogSuggestion } from "@workspace/api-client-react";
 import { useAuth } from "@clerk/expo";
@@ -115,6 +117,8 @@ export default function AdminCatalogScreen() {
   const suggestCategories = useAdminSuggestCatalogItemCategories();
   const suggestItemDupes = useAdminSuggestCatalogItemDuplicates();
   const suggestStoreDupes = useAdminSuggestCatalogStoreDuplicates();
+  const dismissItemSuggestion = useAdminDismissCatalogItemSuggestion();
+  const dismissStoreSuggestion = useAdminDismissCatalogStoreSuggestion();
 
   const [renameTarget, setRenameTarget] = React.useState<CatalogEntry | null>(null);
   const [renameText, setRenameText] = React.useState("");
@@ -303,6 +307,28 @@ export default function AdminCatalogScreen() {
     }
   };
 
+  // "Not a match" — the other half of the suggestion card, alongside Merge.
+  // Persists so the same pair stops surfacing on future loads AND future
+  // "Find duplicates with AI" runs (both read the same dismissal record
+  // server-side); also strips it out of aiDupes right away, since that state
+  // is local and a refetch alone wouldn't know to drop it.
+  const onRejectSuggestion = async (s: CatalogSuggestion) => {
+    setBusy(true);
+    try {
+      if (tab === "items") await dismissItemSuggestion.mutateAsync({ data: { ids: s.ids } });
+      else await dismissStoreSuggestion.mutateAsync({ data: { ids: s.ids } });
+      setAiDupes((prev) => ({
+        items: prev.items.filter((x) => x !== s),
+        stores: prev.stores.filter((x) => x !== s),
+      }));
+      await refetch();
+    } catch {
+      notify("Couldn't dismiss", "Something went wrong — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onSplit = async (entry: CatalogEntry, normalizedName: string) => {
     setBusy(true);
     try {
@@ -437,6 +463,7 @@ export default function AdminCatalogScreen() {
               onSuggestCategories={onSuggestCategories}
               onFindDuplicates={onFindDuplicates}
               onAccept={onAcceptSuggestion}
+              onReject={onRejectSuggestion}
             />
           }
           ListEmptyComponent={
@@ -644,6 +671,7 @@ function CatalogHeader({
   onSuggestCategories,
   onFindDuplicates,
   onAccept,
+  onReject,
 }: {
   tab: Tab;
   suggestions: CatalogSuggestion[];
@@ -655,6 +683,7 @@ function CatalogHeader({
   onSuggestCategories: () => void;
   onFindDuplicates: () => void;
   onAccept: (s: CatalogSuggestion) => void;
+  onReject: (s: CatalogSuggestion) => void;
 }) {
   return (
     <View style={{ gap: 10, marginBottom: 6 }}>
@@ -706,13 +735,22 @@ function CatalogHeader({
                 </Text>
                 <Text style={[styles.suggestionReason, { color: colors.accentForeground }]}>{s.reason}</Text>
               </View>
-              <TouchableOpacity
-                style={[styles.mergeBtn, { backgroundColor: colors.primary }]}
-                onPress={() => onAccept(s)}
-                disabled={busy}
-              >
-                <Text style={[styles.mergeBtnText, { color: colors.primaryForeground }]}>Merge</Text>
-              </TouchableOpacity>
+              <View style={styles.suggestionActions}>
+                <TouchableOpacity
+                  style={[styles.notMatchBtn, { borderColor: colors.border }]}
+                  onPress={() => onReject(s)}
+                  disabled={busy}
+                >
+                  <Text style={[styles.notMatchBtnText, { color: colors.mutedForeground }]}>Not a match</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.mergeBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => onAccept(s)}
+                  disabled={busy}
+                >
+                  <Text style={[styles.mergeBtnText, { color: colors.primaryForeground }]}>Merge</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </>
@@ -933,8 +971,11 @@ const styles = StyleSheet.create({
   suggestion: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, padding: 12 },
   suggestionNames: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   suggestionReason: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, opacity: 0.85 },
+  suggestionActions: { flexDirection: "row", gap: 8 },
   mergeBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9 },
   mergeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  notMatchBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
+  notMatchBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   card: { borderWidth: 1, borderRadius: 14, padding: 14 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
   icon: { fontSize: 22 },

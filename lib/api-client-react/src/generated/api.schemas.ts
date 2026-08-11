@@ -254,6 +254,14 @@ export interface CatalogMergeInput {
   targetId: number;
 }
 
+export interface CatalogSuggestionDismissInput {
+  /**
+     * The full set of catalog ids in the rejected suggestion group.
+     * @minItems 2
+     */
+  ids: number[];
+}
+
 export interface CatalogItemUpdate {
   canonicalName?: string;
   /** @nullable */
@@ -1182,4 +1190,12 @@ export const AdminGetPriceGrowthWindowDays = {
   NUMBER_182: 182,
   NUMBER_365: 365,
 } as const;
+
+export type AdminDismissCatalogItemSuggestion400 = {
+  error: string;
+};
+
+export type AdminDismissCatalogStoreSuggestion400 = {
+  error: string;
+};
 

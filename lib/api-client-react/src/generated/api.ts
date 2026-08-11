@@ -24,6 +24,8 @@ import type {
   AdminCustomChartFieldValuesResult,
   AdminCustomChartMetaResult,
   AdminCustomChartResult,
+  AdminDismissCatalogItemSuggestion400,
+  AdminDismissCatalogStoreSuggestion400,
   AdminGetCustomChart400,
   AdminGetCustomChartFieldValues400,
   AdminGetCustomChartFieldValuesParams,
@@ -49,6 +51,7 @@ import type {
   CatalogMergeInput,
   CatalogSplitInput,
   CatalogStoreUpdate,
+  CatalogSuggestionDismissInput,
   CatalogSuggestionList,
   CategorySpendResult,
   CreateSavedShoppingListInput,
@@ -5276,6 +5279,146 @@ export const useAdminMergeCatalogStores = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminMergeCatalogStoresMutationOptions(options));
+    }
+
+export const getAdminDismissCatalogItemSuggestionUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/items/suggestions/dismiss`
+}
+
+/**
+ * @summary Mark a suggested item-merge group as not a match, so it stops being re-suggested (admin only)
+ */
+export const adminDismissCatalogItemSuggestion = async (catalogSuggestionDismissInput: CatalogSuggestionDismissInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getAdminDismissCatalogItemSuggestionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(catalogSuggestionDismissInput)
+  }
+);}
+
+
+
+
+export const getAdminDismissCatalogItemSuggestionMutationOptions = <TError = ErrorType<AdminDismissCatalogItemSuggestion400>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDismissCatalogItemSuggestion>>, TError,{data: BodyType<CatalogSuggestionDismissInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDismissCatalogItemSuggestion>>, TError,{data: BodyType<CatalogSuggestionDismissInput>}, TContext> => {
+
+const mutationKey = ['adminDismissCatalogItemSuggestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDismissCatalogItemSuggestion>>, {data: BodyType<CatalogSuggestionDismissInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminDismissCatalogItemSuggestion(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDismissCatalogItemSuggestionMutationResult = NonNullable<Awaited<ReturnType<typeof adminDismissCatalogItemSuggestion>>>
+    export type AdminDismissCatalogItemSuggestionMutationBody = BodyType<CatalogSuggestionDismissInput>
+    export type AdminDismissCatalogItemSuggestionMutationError = ErrorType<AdminDismissCatalogItemSuggestion400>
+
+    /**
+ * @summary Mark a suggested item-merge group as not a match, so it stops being re-suggested (admin only)
+ */
+export const useAdminDismissCatalogItemSuggestion = <TError = ErrorType<AdminDismissCatalogItemSuggestion400>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDismissCatalogItemSuggestion>>, TError,{data: BodyType<CatalogSuggestionDismissInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDismissCatalogItemSuggestion>>,
+        TError,
+        {data: BodyType<CatalogSuggestionDismissInput>},
+        TContext
+      > => {
+      return useMutation(getAdminDismissCatalogItemSuggestionMutationOptions(options));
+    }
+
+export const getAdminDismissCatalogStoreSuggestionUrl = () => {
+
+
+
+
+  return `/api/admin/catalog/stores/suggestions/dismiss`
+}
+
+/**
+ * @summary Mark a suggested store-merge group as not a match, so it stops being re-suggested (admin only)
+ */
+export const adminDismissCatalogStoreSuggestion = async (catalogSuggestionDismissInput: CatalogSuggestionDismissInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getAdminDismissCatalogStoreSuggestionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(catalogSuggestionDismissInput)
+  }
+);}
+
+
+
+
+export const getAdminDismissCatalogStoreSuggestionMutationOptions = <TError = ErrorType<AdminDismissCatalogStoreSuggestion400>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDismissCatalogStoreSuggestion>>, TError,{data: BodyType<CatalogSuggestionDismissInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDismissCatalogStoreSuggestion>>, TError,{data: BodyType<CatalogSuggestionDismissInput>}, TContext> => {
+
+const mutationKey = ['adminDismissCatalogStoreSuggestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDismissCatalogStoreSuggestion>>, {data: BodyType<CatalogSuggestionDismissInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminDismissCatalogStoreSuggestion(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDismissCatalogStoreSuggestionMutationResult = NonNullable<Awaited<ReturnType<typeof adminDismissCatalogStoreSuggestion>>>
+    export type AdminDismissCatalogStoreSuggestionMutationBody = BodyType<CatalogSuggestionDismissInput>
+    export type AdminDismissCatalogStoreSuggestionMutationError = ErrorType<AdminDismissCatalogStoreSuggestion400>
+
+    /**
+ * @summary Mark a suggested store-merge group as not a match, so it stops being re-suggested (admin only)
+ */
+export const useAdminDismissCatalogStoreSuggestion = <TError = ErrorType<AdminDismissCatalogStoreSuggestion400>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDismissCatalogStoreSuggestion>>, TError,{data: BodyType<CatalogSuggestionDismissInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDismissCatalogStoreSuggestion>>,
+        TError,
+        {data: BodyType<CatalogSuggestionDismissInput>},
+        TContext
+      > => {
+      return useMutation(getAdminDismissCatalogStoreSuggestionMutationOptions(options));
     }
 
 export const getAdminUpdateCatalogItemUrl = (id: number,) => {

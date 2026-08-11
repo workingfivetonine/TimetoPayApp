@@ -14,3 +14,4 @@ export * from "./boardThanks";
 export * from "./boardModeration";
 export * from "./shoppingTrips";
 export * from "./savedShoppingLists";
+export * from "./catalogSuggestionDismissals";

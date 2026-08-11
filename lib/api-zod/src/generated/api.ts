@@ -1564,6 +1564,34 @@ export const AdminMergeCatalogStoresResponse = zod.object({
 
 
 /**
+ * @summary Mark a suggested item-merge group as not a match, so it stops being re-suggested (admin only)
+ */
+export const adminDismissCatalogItemSuggestionBodyIdsMin = 2;
+
+
+
+export const AdminDismissCatalogItemSuggestionBody = zod.object({
+  "ids": zod.array(zod.number()).min(adminDismissCatalogItemSuggestionBodyIdsMin).describe('The full set of catalog ids in the rejected suggestion group.')
+})
+
+export const AdminDismissCatalogItemSuggestionResponse = zod.void()
+
+
+/**
+ * @summary Mark a suggested store-merge group as not a match, so it stops being re-suggested (admin only)
+ */
+export const adminDismissCatalogStoreSuggestionBodyIdsMin = 2;
+
+
+
+export const AdminDismissCatalogStoreSuggestionBody = zod.object({
+  "ids": zod.array(zod.number()).min(adminDismissCatalogStoreSuggestionBodyIdsMin).describe('The full set of catalog ids in the rejected suggestion group.')
+})
+
+export const AdminDismissCatalogStoreSuggestionResponse = zod.void()
+
+
+/**
  * @summary Rename or re-icon a canonical item (admin only)
  */
 export const AdminUpdateCatalogItemParams = zod.object({

@@ -1405,6 +1405,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/CatalogEntry"
 
+  /admin/catalog/items/suggestions/dismiss:
+    post:
+      operationId: adminDismissCatalogItemSuggestion
+      tags: [admin]
+      summary: Mark a suggested item-merge group as not a match, so it stops being re-suggested (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogSuggestionDismissInput"
+      responses:
+        "204":
+          description: Dismissed
+        "400":
+          description: ids must be an array of at least 2 catalog item ids
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
+  /admin/catalog/stores/suggestions/dismiss:
+    post:
+      operationId: adminDismissCatalogStoreSuggestion
+      tags: [admin]
+      summary: Mark a suggested store-merge group as not a match, so it stops being re-suggested (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogSuggestionDismissInput"
+      responses:
+        "204":
+          description: Dismissed
+        "400":
+          description: ids must be an array of at least 2 catalog store ids
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
   /admin/catalog/items/{id}:
     patch:
       operationId: adminUpdateCatalogItem
@@ -1950,6 +2000,17 @@ components:
           type: integer
         targetId:
           type: integer
+
+    CatalogSuggestionDismissInput:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 2
+          items:
+            type: integer
+          description: The full set of catalog ids in the rejected suggestion group.
 
     CatalogItemUpdate:
       type: object
