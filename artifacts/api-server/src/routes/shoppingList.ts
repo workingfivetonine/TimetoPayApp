@@ -104,7 +104,10 @@ router.get("/", async (req, res): Promise<void> => {
       recommendedPrice = lowestPrice;
       recommendedStoreName = lowestPriceStoreName;
       priceSource = "history";
-    } else if (item.globalPrice != null) {
+      // `isRealPrice` guards the snapshot too: rows added to a list before the
+      // catalog started filtering unpriced line items can still carry a
+      // globalPrice of 0.00, which is "no price known", not a free item.
+    } else if (isRealPrice(item.globalPrice)) {
       recommendedPrice = Number(item.globalPrice);
       recommendedStoreName = item.globalStoreName ?? null;
       priceSource = "global";

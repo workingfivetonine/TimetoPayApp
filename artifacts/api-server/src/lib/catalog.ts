@@ -11,6 +11,7 @@ import {
   catalogStoresTable,
   catalogStoreAliasesTable,
 } from "@workspace/db";
+import { isRealPrice } from "./prices";
 
 // Normalization must stay in lockstep with the SQL form `lower(btrim(name))`
 // used when joining line items back onto canonical entries.
@@ -267,6 +268,15 @@ export async function computeGlobalPrices(
   const storeMap = new Map(catStores.map((c) => [c.id, c.name]));
 
   const sorted = rows
+    // A line item can legitimately carry no price — "Log Items" saves a blank
+    // price as 0.00, and receipt parsing can come back without one. Those are
+    // real purchases but not prices, and the catalog exists ONLY to say what
+    // others paid, so an unpriced row has nothing to contribute. Dropping them
+    // here rather than at the end matters: rows are sorted most-recent-first and
+    // the first row per store wins, so a single recent unpriced scan would
+    // otherwise overwrite a real price with $0.00 for everyone in the region.
+    // See lib/prices.ts — same rule the shopping list and analytics already use.
+    .filter((r) => isRealPrice(r.price))
     // Drop rows whose store is outside the requested region before aggregating,
     // so out-of-region prices never count toward the threshold or appear.
     .filter((r) => {
