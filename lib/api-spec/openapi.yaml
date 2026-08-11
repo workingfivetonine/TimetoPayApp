@@ -1156,17 +1156,24 @@ paths:
             type: integer
             minimum: 0
           description: >
-            Minimum days between an item's first and last recorded price before
-            it is included. Defaults to 14.
+            Minimum days between an item's first and last recorded price WITHIN
+            the window before it is included. Defaults to 14.
+        - name: windowDays
+          in: query
+          required: false
+          schema:
+            type: integer
+            enum: [90, 182, 365]
+          description: >
+            Reporting window. Only these values are accepted; anything else
+            falls back to the default of 90.
       responses:
         "200":
-          description: Items ordered by steepest price growth first
+          description: The window, plus items ordered by steepest price growth first
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AdminPriceGrowthItem"
+                $ref: "#/components/schemas/AdminPriceGrowthResult"
 
   /admin/catalog/items:
     get:
@@ -1421,6 +1428,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CatalogGlobalStorePrice"
+
+    AdminPriceGrowthResult:
+      type: object
+      required: [windowDays, windowStart, windowEnd, items]
+      properties:
+        windowDays:
+          type: integer
+        windowStart:
+          type: string
+          description: First day of the reporting window, YYYY-MM-DD.
+        windowEnd:
+          type: string
+          description: >
+            Last day of the reporting window, YYYY-MM-DD. Charts use
+            windowStart/windowEnd as a shared x-domain so two items are directly
+            comparable.
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPriceGrowthItem"
 
     AdminPriceGrowthPoint:
       type: object

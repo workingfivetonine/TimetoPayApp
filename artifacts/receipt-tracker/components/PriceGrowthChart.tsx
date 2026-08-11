@@ -41,9 +41,16 @@ function shortDate(date: string): string {
 export function PriceGrowthChart({
   series,
   countryCode,
+  // The reporting window. Every chart in a list shares it, so one item's line
+  // can be read against another's instead of each stretching to fill its own
+  // date range. Omit to fall back to this item's own extent.
+  domainStart,
+  domainEnd,
 }: {
   series: GrowthSeries[];
   countryCode?: string | null;
+  domainStart?: string;
+  domainEnd?: string;
 }) {
   const colors = useColors();
   const screenW = Dimensions.get("window").width;
@@ -58,8 +65,8 @@ export function PriceGrowthChart({
 
   const times = all.map((p) => dayMs(p.date));
   const prices = all.map((p) => p.price);
-  const minT = Math.min(...times);
-  const maxT = Math.max(...times);
+  const minT = domainStart ? dayMs(domainStart) : Math.min(...times);
+  const maxT = domainEnd ? dayMs(domainEnd) : Math.max(...times);
   const minP = Math.min(...prices);
   const maxP = Math.max(...prices);
 
@@ -150,11 +157,14 @@ export function PriceGrowthChart({
           );
         })}
 
+        {/* Axis ends label the WINDOW, not this item's first and last purchase —
+            otherwise two charts sharing a domain would appear to cover
+            different periods. */}
         <SvgText x={cLeft} y={svgH - 6} textAnchor="start" fontSize={9.5} fill={colors.mutedForeground}>
-          {shortDate(all.reduce((a, b) => (a.date < b.date ? a : b)).date)}
+          {shortDate(new Date(minT).toISOString().slice(0, 10))}
         </SvgText>
         <SvgText x={cRight} y={svgH - 6} textAnchor="end" fontSize={9.5} fill={colors.mutedForeground}>
-          {shortDate(all.reduce((a, b) => (a.date > b.date ? a : b)).date)}
+          {shortDate(new Date(maxT).toISOString().slice(0, 10))}
         </SvgText>
       </Svg>
 

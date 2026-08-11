@@ -12,7 +12,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdminGetGlobalPrices, useAdminGetPriceGrowth } from "@workspace/api-client-react";
-import type { CatalogGlobalItem, AdminPriceGrowthItem } from "@workspace/api-client-react";
+import type {
+  CatalogGlobalItem,
+  AdminPriceGrowthItem,
+  AdminGetPriceGrowthWindowDays,
+} from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
@@ -41,6 +45,14 @@ const GROWTH_SORT: SortOption<GrowthSort>[] = [
 ];
 
 type Tab = "latest" | "growth";
+
+// Must match PRICE_GROWTH_WINDOWS on the server — it rejects anything else and
+// silently falls back to the default.
+const GROWTH_WINDOWS: { days: AdminGetPriceGrowthWindowDays; label: string }[] = [
+  { days: 90, label: "90 days" },
+  { days: 182, label: "6 months" },
+  { days: 365, label: "1 year" },
+];
 
 export default function AdminGlobalPricesScreen() {
   const colors = useColors();
@@ -222,14 +234,15 @@ export default function AdminGlobalPricesScreen() {
 // that window, so an item with two purchases a day apart never appears.
 function GrowthTab() {
   const colors = useColors();
-  const { data, isLoading, error } = useAdminGetPriceGrowth();
+  const [windowDays, setWindowDays] = React.useState<AdminGetPriceGrowthWindowDays>(90);
+  const { data, isLoading, error } = useAdminGetPriceGrowth({ windowDays });
   const [query, setQuery] = React.useState("");
   const [sortKey, setSortKey] = React.useState<GrowthSort>("growth");
   const [open, setOpen] = React.useState<Record<number, boolean>>({});
 
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = (data ?? []).filter(
+    const filtered = (data?.items ?? []).filter(
       (it) =>
         !q ||
         it.name.toLowerCase().includes(q) ||
@@ -242,28 +255,67 @@ function GrowthTab() {
     });
   }, [data, query, sortKey]);
 
+  const windowChips = (
+    <View style={styles.chipRow}>
+      {GROWTH_WINDOWS.map((w) => {
+        const active = windowDays === w.days;
+        return (
+          <TouchableOpacity
+            key={w.days}
+            onPress={() => setWindowDays(w.days)}
+            style={[
+              styles.chip,
+              {
+                borderColor: active ? colors.primary : colors.border,
+                backgroundColor: active ? colors.primary : "transparent",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                { color: active ? colors.primaryForeground : colors.mutedForeground },
+              ]}
+            >
+              {w.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  // The window chips stay mounted through loading and error states, so changing
+  // the window is always possible — including retrying after a failure.
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
+      <>
+        {windowChips}
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      </>
     );
   }
   if (error) {
     return (
-      <View style={styles.center}>
-        <EmptyState
-          icon="alert-triangle"
-          title="Unable to load price growth"
-          subtitle="You may not have admin access."
-        />
-      </View>
+      <>
+        {windowChips}
+        <View style={styles.center}>
+          <EmptyState
+            icon="alert-triangle"
+            title="Unable to load price growth"
+            subtitle="You may not have admin access."
+          />
+        </View>
+      </>
     );
   }
 
   return (
     <>
-      {(data?.length ?? 0) > 0 ? (
+      {windowChips}
+      {(data?.items.length ?? 0) > 0 ? (
         <ListControls
           query={query}
           onQueryChange={setQuery}
@@ -280,18 +332,20 @@ function GrowthTab() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <Text style={[styles.caption, { color: colors.mutedForeground }]}>
-            How prices have moved for items with at least two weeks of history.
-            Tap a card for the per-store trend.
+            How prices moved over the selected window, for items with at least
+            two weeks of history inside it. Every chart shares the same date
+            range, so items can be compared directly. Tap a card for the
+            per-store trend.
           </Text>
         }
         ListEmptyComponent={
           <EmptyState
             icon="trending-up"
-            title={query ? "No matching items" : "Not enough history yet"}
+            title={query ? "No matching items" : "Not enough history in this window"}
             subtitle={
               query
                 ? "Try a different search."
-                : "Items need at least two weeks between their first and latest recorded price before a trend can be shown."
+                : "Items need at least two weeks between their first and latest recorded price inside this window. Try a longer one."
             }
           />
         }
@@ -299,6 +353,8 @@ function GrowthTab() {
           <GrowthCard
             item={item}
             colors={colors}
+            domainStart={data?.windowStart}
+            domainEnd={data?.windowEnd}
             expanded={!!open[item.catalogItemId]}
             onToggle={() => setOpen((o) => ({ ...o, [item.catalogItemId]: !o[item.catalogItemId] }))}
           />
@@ -311,11 +367,15 @@ function GrowthTab() {
 function GrowthCard({
   item,
   colors,
+  domainStart,
+  domainEnd,
   expanded,
   onToggle,
 }: {
   item: AdminPriceGrowthItem;
   colors: ReturnType<typeof useColors>;
+  domainStart?: string;
+  domainEnd?: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -365,9 +425,15 @@ function GrowthCard({
 
       {expanded ? (
         <View style={[styles.stores, { borderTopColor: colors.border }]}>
-          <PriceGrowthChart series={item.stores} countryCode={country} />
+          <PriceGrowthChart
+            series={item.stores}
+            countryCode={country}
+            domainStart={domainStart}
+            domainEnd={domainEnd}
+          />
           <Text style={[styles.span, { color: colors.mutedForeground }]}>
-            {item.spanDays} days of history · {item.firstDate} to {item.lastDate}
+            Priced {item.purchaseCount} time{item.purchaseCount === 1 ? "" : "s"} across{" "}
+            {item.spanDays} days · {item.firstDate} to {item.lastDate}
           </Text>
         </View>
       ) : null}

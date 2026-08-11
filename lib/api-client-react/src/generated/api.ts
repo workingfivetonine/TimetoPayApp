@@ -24,7 +24,7 @@ import type {
   AdminGetPriceGrowthParams,
   AdminMergeResult,
   AdminMergeUsersInput,
-  AdminPriceGrowthItem,
+  AdminPriceGrowthResult,
   AdminReviewDigestResult,
   AdminSetRoleInput,
   AdminUser,
@@ -4508,9 +4508,9 @@ export const getAdminGetPriceGrowthUrl = (params?: AdminGetPriceGrowthParams,) =
 /**
  * @summary Price trajectory per item, split by store, for items with enough history (admin only)
  */
-export const adminGetPriceGrowth = async (params?: AdminGetPriceGrowthParams, options?: RequestInit): Promise<AdminPriceGrowthItem[]> => {
+export const adminGetPriceGrowth = async (params?: AdminGetPriceGrowthParams, options?: RequestInit): Promise<AdminPriceGrowthResult> => {
 
-  return customFetch<AdminPriceGrowthItem[]>(getAdminGetPriceGrowthUrl(params),
+  return customFetch<AdminPriceGrowthResult>(getAdminGetPriceGrowthUrl(params),
   {
     ...options,
     method: 'GET'

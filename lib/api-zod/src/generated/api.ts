@@ -1326,10 +1326,15 @@ export const adminGetPriceGrowthQueryMinSpanDaysMin = 0;
 
 
 export const AdminGetPriceGrowthQueryParams = zod.object({
-  "minSpanDays": zod.coerce.number().min(adminGetPriceGrowthQueryMinSpanDaysMin).optional().describe('Minimum days between an item\'s first and last recorded price before it is included. Defaults to 14.\n')
+  "minSpanDays": zod.coerce.number().min(adminGetPriceGrowthQueryMinSpanDaysMin).optional().describe('Minimum days between an item\'s first and last recorded price WITHIN the window before it is included. Defaults to 14.\n'),
+  "windowDays": zod.union([zod.literal(90),zod.literal(182),zod.literal(365)]).optional().describe('Reporting window. Only these values are accepted; anything else falls back to the default of 90.\n')
 })
 
-export const AdminGetPriceGrowthResponseItem = zod.object({
+export const AdminGetPriceGrowthResponse = zod.object({
+  "windowDays": zod.number(),
+  "windowStart": zod.string().describe('First day of the reporting window, YYYY-MM-DD.'),
+  "windowEnd": zod.string().describe('Last day of the reporting window, YYYY-MM-DD. Charts use windowStart\/windowEnd as a shared x-domain so two items are directly comparable.\n'),
+  "items": zod.array(zod.object({
   "catalogItemId": zod.number(),
   "name": zod.string(),
   "icon": zod.string().nullish(),
@@ -1353,8 +1358,8 @@ export const AdminGetPriceGrowthResponseItem = zod.object({
   "price": zod.number()
 }))
 }))
+}))
 })
-export const AdminGetPriceGrowthResponse = zod.array(AdminGetPriceGrowthResponseItem)
 
 
 /**

@@ -66,6 +66,15 @@ export interface AdminPriceGrowthItem {
   stores: AdminPriceGrowthStore[];
 }
 
+export interface AdminPriceGrowthResult {
+  windowDays: number;
+  /** First day of the reporting window, YYYY-MM-DD. */
+  windowStart: string;
+  /** Last day of the reporting window, YYYY-MM-DD. Charts use windowStart/windowEnd as a shared x-domain so two items are directly comparable. */
+  windowEnd: string;
+  items: AdminPriceGrowthItem[];
+}
+
 export interface CatalogMember {
   normalizedName: string;
   displayName: string;
@@ -957,9 +966,22 @@ export interface ExportData {
 
 export type AdminGetPriceGrowthParams = {
 /**
- * Minimum days between an item's first and last recorded price before it is included. Defaults to 14.
+ * Minimum days between an item's first and last recorded price WITHIN the window before it is included. Defaults to 14.
  * @minimum 0
  */
 minSpanDays?: number;
+/**
+ * Reporting window. Only these values are accepted; anything else falls back to the default of 90.
+ */
+windowDays?: AdminGetPriceGrowthWindowDays;
 };
+
+export type AdminGetPriceGrowthWindowDays = typeof AdminGetPriceGrowthWindowDays[keyof typeof AdminGetPriceGrowthWindowDays];
+
+
+export const AdminGetPriceGrowthWindowDays = {
+  NUMBER_90: 90,
+  NUMBER_182: 182,
+  NUMBER_365: 365,
+} as const;
 

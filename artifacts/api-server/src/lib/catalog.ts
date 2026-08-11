@@ -423,9 +423,24 @@ export type PriceGrowthItem = {
   stores: PriceGrowthStore[];
 };
 
+export type PriceGrowthResult = {
+  // The window every item in this result was measured over. Charts share it as
+  // their x-domain so two items are directly comparable side by side.
+  windowDays: number;
+  windowStart: string;
+  windowEnd: string;
+  items: PriceGrowthItem[];
+};
+
 // An item needs a history longer than this before a trend means anything —
 // two points a day apart describe noise, not a price trajectory.
 export const PRICE_GROWTH_MIN_SPAN_DAYS = 14;
+
+// Selectable reporting windows, in days. Growth is always measured from the
+// first to the last observation INSIDE the window, so "90 days" means what it
+// says rather than "since we first saw this item".
+export const PRICE_GROWTH_WINDOWS = [90, 182, 365] as const;
+export const PRICE_GROWTH_DEFAULT_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -438,9 +453,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // user-facing endpoint without the region scoping and date coarsening that
 // computeGlobalPrices applies.
 export async function computePriceGrowth(
-  opts: { minSpanDays?: number } = {},
-): Promise<PriceGrowthItem[]> {
+  opts: { minSpanDays?: number; windowDays?: number } = {},
+): Promise<PriceGrowthResult> {
   const minSpanDays = opts.minSpanDays ?? PRICE_GROWTH_MIN_SPAN_DAYS;
+  const windowDays = opts.windowDays ?? PRICE_GROWTH_DEFAULT_WINDOW_DAYS;
+
+  // Whole-day bounds so every chart in a response shares an identical x-domain
+  // regardless of the hour the request landed.
+  const todayMs = Math.floor(Date.now() / DAY_MS) * DAY_MS;
+  const windowEnd = new Date(todayMs).toISOString().slice(0, 10);
+  const windowStart = new Date(todayMs - windowDays * DAY_MS).toISOString().slice(0, 10);
 
   const rows = await db
     .select({
@@ -484,6 +506,9 @@ export async function computePriceGrowth(
     if (!isRealPrice(r.price)) continue;
     const price = Number(r.price);
     const day = r.purchasedAt.toISOString().slice(0, 10);
+    // Outside the reporting window. Compared as YYYY-MM-DD strings, which sort
+    // lexicographically, so this needs no date parsing.
+    if (day < windowStart || day > windowEnd) continue;
 
     let stores = byItem.get(r.catalogItemId);
     if (!stores) {
@@ -583,5 +608,6 @@ export async function computePriceGrowth(
   }
 
   // Steepest rise first — the point of the view is to surface what is climbing.
-  return out.sort((a, b) => b.growthPct - a.growthPct);
+  out.sort((a, b) => b.growthPct - a.growthPct);
+  return { windowDays, windowStart, windowEnd, items: out };
 }

@@ -5,11 +5,16 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminGetPriceGrowthWindowDays } from './adminGetPriceGrowthWindowDays';
 
 export type AdminGetPriceGrowthParams = {
 /**
- * Minimum days between an item's first and last recorded price before it is included. Defaults to 14.
+ * Minimum days between an item's first and last recorded price WITHIN the window before it is included. Defaults to 14.
  * @minimum 0
  */
 minSpanDays?: number;
+/**
+ * Reporting window. Only these values are accepted; anything else falls back to the default of 90.
+ */
+windowDays?: AdminGetPriceGrowthWindowDays;
 };

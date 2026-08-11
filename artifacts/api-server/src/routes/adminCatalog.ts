@@ -29,6 +29,7 @@ import {
   looseKey,
   computeGlobalPrices,
   computePriceGrowth,
+  PRICE_GROWTH_WINDOWS,
 } from "../lib/catalog";
 import { similarity, tokenSortKey, SIMILARITY_THRESHOLD } from "../lib/textSimilarity";
 import {
@@ -165,10 +166,19 @@ router.get("/global", async (_req, res): Promise<void> => {
 // line per store. Optional ?minSpanDays= overrides the default window.
 router.get("/price-growth", async (req, res): Promise<void> => {
   await ensureCatalog();
-  const raw = Number(req.query.minSpanDays);
+  const rawSpan = Number(req.query.minSpanDays);
   const minSpanDays =
-    Number.isFinite(raw) && raw >= 0 ? Math.min(Math.floor(raw), 3650) : undefined;
-  res.json(await computePriceGrowth({ minSpanDays }));
+    Number.isFinite(rawSpan) && rawSpan >= 0 ? Math.min(Math.floor(rawSpan), 3650) : undefined;
+
+  // Only the offered windows are accepted. An arbitrary value would let the
+  // caller ask for a range the UI can't label, and the whole point of the
+  // window is that every chart in a response shares one x-domain.
+  const rawWindow = Number(req.query.windowDays);
+  const windowDays = (PRICE_GROWTH_WINDOWS as readonly number[]).includes(rawWindow)
+    ? rawWindow
+    : undefined;
+
+  res.json(await computePriceGrowth({ minSpanDays, windowDays }));
 });
 
 // ---- Catalog listings (items & stores) ------------------------------------
