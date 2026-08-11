@@ -379,11 +379,18 @@ export default function ItemHistoryScreen() {
 
   if (!data) return null;
 
+  // Purchases that recorded a price. A purchase logged without one is still a
+  // purchase (it stays in the history list below) but it is not a data point on
+  // a price chart — plotting it as 0 dragged the axis floor down and made
+  // "since first" measure against a price that was never paid. Mirrors
+  // `isRealPrice` on the server; see artifacts/api-server/src/lib/prices.ts.
+  const pricedHistory = data.history.filter((h) => Number(h.price) > 0);
+
   // Trend direction
-  const chronoPts = [...data.history].reverse();
+  const chronoPts = [...pricedHistory].reverse();
   const firstPrice = chronoPts[0]?.price ?? 0;
   const lastPrice = chronoPts[chronoPts.length - 1]?.price ?? 0;
-  const trendDelta = data.history.length >= 2 ? lastPrice - firstPrice : 0;
+  const trendDelta = pricedHistory.length >= 2 ? lastPrice - firstPrice : 0;
   const trendColor =
     trendDelta < -0.005 ? colors.priceGood : trendDelta > 0.005 ? colors.priceBad : colors.primary;
   const trendIcon: "trending-down" | "trending-up" | "minus" =
@@ -549,12 +556,12 @@ export default function ItemHistoryScreen() {
           </View>
         </View>
 
-        {/* Price Trend Chart */}
-        {data.history.length >= 1 && (
+        {/* Price Trend Chart — only meaningful once something carried a price. */}
+        {pricedHistory.length >= 1 && data.lowestPrice != null && data.highestPrice != null && (
           <>
             <View style={styles.chartSectionHeader}>
               <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PRICE TREND</Text>
-              {data.history.length >= 2 && (
+              {pricedHistory.length >= 2 && (
                 <View style={styles.trendPill}>
                   <Feather name={trendIcon} size={12} color={trendColor} />
                   <Text style={[styles.trendText, { color: trendColor }]}>
@@ -567,7 +574,7 @@ export default function ItemHistoryScreen() {
             </View>
             <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <PriceTrendChart
-                history={data.history}
+                history={pricedHistory}
                 lowestPrice={data.lowestPrice}
                 highestPrice={data.highestPrice}
                 trendColor={trendColor}
@@ -592,8 +599,13 @@ export default function ItemHistoryScreen() {
           <View style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {data.history.map((entry, idx) => {
               const isLast = idx === data.history.length - 1;
-              const isLowest = entry.price === data.lowestPrice;
-              const isHighest = entry.price === data.highestPrice && data.history.length > 1;
+              // A purchase logged without a price can't be the cheapest or the
+              // dearest — it isn't a price at all. Without this guard, an item
+              // whose purchases were all unpriced had every row badged "lowest".
+              const hasPrice = Number(entry.price) > 0;
+              const isLowest = hasPrice && entry.price === data.lowestPrice;
+              const isHighest =
+                hasPrice && entry.price === data.highestPrice && pricedHistory.length > 1;
               return (
                 <TouchableOpacity
                   key={`${entry.receiptId}-${idx}`}
@@ -622,9 +634,9 @@ export default function ItemHistoryScreen() {
                     <Text style={[styles.historyPrice, {
                       color: isLowest ? colors.priceGood : isHighest ? colors.priceBad : colors.foreground,
                     }]}>
-                      {format(entry.price)}
+                      {hasPrice ? format(entry.price) : "—"}
                     </Text>
-                    {isLowest && data.history.length > 1 && (
+                    {isLowest && pricedHistory.length > 1 && (
                       <Text style={[styles.priceBadge, { color: colors.priceGood }]}>lowest</Text>
                     )}
                     {isHighest && (

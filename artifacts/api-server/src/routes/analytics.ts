@@ -330,10 +330,10 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
       itemId,
       itemName: item.name,
       icon: item.icon ?? null,
-      averagePrice: 0,
-      lowestPrice: 0,
-      highestPrice: 0,
-      lowestPriceStoreName: "",
+      averagePrice: null,
+      lowestPrice: null,
+      highestPrice: null,
+      lowestPriceStoreName: null,
       pricePoints: [],
     });
     return;
@@ -348,10 +348,10 @@ router.get("/items/:id/price-history", async (req, res): Promise<void> => {
     itemId,
     itemName: item.name,
     icon: item.icon ?? null,
-    averagePrice: stats?.average ?? 0,
-    lowestPrice: stats?.lowest ?? 0,
-    highestPrice: stats?.highest ?? 0,
-    lowestPriceStoreName: stats ? priced[stats.lowestIndex]!.storeName : "",
+    averagePrice: stats?.average ?? null,
+    lowestPrice: stats?.lowest ?? null,
+    highestPrice: stats?.highest ?? null,
+    lowestPriceStoreName: stats ? priced[stats.lowestIndex]!.storeName : null,
     pricePoints,
   });
 });
@@ -565,9 +565,11 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
     itemName: item.name,
     icon: item.icon ?? null,
     purchaseCount: item.purchaseCount,
-    averagePrice: stats?.average ?? 0,
-    lowestPrice: stats?.lowest ?? 0,
-    highestPrice: stats?.highest ?? 0,
+    // Null, not 0: an item bought only without a recorded price has an UNKNOWN
+    // price, and rendering that as $0.00 reads as "this was free".
+    averagePrice: stats?.average ?? null,
+    lowestPrice: stats?.lowest ?? null,
+    highestPrice: stats?.highest ?? null,
     daysSinceLastPurchase,
     lastPurchasedAt: lastPurchasedAt ? lastPurchasedAt.toISOString() : null,
     ranOutAt: item.ranOutAt ? item.ranOutAt.toISOString() : null,

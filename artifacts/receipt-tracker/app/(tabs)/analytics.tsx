@@ -100,7 +100,7 @@ function ItemPriceDetail({ itemId, itemName }: { itemId: number; itemName: strin
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Lowest</Text>
           <Text style={[styles.statStore, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {data.lowestPriceStoreName}
+            {data.lowestPriceStoreName ?? "no price recorded"}
           </Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />

@@ -13,9 +13,12 @@ export interface ItemHistoryReport {
   /** @nullable */
   icon?: string | null;
   purchaseCount: number;
-  averagePrice: number;
-  lowestPrice: number;
-  highestPrice: number;
+  /** @nullable */
+  averagePrice: number | null;
+  /** @nullable */
+  lowestPrice: number | null;
+  /** @nullable */
+  highestPrice: number | null;
   /** @nullable */
   daysSinceLastPurchase?: number | null;
   /** @nullable */

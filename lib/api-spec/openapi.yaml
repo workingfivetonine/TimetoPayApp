@@ -2139,12 +2139,14 @@ components:
           type: ["string", "null"]
         purchaseCount:
           type: integer
+        # Null when nothing this item was bought with carried a price. Zero would
+        # be indistinguishable from "it was free". See lib/prices.ts.
         averagePrice:
-          type: number
+          type: ["number", "null"]
         lowestPrice:
-          type: number
+          type: ["number", "null"]
         highestPrice:
-          type: number
+          type: ["number", "null"]
         daysSinceLastPurchase:
           type: ["integer", "null"]
         lastPurchasedAt:
@@ -2296,14 +2298,15 @@ components:
           type: string
         icon:
           type: ["string", "null"]
+        # Null when no purchase of this item carried a price — see lib/prices.ts.
         averagePrice:
-          type: number
+          type: ["number", "null"]
         lowestPrice:
-          type: number
+          type: ["number", "null"]
         highestPrice:
-          type: number
+          type: ["number", "null"]
         lowestPriceStoreName:
-          type: string
+          type: ["string", "null"]
         pricePoints:
           type: array
           items:

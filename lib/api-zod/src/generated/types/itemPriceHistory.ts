@@ -12,9 +12,13 @@ export interface ItemPriceHistory {
   itemName: string;
   /** @nullable */
   icon?: string | null;
-  averagePrice: number;
-  lowestPrice: number;
-  highestPrice: number;
-  lowestPriceStoreName: string;
+  /** @nullable */
+  averagePrice: number | null;
+  /** @nullable */
+  lowestPrice: number | null;
+  /** @nullable */
+  highestPrice: number | null;
+  /** @nullable */
+  lowestPriceStoreName: string | null;
   pricePoints: PricePoint[];
 }
