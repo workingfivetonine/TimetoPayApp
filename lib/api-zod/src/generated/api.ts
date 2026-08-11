@@ -660,6 +660,103 @@ export const GetShoppingListResponse = zod.object({
 
 
 /**
+ * @summary List user's saved shopping lists
+ */
+export const GetSavedShoppingListsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "itemCount": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const GetSavedShoppingListsResponse = zod.array(GetSavedShoppingListsResponseItem)
+
+
+/**
+ * @summary Save a new shopping list
+ */
+export const CreateSavedShoppingListBody = zod.object({
+  "name": zod.string(),
+  "items": zod.array(zod.object({
+  "itemId": zod.number().nullable(),
+  "itemName": zod.string(),
+  "quantity": zod.number().nullish()
+}))
+})
+
+export const CreateSavedShoppingListResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "itemCount": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get saved list with full item details
+ */
+export const GetSavedShoppingListParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSavedShoppingListResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "itemId": zod.number().nullable().describe('Null if the original item was deleted'),
+  "itemName": zod.string(),
+  "quantity": zod.number().nullish().describe('Null means 1')
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Rename a saved list
+ */
+export const RenameSavedShoppingListParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RenameSavedShoppingListBody = zod.object({
+  "name": zod.string()
+})
+
+export const RenameSavedShoppingListResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "itemCount": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a saved list
+ */
+export const DeleteSavedShoppingListParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteSavedShoppingListResponse = zod.void()
+
+
+/**
+ * @summary Add all items from a saved list to the user's shopping list
+ */
+export const ApplySavedShoppingListParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApplySavedShoppingListResponse = zod.object({
+  "addedCount": zod.number().describe('Number of items added to the user\'s shopping list')
+})
+
+
+/**
  * @summary Parse a receipt image using AI and return extracted data
  */
 export const ParseReceiptImageBody = zod.object({
@@ -898,7 +995,10 @@ export const ParsePdfReceiptResponse = zod.object({
   "createdAt": zod.string()
 })),
   "createdAt": zod.string()
-}))
+}).and(zod.object({
+  "previewUri": zod.string().nullish().describe('Small JPEG data URI of the source PDF page, for the review screen. Not persisted — present only in this parse response.\n')
+}))),
+  "pagesSkipped": zod.number().optional().describe('Pages beyond the per-scan page cap that were never processed')
 })
 
 

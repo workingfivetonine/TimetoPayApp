@@ -333,7 +333,7 @@ function BrowseRow({
         ) : null}
       </View>
       <View style={styles.priceCol}>
-        {item.bestPrice != null ? (
+        {item.bestPrice != null && item.bestPrice > 0 ? (
           <Text style={[styles.price, { color: colors.primary }]}>
             {format(item.bestPrice)}
           </Text>

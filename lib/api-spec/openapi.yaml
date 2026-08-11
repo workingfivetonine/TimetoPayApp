@@ -2561,7 +2561,22 @@ components:
         receipts:
           type: array
           items:
-            $ref: "#/components/schemas/ReceiptDetail"
+            $ref: "#/components/schemas/ParsedPdfPageReceipt"
+        pagesSkipped:
+          type: integer
+          description: Pages beyond the per-scan page cap that were never processed
+
+    ParsedPdfPageReceipt:
+      allOf:
+        - $ref: "#/components/schemas/ReceiptDetail"
+        - type: object
+          properties:
+            previewUri:
+              type: string
+              nullable: true
+              description: >
+                Small JPEG data URI of the source PDF page, for the review screen.
+                Not persisted — present only in this parse response.
 
     MergeReceiptsInput:
       type: object

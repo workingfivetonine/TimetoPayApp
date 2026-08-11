@@ -115,6 +115,11 @@ function toSectionGroups(
         items: bucket.sort((a, b) => {
           if (a.ranOutAt && !b.ranOutAt) return -1;
           if (!a.ranOutAt && b.ranOutAt) return 1;
+          if (priceMode === 'lowest') {
+            const ap = a.price ?? Number.POSITIVE_INFINITY;
+            const bp = b.price ?? Number.POSITIVE_INFINITY;
+            return ap - bp;
+          }
           return a.itemName.localeCompare(b.itemName);
         }),
       }));

@@ -36,7 +36,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
 import { storeLogoUrl } from "@/lib/storeLogo";
 import { getApiOrigin } from "@/lib/apiBase";
-import { confirmDestructive } from "@/lib/confirm";
+import { confirmDestructive, notify } from "@/lib/confirm";
 
 type Tab = "items" | "stores";
 
@@ -83,10 +83,13 @@ export default function AdminCatalogScreen() {
   const [aiCategory, setAiCategory] = React.useState<Record<number, string>>({});
   const [rejectedCategory, setRejectedCategory] = React.useState<Set<number>>(new Set());
 
-  const refetch = React.useCallback(() => {
+  // Awaited on purpose: rebuilding the catalog response runs the fuzzy
+  // duplicate-suggestion pass server-side and takes seconds on a large catalog.
+  // Firing it and dropping the promise cleared the busy spinner immediately, so
+  // a merge read as "nothing happened" until the list silently changed later.
+  const refetch = React.useCallback(async () => {
     setAiDupes({ items: [], stores: [] });
-    void itemsQuery.refetch();
-    void storesQuery.refetch();
+    await Promise.all([itemsQuery.refetch(), storesQuery.refetch()]);
   }, [itemsQuery, storesQuery]);
 
   const mergeItems = useAdminMergeCatalogItems();
@@ -157,8 +160,8 @@ export default function AdminCatalogScreen() {
     try {
       if (tab === "items") await updateItem.mutateAsync({ id: renameTarget.id, data: { canonicalName: name } });
       else await updateStore.mutateAsync({ id: renameTarget.id, data: { canonicalName: name } });
-      refetch();
       setRenameTarget(null);
+      await refetch();
     } finally {
       setBusy(false);
     }
@@ -174,8 +177,8 @@ export default function AdminCatalogScreen() {
         id: websiteTarget.id,
         data: { canonicalName: websiteTarget.canonicalName, websiteUrl: value === "" ? null : value },
       });
-      refetch();
       setWebsiteTarget(null);
+      await refetch();
     } catch {
       setWebsiteError("Enter a valid website URL (e.g. https://example.com)");
     } finally {
@@ -188,8 +191,8 @@ export default function AdminCatalogScreen() {
     setBusy(true);
     try {
       await updateItem.mutateAsync({ id: categoryTarget.id, data: { category } });
-      refetch();
       setCategoryTarget(null);
+      await refetch();
     } finally {
       setBusy(false);
     }
@@ -220,7 +223,7 @@ export default function AdminCatalogScreen() {
         delete next[entry.id];
         return next;
       });
-      refetch();
+      await refetch();
     } finally {
       setBusy(false);
     }
@@ -250,8 +253,10 @@ export default function AdminCatalogScreen() {
     setBusy(true);
     try {
       await doMerge(mergeSource.id, target.id);
-      refetch();
       setMergeSource(null);
+      await refetch();
+    } catch {
+      notify("Couldn't merge", "That merge didn't go through. Refresh and try again.");
     } finally {
       setBusy(false);
     }
@@ -259,12 +264,26 @@ export default function AdminCatalogScreen() {
 
   const onAcceptSuggestion = async (s: CatalogSuggestion) => {
     setBusy(true);
+    // One bad id in the group (already merged away by an earlier suggestion, so
+    // the server 404s) must not abandon the rest — and must not surface as an
+    // unhandled rejection, which showed the user nothing at all.
+    let failed = 0;
     try {
       const [target, ...rest] = s.ids;
       for (const sourceId of rest) {
-        await doMerge(sourceId, target);
+        try {
+          await doMerge(sourceId, target);
+        } catch {
+          failed++;
+        }
       }
-      refetch();
+      await refetch();
+      if (failed > 0) {
+        notify(
+          "Some entries weren't merged",
+          `${failed} of these ${s.ids.length} entries couldn't be merged — they may already have been merged elsewhere.`,
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -275,7 +294,7 @@ export default function AdminCatalogScreen() {
     try {
       if (tab === "items") await splitItem.mutateAsync({ id: entry.id, data: { normalizedName } });
       else await splitStore.mutateAsync({ id: entry.id, data: { normalizedName } });
-      refetch();
+      await refetch();
     } finally {
       setBusy(false);
     }
@@ -297,7 +316,7 @@ export default function AdminCatalogScreen() {
             method: "DELETE",
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          if (res.ok) refetch();
+          if (res.ok) await refetch();
         } finally {
           setBusy(false);
         }
@@ -321,7 +340,7 @@ export default function AdminCatalogScreen() {
       if (!resized.base64) return;
       const logo = `data:image/png;base64,${resized.base64}`;
       await updateStore.mutateAsync({ id: entry.id, data: { canonicalName: entry.canonicalName, logo } });
-      refetch();
+      await refetch();
     } finally {
       setBusy(false);
     }
@@ -331,7 +350,7 @@ export default function AdminCatalogScreen() {
     setBusy(true);
     try {
       await updateStore.mutateAsync({ id: entry.id, data: { canonicalName: entry.canonicalName, logo: null } });
-      refetch();
+      await refetch();
     } finally {
       setBusy(false);
     }

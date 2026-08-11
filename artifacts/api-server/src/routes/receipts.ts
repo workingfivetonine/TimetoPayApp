@@ -84,6 +84,46 @@ async function readPdfDims(
   }
 }
 
+// Longest edge of the per-page preview thumbnail returned to the client. Small
+// on purpose: it exists so the reviewer can eyeball the page the AI read, not to
+// be a readable copy of the receipt. Kept out of the DB entirely — it rides
+// along in the parse response and lives only for the review session.
+const PREVIEW_MAX_EDGE_PX = 420;
+const PREVIEW_JPEG_QUALITY = 55;
+
+// Render a single page to a small JPEG data URI for the review UI. Best-effort:
+// a preview is a nicety, so any failure returns null rather than costing the
+// user a page that otherwise parsed fine.
+async function renderPageThumbnail(
+  pdfPath: string,
+  prefix: string,
+  tempFiles: string[],
+  pageNum: number,
+): Promise<string | null> {
+  try {
+    await execFileAsync(
+      "pdftoppm",
+      [
+        "-jpeg",
+        "-jpegopt", `quality=${PREVIEW_JPEG_QUALITY}`,
+        "-scale-to", String(PREVIEW_MAX_EDGE_PX),
+        "-f", String(pageNum),
+        "-l", String(pageNum),
+        pdfPath,
+        prefix,
+      ],
+      { timeout: PDFTOPPM_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 },
+    );
+    const files = await collectJpegs(prefix);
+    for (const f of files) tempFiles.push(f);
+    if (files.length === 0) return null;
+    const buf = await readFile(files[0]!);
+    return `data:image/jpeg;base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 // Collect the JPEG files pdftoppm produced for a given output prefix, in page
 // order, as absolute paths.
 async function collectJpegs(prefix: string): Promise<string[]> {
@@ -1363,8 +1403,20 @@ router.post("/parse-pdf", pdfGuard, async (req, res): Promise<void> => {
           continue;
         }
 
+        const previewUri = await renderPageThumbnail(
+          pdfPath,
+          join(tmpdir(), `receipt-${id}-thumb${pageNum}`),
+          tempFiles,
+          pageNum,
+        );
+
         const { receipt, store, savedLineItems } = await persistParsedReceipt(req.userId!, parsed);
-        results.push({ ...formatReceipt(receipt, store.name), lineItems: savedLineItems, isDuplicate: false });
+        results.push({
+          ...formatReceipt(receipt, store.name),
+          lineItems: savedLineItems,
+          isDuplicate: false,
+          previewUri,
+        });
       } catch (pageErr) {
         req.log.warn({ err: pageErr, pageNum }, "Failed to parse one PDF page; skipping");
       }

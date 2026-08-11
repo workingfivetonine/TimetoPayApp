@@ -5,8 +5,10 @@
  * Receipt Tracker API
  * OpenAPI spec version: 0.1.0
  */
-import type { ReceiptDetail } from './receiptDetail';
+import type { ParsedPdfPageReceipt } from './parsedPdfPageReceipt';
 
 export interface ParsedReceiptsResult {
-  receipts: ReceiptDetail[];
+  receipts: ParsedPdfPageReceipt[];
+  /** Pages beyond the per-scan page cap that were never processed */
+  pagesSkipped?: number;
 }

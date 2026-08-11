@@ -58,6 +58,8 @@ interface SavedReceipt {
   total?: number | null;
   purchasedAt?: string | null;
   lineItems?: unknown[];
+  // Only parse-pdf returns this — a small thumbnail of the source page.
+  previewUri?: string | null;
 }
 
 // A PDF page that matched an already-saved receipt; not persisted to the DB.
@@ -129,6 +131,7 @@ function toSummary(saved: SavedReceipt): BatchReceiptSummary {
     total: saved.total ?? 0,
     itemCount: saved.lineItems?.length ?? 0,
     purchasedAt: saved.purchasedAt ?? new Date().toISOString(),
+    previewUri: saved.previewUri ?? null,
   };
 }
 
@@ -431,8 +434,9 @@ export default function ScanScreen() {
     }
 
     if (summaries.length === 0) {
-      showUploadFailure(new UploadError(422), "image", () =>
-        parseMultipleImages(assets),
+      showErrorToast(
+        "Couldn't process photos",
+        "None of the selected photos could be analyzed. Make sure they're clear, readable receipts and try again.",
       );
       return;
     }
@@ -442,8 +446,8 @@ export default function ScanScreen() {
 
     if (failures > 0) {
       showErrorToast(
-        "Some photos couldn't be read",
-        `Saved ${summaries.length} of ${assets.length} photos. Add the rest manually.`,
+        "Some photos couldn't be processed",
+        `Saved ${summaries.length} of ${assets.length} photos. The others may be unreadable — try adding them again or add the details manually.`,
       );
     } else {
       showSuccessToast("Receipt scanned", `${summaries.length} photo${summaries.length === 1 ? "" : "s"} processed`);
@@ -574,14 +578,11 @@ export default function ScanScreen() {
 
       warnSkippedPages();
 
-      // One new receipt → go straight to it. Multiple → batch-review so the
-      // user can merge pages that belong to the same purchase.
-      if (saved.length === 1) {
-        router.replace(`/receipt/${saved[0].id}`);
-      } else {
-        setBatchReceipts(saved.map(toSummary));
-        router.replace("/batch-review");
-      }
+      // Always land on batch-review, even for a single page. It is the only
+      // screen that shows the rendered page next to what the AI read, which is
+      // exactly when a misread is cheap to fix.
+      setBatchReceipts(saved.map(toSummary));
+      router.replace("/batch-review");
     } catch (err) {
       showUploadFailure(err, "pdf", () => parsePdf(base64));
     } finally {

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ import {
   type LineItemEditor,
 } from "@/components/LineItemEditor";
 import { useStoreEditor, StoreEditModal } from "@/components/StoreEditModal";
+import { ZoomableImageModal } from "@/components/ZoomableImageModal";
 import {
   getBatchReceipts,
   setBatchReceipts,
@@ -125,6 +127,7 @@ export default function BatchReviewScreen() {
   const [receipts, setReceipts] = useState<BatchReceiptSummary[]>(() => getBatchReceipts());
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   const editor = useLineItemEditor();
   // Keep the summary card in step with a store rename without refetching the
@@ -228,9 +231,9 @@ export default function BatchReviewScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
       >
         <Text style={[styles.intro, { color: colors.mutedForeground }]}>
-          We saved {receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}. Fix any
-          misread store or items, and select two or more that belong together to merge them
-          into one.
+          {receipts.length === 1
+            ? "We saved 1 receipt. Tap the page image to check it against what we read, and fix any misread store or items."
+            : `We saved ${receipts.length} receipts. Fix any misread store or items, and select two or more that belong together to merge them into one.`}
         </Text>
 
         {receipts.map((r) => {
@@ -254,6 +257,19 @@ export default function BatchReviewScreen() {
 
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.cardHeaderRow}>
+                  {r.previewUri ? (
+                    <TouchableOpacity
+                      onPress={() => setPreviewUri(r.previewUri ?? null)}
+                      activeOpacity={0.8}
+                      accessibilityLabel={`View the scanned page for ${r.storeName}`}
+                    >
+                      <Image
+                        source={{ uri: r.previewUri }}
+                        style={[styles.preview, { borderColor: colors.border }]}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
                   <View style={styles.cardMain}>
                     <TouchableOpacity
                       style={styles.storeNameRow}
@@ -349,6 +365,12 @@ export default function BatchReviewScreen() {
         </TouchableOpacity>
       </View>
 
+      <ZoomableImageModal
+        visible={previewUri != null}
+        uri={previewUri}
+        onClose={() => setPreviewUri(null)}
+      />
+
       <LineItemUndoBanner editor={editor} />
       <LineItemEditModal editor={editor} />
       <StoreEditModal editor={storeEditor} />
@@ -367,6 +389,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   title: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  preview: {
+    width: 44,
+    height: 58,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginRight: 10,
+  },
   doneText: { fontSize: 16, fontFamily: "Inter_600SemiBold", width: 60, textAlign: "right" },
   scrollContent: { padding: 20, gap: 12 },
   intro: {

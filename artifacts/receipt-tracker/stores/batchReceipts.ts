@@ -9,6 +9,10 @@ export interface BatchReceiptSummary {
   total: number;
   itemCount: number;
   purchasedAt: string;
+  // Small JPEG data URI of the source PDF page, returned by parse-pdf. Held only
+  // for this review session — it is never persisted, so it is absent for photo
+  // batches and gone once the user leaves the screen.
+  previewUri?: string | null;
 }
 
 let _batch: BatchReceiptSummary[] = [];

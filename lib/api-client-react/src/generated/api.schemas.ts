@@ -708,6 +708,59 @@ export interface ShoppingList {
   oneOff: ShoppingListItem[];
 }
 
+export interface SavedShoppingListItem {
+  id: number;
+  /**
+     * Null if the original item was deleted
+     * @nullable
+     */
+  itemId: number | null;
+  itemName: string;
+  /**
+     * Null means 1
+     * @nullable
+     */
+  quantity?: number | null;
+}
+
+export interface SavedShoppingList {
+  id: number;
+  name: string;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedShoppingListDetail {
+  id: number;
+  name: string;
+  items: SavedShoppingListItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateSavedShoppingListInputItemsItem = {
+  /** @nullable */
+  itemId: number | null;
+  itemName: string;
+  /** @nullable */
+  quantity?: number | null;
+};
+
+export interface CreateSavedShoppingListInput {
+  name: string;
+  items: CreateSavedShoppingListInputItemsItem[];
+}
+
+export interface RenameSavedShoppingListInput {
+  name: string;
+}
+
+export interface ApplyListResult {
+  /** Number of items added to the user's shopping list */
+  addedCount: number;
+}
+
 export interface ParsedReceiptLineItem {
   name: string;
   /** @nullable */
@@ -756,8 +809,15 @@ export interface ParsePdfInput {
   pdfBase64: string;
 }
 
+export type ParsedPdfPageReceipt = ReceiptDetail & ({
+  /** Small JPEG data URI of the source PDF page, for the review screen. Not persisted — present only in this parse response. */
+  previewUri?: string | null;
+});
+
 export interface ParsedReceiptsResult {
-  receipts: ReceiptDetail[];
+  receipts: ParsedPdfPageReceipt[];
+  /** Pages beyond the per-scan page cap that were never processed */
+  pagesSkipped?: number;
 }
 
 export interface MergeReceiptsInput {

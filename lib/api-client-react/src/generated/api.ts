@@ -28,6 +28,7 @@ import type {
   AdminUser,
   AdminUserLogins,
   AdminUserReceipts,
+  ApplyListResult,
   CatalogAddToListInput,
   CatalogBrowse,
   CatalogCategorySuggestInput,
@@ -41,6 +42,7 @@ import type {
   CatalogStoreUpdate,
   CatalogSuggestionList,
   CategorySpendResult,
+  CreateSavedShoppingListInput,
   CurrentUser,
   DaySpend,
   DismissResponse,
@@ -71,6 +73,9 @@ import type {
   ReceiptDetail,
   ReceiptInput,
   RegionInput,
+  RenameSavedShoppingListInput,
+  SavedShoppingList,
+  SavedShoppingListDetail,
   ShoppingList,
   SpendAnalytics,
   Store,
@@ -2385,6 +2390,441 @@ export function useGetShoppingList<TData = Awaited<ReturnType<typeof getShopping
 
 
 
+
+export const getGetSavedShoppingListsUrl = () => {
+
+
+
+
+  return `/api/shopping-list/saved-lists`
+}
+
+/**
+ * @summary List user's saved shopping lists
+ */
+export const getSavedShoppingLists = async ( options?: RequestInit): Promise<SavedShoppingList[]> => {
+
+  return customFetch<SavedShoppingList[]>(getGetSavedShoppingListsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSavedShoppingListsQueryKey = () => {
+    return [
+    `/api/shopping-list/saved-lists`
+    ] as const;
+    }
+
+
+export const getGetSavedShoppingListsQueryOptions = <TData = Awaited<ReturnType<typeof getSavedShoppingLists>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSavedShoppingLists>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSavedShoppingListsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSavedShoppingLists>>> = ({ signal }) => getSavedShoppingLists({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSavedShoppingLists>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSavedShoppingListsQueryResult = NonNullable<Awaited<ReturnType<typeof getSavedShoppingLists>>>
+export type GetSavedShoppingListsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List user's saved shopping lists
+ */
+
+export function useGetSavedShoppingLists<TData = Awaited<ReturnType<typeof getSavedShoppingLists>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSavedShoppingLists>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSavedShoppingListsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateSavedShoppingListUrl = () => {
+
+
+
+
+  return `/api/shopping-list/saved-lists`
+}
+
+/**
+ * @summary Save a new shopping list
+ */
+export const createSavedShoppingList = async (createSavedShoppingListInput: CreateSavedShoppingListInput, options?: RequestInit): Promise<SavedShoppingList> => {
+
+  return customFetch<SavedShoppingList>(getCreateSavedShoppingListUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createSavedShoppingListInput)
+  }
+);}
+
+
+
+
+export const getCreateSavedShoppingListMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSavedShoppingList>>, TError,{data: BodyType<CreateSavedShoppingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSavedShoppingList>>, TError,{data: BodyType<CreateSavedShoppingListInput>}, TContext> => {
+
+const mutationKey = ['createSavedShoppingList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSavedShoppingList>>, {data: BodyType<CreateSavedShoppingListInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSavedShoppingList(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSavedShoppingListMutationResult = NonNullable<Awaited<ReturnType<typeof createSavedShoppingList>>>
+    export type CreateSavedShoppingListMutationBody = BodyType<CreateSavedShoppingListInput>
+    export type CreateSavedShoppingListMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a new shopping list
+ */
+export const useCreateSavedShoppingList = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSavedShoppingList>>, TError,{data: BodyType<CreateSavedShoppingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSavedShoppingList>>,
+        TError,
+        {data: BodyType<CreateSavedShoppingListInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSavedShoppingListMutationOptions(options));
+    }
+
+export const getGetSavedShoppingListUrl = (id: number,) => {
+
+
+
+
+  return `/api/shopping-list/saved-lists/${id}`
+}
+
+/**
+ * @summary Get saved list with full item details
+ */
+export const getSavedShoppingList = async (id: number, options?: RequestInit): Promise<SavedShoppingListDetail> => {
+
+  return customFetch<SavedShoppingListDetail>(getGetSavedShoppingListUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSavedShoppingListQueryKey = (id: number,) => {
+    return [
+    `/api/shopping-list/saved-lists/${id}`
+    ] as const;
+    }
+
+
+export const getGetSavedShoppingListQueryOptions = <TData = Awaited<ReturnType<typeof getSavedShoppingList>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSavedShoppingList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSavedShoppingListQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSavedShoppingList>>> = ({ signal }) => getSavedShoppingList(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSavedShoppingList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSavedShoppingListQueryResult = NonNullable<Awaited<ReturnType<typeof getSavedShoppingList>>>
+export type GetSavedShoppingListQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get saved list with full item details
+ */
+
+export function useGetSavedShoppingList<TData = Awaited<ReturnType<typeof getSavedShoppingList>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSavedShoppingList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSavedShoppingListQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getRenameSavedShoppingListUrl = (id: number,) => {
+
+
+
+
+  return `/api/shopping-list/saved-lists/${id}`
+}
+
+/**
+ * @summary Rename a saved list
+ */
+export const renameSavedShoppingList = async (id: number,
+    renameSavedShoppingListInput: RenameSavedShoppingListInput, options?: RequestInit): Promise<SavedShoppingList> => {
+
+  return customFetch<SavedShoppingList>(getRenameSavedShoppingListUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renameSavedShoppingListInput)
+  }
+);}
+
+
+
+
+export const getRenameSavedShoppingListMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameSavedShoppingList>>, TError,{id: number;data: BodyType<RenameSavedShoppingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameSavedShoppingList>>, TError,{id: number;data: BodyType<RenameSavedShoppingListInput>}, TContext> => {
+
+const mutationKey = ['renameSavedShoppingList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameSavedShoppingList>>, {id: number;data: BodyType<RenameSavedShoppingListInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  renameSavedShoppingList(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameSavedShoppingListMutationResult = NonNullable<Awaited<ReturnType<typeof renameSavedShoppingList>>>
+    export type RenameSavedShoppingListMutationBody = BodyType<RenameSavedShoppingListInput>
+    export type RenameSavedShoppingListMutationError = ErrorType<void>
+
+    /**
+ * @summary Rename a saved list
+ */
+export const useRenameSavedShoppingList = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameSavedShoppingList>>, TError,{id: number;data: BodyType<RenameSavedShoppingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renameSavedShoppingList>>,
+        TError,
+        {id: number;data: BodyType<RenameSavedShoppingListInput>},
+        TContext
+      > => {
+      return useMutation(getRenameSavedShoppingListMutationOptions(options));
+    }
+
+export const getDeleteSavedShoppingListUrl = (id: number,) => {
+
+
+
+
+  return `/api/shopping-list/saved-lists/${id}`
+}
+
+/**
+ * @summary Delete a saved list
+ */
+export const deleteSavedShoppingList = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteSavedShoppingListUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteSavedShoppingListMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSavedShoppingList>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSavedShoppingList>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteSavedShoppingList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSavedShoppingList>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteSavedShoppingList(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSavedShoppingListMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSavedShoppingList>>>
+
+    export type DeleteSavedShoppingListMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a saved list
+ */
+export const useDeleteSavedShoppingList = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSavedShoppingList>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSavedShoppingList>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteSavedShoppingListMutationOptions(options));
+    }
+
+export const getApplySavedShoppingListUrl = (id: number,) => {
+
+
+
+
+  return `/api/shopping-list/saved-lists/${id}/apply`
+}
+
+/**
+ * @summary Add all items from a saved list to the user's shopping list
+ */
+export const applySavedShoppingList = async (id: number, options?: RequestInit): Promise<ApplyListResult> => {
+
+  return customFetch<ApplyListResult>(getApplySavedShoppingListUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getApplySavedShoppingListMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applySavedShoppingList>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applySavedShoppingList>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['applySavedShoppingList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applySavedShoppingList>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  applySavedShoppingList(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplySavedShoppingListMutationResult = NonNullable<Awaited<ReturnType<typeof applySavedShoppingList>>>
+
+    export type ApplySavedShoppingListMutationError = ErrorType<void>
+
+    /**
+ * @summary Add all items from a saved list to the user's shopping list
+ */
+export const useApplySavedShoppingList = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applySavedShoppingList>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applySavedShoppingList>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApplySavedShoppingListMutationOptions(options));
+    }
 
 export const getParseReceiptImageUrl = () => {
 
