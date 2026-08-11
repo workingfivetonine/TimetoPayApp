@@ -57,7 +57,11 @@ const PDFTOPPM_TIMEOUT_MS = 25_000;
 // within MAX_IMG_WIDTH_PX, then split a too-tall page into stacked vertical
 // bands via pdftoppm's crop flags (-x/-y/-W/-H) so every emitted image stays
 // within model limits. No ImageMagick dependency.
-const PDF_RENDER_DPI = 150;
+const PDF_RENDER_DPI = 150; // used only when pdfinfo can't give us page dims
+const MAX_RENDER_DPI = 400; // ceiling when scaling a narrow page up to fill the width
+// Below this fraction of the width budget a page counts as "narrow" and gets
+// scaled up. Above it (Letter, A4) the base DPI already reads fine.
+const NARROW_PAGE_WIDTH_RATIO = 0.75;
 const MAX_IMG_WIDTH_PX = 1600; // cap rendered width; lower the DPI if exceeded
 const MAX_BAND_HEIGHT_PX = 2200; // split a page taller than this into bands
 const MAX_RENDER_IMAGES = 8; // hard cap on total band images sent to the model
@@ -169,15 +173,30 @@ async function renderPdfToImages(
     return files;
   }
 
-  // Pick a DPI that keeps the rendered page width within MAX_IMG_WIDTH_PX. The
-  // floor is 1 (not a larger value) so the width cap is truly absolute even for
-  // a pathologically wide media box — readability is secondary to bounding the
-  // raster job's pixel count.
+  // Pick a DPI that keeps the rendered width within MAX_IMG_WIDTH_PX, lowering
+  // it for an oversized media box. The floor is 1 so the cap is truly absolute
+  // even for a pathologically wide page — bounding the raster job matters more
+  // than legibility there.
+  //
+  // A NARROW page gets scaled up instead. A thermal receipt PDF is ~3in wide and
+  // rendered ~450px across at the base DPI, too coarse for the model to read,
+  // which surfaced as "we couldn't read this receipt". Pages that already use
+  // most of the width budget (Letter, A4) are left alone so a normal PDF doesn't
+  // start costing extra bands for resolution it never needed. The scale-up is
+  // also bounded by the total height budget, so a long receipt is fitted to the
+  // band cap rather than silently truncated at it.
   const widthPxAtBase = (dims.widthPt * PDF_RENDER_DPI) / 72;
+  const dpiForWidth = (MAX_IMG_WIDTH_PX * 72) / dims.widthPt;
+  const dpiForHeight = (MAX_RENDER_IMAGES * MAX_BAND_HEIGHT_PX * 72) / dims.heightPt;
   const dpi =
     widthPxAtBase > MAX_IMG_WIDTH_PX
-      ? Math.max(1, Math.floor((MAX_IMG_WIDTH_PX * 72) / dims.widthPt))
-      : PDF_RENDER_DPI;
+      ? Math.max(1, Math.floor(dpiForWidth))
+      : widthPxAtBase < MAX_IMG_WIDTH_PX * NARROW_PAGE_WIDTH_RATIO
+        ? Math.max(
+            PDF_RENDER_DPI,
+            Math.floor(Math.min(dpiForWidth, dpiForHeight, MAX_RENDER_DPI)),
+          )
+        : PDF_RENDER_DPI;
   const widthPx = Math.ceil((dims.widthPt * dpi) / 72);
   const heightPx = Math.ceil((dims.heightPt * dpi) / 72);
   const bandsPerPage = Math.max(1, Math.ceil(heightPx / MAX_BAND_HEIGHT_PX));
