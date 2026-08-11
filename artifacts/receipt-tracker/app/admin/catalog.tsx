@@ -73,8 +73,8 @@ export default function AdminCatalogScreen() {
   const itemsQuery = useAdminListCatalogItems();
   const storesQuery = useAdminListCatalogStores();
 
-  // AI-found duplicate suggestions are kept per tab and cleared on any refetch
-  // (since accepted merges change the ids they reference).
+  // AI-found duplicate suggestions, kept per tab. Pruned (not wholesale
+  // cleared) after every refetch — see refetch() below.
   const [aiDupes, setAiDupes] = React.useState<{ items: CatalogSuggestion[]; stores: CatalogSuggestion[] }>({
     items: [],
     stores: [],
@@ -87,9 +87,23 @@ export default function AdminCatalogScreen() {
   // duplicate-suggestion pass server-side and takes seconds on a large catalog.
   // Firing it and dropping the promise cleared the busy spinner immediately, so
   // a merge read as "nothing happened" until the list silently changed later.
+  //
+  // Accepting ONE suggestion used to wipe every OTHER AI suggestion too — this
+  // ran unconditionally on every refetch, regardless of which pair had just
+  // been merged. A merge only invalidates suggestions that actually NAME the
+  // id that just disappeared; an unrelated pair three rows down is still
+  // exactly as valid as it was a second ago. Prune by that real invariant —
+  // every id in a suggestion must still exist — instead of discarding
+  // everything and forcing a fresh (paid, several-second) "Find duplicates
+  // with AI" run just to get back suggestions that were never wrong.
   const refetch = React.useCallback(async () => {
-    setAiDupes({ items: [], stores: [] });
-    await Promise.all([itemsQuery.refetch(), storesQuery.refetch()]);
+    const [itemsResult, storesResult] = await Promise.all([itemsQuery.refetch(), storesQuery.refetch()]);
+    const liveItemIds = new Set((itemsResult.data?.entries ?? []).map((e) => e.id));
+    const liveStoreIds = new Set((storesResult.data?.entries ?? []).map((e) => e.id));
+    setAiDupes((prev) => ({
+      items: prev.items.filter((s) => s.ids.every((id) => liveItemIds.has(id))),
+      stores: prev.stores.filter((s) => s.ids.every((id) => liveStoreIds.has(id))),
+    }));
   }, [itemsQuery, storesQuery]);
 
   const mergeItems = useAdminMergeCatalogItems();
