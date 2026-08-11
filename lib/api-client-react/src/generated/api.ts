@@ -21,8 +21,10 @@ import type {
 
 import type {
   AdminActionResult,
+  AdminGetPriceGrowthParams,
   AdminMergeResult,
   AdminMergeUsersInput,
+  AdminPriceGrowthItem,
   AdminReviewDigestResult,
   AdminSetRoleInput,
   AdminUser,
@@ -4476,6 +4478,90 @@ export function useAdminGetGlobalPrices<TData = Awaited<ReturnType<typeof adminG
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetGlobalPricesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetPriceGrowthUrl = (params?: AdminGetPriceGrowthParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/catalog/price-growth?${stringifiedParams}` : `/api/admin/catalog/price-growth`
+}
+
+/**
+ * @summary Price trajectory per item, split by store, for items with enough history (admin only)
+ */
+export const adminGetPriceGrowth = async (params?: AdminGetPriceGrowthParams, options?: RequestInit): Promise<AdminPriceGrowthItem[]> => {
+
+  return customFetch<AdminPriceGrowthItem[]>(getAdminGetPriceGrowthUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetPriceGrowthQueryKey = (params?: AdminGetPriceGrowthParams,) => {
+    return [
+    `/api/admin/catalog/price-growth`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetPriceGrowthQueryOptions = <TData = Awaited<ReturnType<typeof adminGetPriceGrowth>>, TError = ErrorType<unknown>>(params?: AdminGetPriceGrowthParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetPriceGrowth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetPriceGrowthQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetPriceGrowth>>> = ({ signal }) => adminGetPriceGrowth(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetPriceGrowth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetPriceGrowthQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetPriceGrowth>>>
+export type AdminGetPriceGrowthQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Price trajectory per item, split by store, for items with enough history (admin only)
+ */
+
+export function useAdminGetPriceGrowth<TData = Awaited<ReturnType<typeof adminGetPriceGrowth>>, TError = ErrorType<unknown>>(
+ params?: AdminGetPriceGrowthParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetPriceGrowth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetPriceGrowthQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

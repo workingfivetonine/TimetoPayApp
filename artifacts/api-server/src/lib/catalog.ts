@@ -391,3 +391,197 @@ export async function computeGlobalPrices(
     .filter((x): x is GlobalItem => x !== null)
     .sort((x, y) => x.name.localeCompare(y.name));
 }
+
+// ---- Price growth over time (admin) ---------------------------------------
+
+export type PriceGrowthPoint = { date: string; price: number };
+
+export type PriceGrowthStore = {
+  catalogStoreId: number;
+  storeName: string;
+  countryCode: string | null;
+  firstPrice: number;
+  lastPrice: number;
+  // Null when the store has only one dated point — a single observation has no
+  // growth, and reporting 0% would read as "held steady".
+  growthPct: number | null;
+  points: PriceGrowthPoint[];
+};
+
+export type PriceGrowthItem = {
+  catalogItemId: number;
+  name: string;
+  icon: string | null;
+  category: string | null;
+  firstDate: string;
+  lastDate: string;
+  spanDays: number;
+  purchaseCount: number;
+  firstPrice: number;
+  lastPrice: number;
+  growthPct: number;
+  stores: PriceGrowthStore[];
+};
+
+// An item needs a history longer than this before a trend means anything —
+// two points a day apart describe noise, not a price trajectory.
+export const PRICE_GROWTH_MIN_SPAN_DAYS = 14;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Price trajectory per canonical item, split by store, for the admin growth
+// view. Unlike computeGlobalPrices (which keeps only the most recent price per
+// store) this keeps the whole series so it can be charted.
+//
+// Admin-only and deliberately unsuppressed: this is the same visibility the
+// admin global view already has, including exact dates. Do NOT reuse it for a
+// user-facing endpoint without the region scoping and date coarsening that
+// computeGlobalPrices applies.
+export async function computePriceGrowth(
+  opts: { minSpanDays?: number } = {},
+): Promise<PriceGrowthItem[]> {
+  const minSpanDays = opts.minSpanDays ?? PRICE_GROWTH_MIN_SPAN_DAYS;
+
+  const rows = await db
+    .select({
+      catalogItemId: catalogItemAliasesTable.catalogItemId,
+      catalogStoreId: catalogStoreAliasesTable.catalogStoreId,
+      price: lineItemsTable.price,
+      purchasedAt: receiptsTable.purchasedAt,
+      storeCountryCode: storesTable.countryCode,
+    })
+    .from(lineItemsTable)
+    .innerJoin(itemsTable, eq(itemsTable.id, lineItemsTable.itemId))
+    .innerJoin(catalogItemAliasesTable, eq(catalogItemAliasesTable.normalizedName, normItemNameSql))
+    .innerJoin(receiptsTable, eq(receiptsTable.id, lineItemsTable.receiptId))
+    .innerJoin(storesTable, eq(storesTable.id, receiptsTable.storeId))
+    .innerJoin(catalogStoreAliasesTable, eq(catalogStoreAliasesTable.normalizedName, normStoreNameSql));
+
+  const catItems = await db
+    .select({
+      id: catalogItemsTable.id,
+      name: catalogItemsTable.canonicalName,
+      icon: catalogItemsTable.icon,
+      category: catalogItemsTable.category,
+    })
+    .from(catalogItemsTable);
+  const catStores = await db
+    .select({ id: catalogStoresTable.id, name: catalogStoresTable.canonicalName })
+    .from(catalogStoresTable);
+  const itemMap = new Map(catItems.map((c) => [c.id, c]));
+  const storeMap = new Map(catStores.map((c) => [c.id, c.name]));
+
+  // Unpriced rows are excluded for the same reason as everywhere else: a line
+  // item saved without a price is a purchase, not a price, and charting it as
+  // zero would invent a crash and recovery that never happened. See lib/prices.ts.
+  type Bucket = { sum: number; n: number };
+  const byItem = new Map<
+    number,
+    Map<number, { countryCode: string | null; days: Map<string, Bucket> }>
+  >();
+
+  for (const r of rows) {
+    if (!isRealPrice(r.price)) continue;
+    const price = Number(r.price);
+    const day = r.purchasedAt.toISOString().slice(0, 10);
+
+    let stores = byItem.get(r.catalogItemId);
+    if (!stores) {
+      stores = new Map();
+      byItem.set(r.catalogItemId, stores);
+    }
+    let store = stores.get(r.catalogStoreId);
+    if (!store) {
+      store = { countryCode: r.storeCountryCode ?? null, days: new Map() };
+      stores.set(r.catalogStoreId, store);
+    }
+    // Several purchases of the same item at the same store on one day average
+    // into a single point, so a big shop doesn't stack duplicate x-positions.
+    const bucket = store.days.get(day);
+    if (bucket) {
+      bucket.sum += price;
+      bucket.n += 1;
+    } else {
+      store.days.set(day, { sum: price, n: 1 });
+    }
+  }
+
+  const out: PriceGrowthItem[] = [];
+
+  for (const [catalogItemId, storeMapForItem] of byItem) {
+    const item = itemMap.get(catalogItemId);
+    if (!item) continue;
+
+    const stores: PriceGrowthStore[] = [];
+    let purchaseCount = 0;
+    let earliest: string | null = null;
+    let latest: string | null = null;
+
+    for (const [catalogStoreId, agg] of storeMapForItem) {
+      const points = Array.from(agg.days.entries())
+        .map(([date, b]) => ({ date, price: Math.round((b.sum / b.n) * 100) / 100 }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (points.length === 0) continue;
+
+      for (const b of agg.days.values()) purchaseCount += b.n;
+
+      const first = points[0]!;
+      const last = points[points.length - 1]!;
+      if (earliest === null || first.date < earliest) earliest = first.date;
+      if (latest === null || last.date > latest) latest = last.date;
+
+      stores.push({
+        catalogStoreId,
+        storeName: storeMap.get(catalogStoreId) ?? "Unknown",
+        countryCode: agg.countryCode,
+        firstPrice: first.price,
+        lastPrice: last.price,
+        growthPct:
+          points.length > 1 && first.price > 0
+            ? Math.round(((last.price - first.price) / first.price) * 1000) / 10
+            : null,
+        points,
+      });
+    }
+
+    if (!earliest || !latest || stores.length === 0) continue;
+
+    const spanDays = Math.round(
+      (new Date(`${latest}T00:00:00Z`).getTime() - new Date(`${earliest}T00:00:00Z`).getTime()) /
+        DAY_MS,
+    );
+    if (spanDays < minSpanDays) continue;
+
+    // Item-level growth compares the earliest and latest observation across ALL
+    // stores, so it answers "what is this costing now vs then" rather than
+    // tracking any one retailer.
+    const allPoints = stores
+      .flatMap((s) => s.points)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const firstPrice = allPoints[0]!.price;
+    const lastPrice = allPoints[allPoints.length - 1]!.price;
+
+    stores.sort((a, b) => a.storeName.localeCompare(b.storeName));
+
+    out.push({
+      catalogItemId,
+      name: item.name,
+      icon: item.icon ?? null,
+      category: item.category ?? null,
+      firstDate: earliest,
+      lastDate: latest,
+      spanDays,
+      purchaseCount,
+      firstPrice,
+      lastPrice,
+      growthPct:
+        firstPrice > 0
+          ? Math.round(((lastPrice - firstPrice) / firstPrice) * 1000) / 10
+          : 0,
+      stores,
+    });
+  }
+
+  // Steepest rise first — the point of the view is to surface what is climbing.
+  return out.sort((a, b) => b.growthPct - a.growthPct);
+}

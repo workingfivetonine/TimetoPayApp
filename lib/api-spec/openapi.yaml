@@ -1143,6 +1143,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/CatalogGlobalItem"
 
+  /admin/catalog/price-growth:
+    get:
+      operationId: adminGetPriceGrowth
+      tags: [admin]
+      summary: Price trajectory per item, split by store, for items with enough history (admin only)
+      parameters:
+        - name: minSpanDays
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: >
+            Minimum days between an item's first and last recorded price before
+            it is included. Defaults to 14.
+      responses:
+        "200":
+          description: Items ordered by steepest price growth first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminPriceGrowthItem"
+
   /admin/catalog/items:
     get:
       operationId: adminListCatalogItems
@@ -1396,6 +1421,71 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CatalogGlobalStorePrice"
+
+    AdminPriceGrowthPoint:
+      type: object
+      required: [date, price]
+      properties:
+        date:
+          type: string
+          description: Purchase day, YYYY-MM-DD. Same-day purchases are averaged into one point.
+        price:
+          type: number
+
+    AdminPriceGrowthStore:
+      type: object
+      required: [catalogStoreId, storeName, firstPrice, lastPrice, points]
+      properties:
+        catalogStoreId:
+          type: integer
+        storeName:
+          type: string
+        countryCode:
+          type: ["string", "null"]
+        firstPrice:
+          type: number
+        lastPrice:
+          type: number
+        growthPct:
+          type: ["number", "null"]
+          description: Null when this store has only one dated point — a single observation has no growth.
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPriceGrowthPoint"
+
+    AdminPriceGrowthItem:
+      type: object
+      required:
+        [catalogItemId, name, firstDate, lastDate, spanDays, purchaseCount, firstPrice, lastPrice, growthPct, stores]
+      properties:
+        catalogItemId:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        firstDate:
+          type: string
+        lastDate:
+          type: string
+        spanDays:
+          type: integer
+        purchaseCount:
+          type: integer
+        firstPrice:
+          type: number
+        lastPrice:
+          type: number
+        growthPct:
+          type: number
+          description: Percent change from the earliest to the latest observation across all stores.
+        stores:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPriceGrowthStore"
 
     CatalogMember:
       type: object

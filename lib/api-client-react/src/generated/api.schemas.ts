@@ -27,6 +27,45 @@ export interface CatalogGlobalItem {
   stores: CatalogGlobalStorePrice[];
 }
 
+export interface AdminPriceGrowthPoint {
+  /** Purchase day, YYYY-MM-DD. Same-day purchases are averaged into one point. */
+  date: string;
+  price: number;
+}
+
+export interface AdminPriceGrowthStore {
+  catalogStoreId: number;
+  storeName: string;
+  /** @nullable */
+  countryCode?: string | null;
+  firstPrice: number;
+  lastPrice: number;
+  /**
+     * Null when this store has only one dated point — a single observation has no growth.
+     * @nullable
+     */
+  growthPct?: number | null;
+  points: AdminPriceGrowthPoint[];
+}
+
+export interface AdminPriceGrowthItem {
+  catalogItemId: number;
+  name: string;
+  /** @nullable */
+  icon?: string | null;
+  /** @nullable */
+  category?: string | null;
+  firstDate: string;
+  lastDate: string;
+  spanDays: number;
+  purchaseCount: number;
+  firstPrice: number;
+  lastPrice: number;
+  /** Percent change from the earliest to the latest observation across all stores. */
+  growthPct: number;
+  stores: AdminPriceGrowthStore[];
+}
+
 export interface CatalogMember {
   normalizedName: string;
   displayName: string;
@@ -915,4 +954,12 @@ export interface ExportData {
   items: ExportItem[];
   lineItems: ExportLineItem[];
 }
+
+export type AdminGetPriceGrowthParams = {
+/**
+ * Minimum days between an item's first and last recorded price before it is included. Defaults to 14.
+ * @minimum 0
+ */
+minSpanDays?: number;
+};
 

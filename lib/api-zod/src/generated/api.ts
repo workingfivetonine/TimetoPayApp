@@ -1319,6 +1319,45 @@ export const AdminGetGlobalPricesResponse = zod.array(AdminGetGlobalPricesRespon
 
 
 /**
+ * @summary Price trajectory per item, split by store, for items with enough history (admin only)
+ */
+export const adminGetPriceGrowthQueryMinSpanDaysMin = 0;
+
+
+
+export const AdminGetPriceGrowthQueryParams = zod.object({
+  "minSpanDays": zod.coerce.number().min(adminGetPriceGrowthQueryMinSpanDaysMin).optional().describe('Minimum days between an item\'s first and last recorded price before it is included. Defaults to 14.\n')
+})
+
+export const AdminGetPriceGrowthResponseItem = zod.object({
+  "catalogItemId": zod.number(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "firstDate": zod.string(),
+  "lastDate": zod.string(),
+  "spanDays": zod.number(),
+  "purchaseCount": zod.number(),
+  "firstPrice": zod.number(),
+  "lastPrice": zod.number(),
+  "growthPct": zod.number().describe('Percent change from the earliest to the latest observation across all stores.'),
+  "stores": zod.array(zod.object({
+  "catalogStoreId": zod.number(),
+  "storeName": zod.string(),
+  "countryCode": zod.string().nullish(),
+  "firstPrice": zod.number(),
+  "lastPrice": zod.number(),
+  "growthPct": zod.number().nullish().describe('Null when this store has only one dated point — a single observation has no growth.'),
+  "points": zod.array(zod.object({
+  "date": zod.string().describe('Purchase day, YYYY-MM-DD. Same-day purchases are averaged into one point.'),
+  "price": zod.number()
+}))
+}))
+})
+export const AdminGetPriceGrowthResponse = zod.array(AdminGetPriceGrowthResponseItem)
+
+
+/**
  * @summary List canonical catalog items with members and merge suggestions (admin only)
  */
 export const AdminListCatalogItemsResponse = zod.object({

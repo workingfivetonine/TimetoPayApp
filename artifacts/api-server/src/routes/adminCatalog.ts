@@ -28,6 +28,7 @@ import {
   ensureCatalog,
   looseKey,
   computeGlobalPrices,
+  computePriceGrowth,
 } from "../lib/catalog";
 import { similarity, tokenSortKey, SIMILARITY_THRESHOLD } from "../lib/textSimilarity";
 import {
@@ -157,6 +158,17 @@ function buildSuggestions(entries: Entry[]): Suggestion[] {
 router.get("/global", async (_req, res): Promise<void> => {
   await ensureCatalog();
   res.json(await computeGlobalPrices());
+});
+
+// Price trajectory per item, split by store. Only items whose history spans
+// long enough for a trend to mean anything are returned; the client charts a
+// line per store. Optional ?minSpanDays= overrides the default window.
+router.get("/price-growth", async (req, res): Promise<void> => {
+  await ensureCatalog();
+  const raw = Number(req.query.minSpanDays);
+  const minSpanDays =
+    Number.isFinite(raw) && raw >= 0 ? Math.min(Math.floor(raw), 3650) : undefined;
+  res.json(await computePriceGrowth({ minSpanDays }));
 });
 
 // ---- Catalog listings (items & stores) ------------------------------------

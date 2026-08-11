@@ -11,11 +11,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAdminGetGlobalPrices } from "@workspace/api-client-react";
-import type { CatalogGlobalItem } from "@workspace/api-client-react";
+import { useAdminGetGlobalPrices, useAdminGetPriceGrowth } from "@workspace/api-client-react";
+import type { CatalogGlobalItem, AdminPriceGrowthItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { ListControls, type SortOption } from "@/components/ListControls";
+import { PriceGrowthChart } from "@/components/PriceGrowthChart";
 import { formatPrice, countryName } from "@workspace/geo";
 
 // The generated CatalogGlobalItem type is drifted and lacks the new country
@@ -32,10 +33,20 @@ const GLOBAL_SORT: SortOption<GlobalSort>[] = [
   { key: "recent", label: "Recent" },
 ];
 
+type GrowthSort = "growth" | "drop" | "az";
+const GROWTH_SORT: SortOption<GrowthSort>[] = [
+  { key: "growth", label: "Risen most" },
+  { key: "drop", label: "Fallen most" },
+  { key: "az", label: "A–Z" },
+];
+
+type Tab = "latest" | "growth";
+
 export default function AdminGlobalPricesScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [tab, setTab] = React.useState<Tab>("latest");
   const { data, isLoading, error } = useAdminGetGlobalPrices();
   const [expanded, setExpanded] = React.useState<Record<number, boolean>>({});
   const [query, setQuery] = React.useState("");
@@ -100,6 +111,36 @@ export default function AdminGlobalPricesScreen() {
         <View style={styles.backBtn} />
       </View>
 
+      <View style={[styles.tabBar, { borderBottomColor: colors.border }]}>
+        {([
+          { key: "latest" as const, label: "Latest" },
+          { key: "growth" as const, label: "Growth" },
+        ]).map((t) => {
+          const active = tab === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tab, active && { borderBottomColor: colors.primary }]}
+              onPress={() => setTab(t.key)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: active ? colors.primary : colors.mutedForeground },
+                ]}
+              >
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {tab === "growth" ? (
+        <GrowthTab />
+      ) : (
+        <>
       {hasData ? (
         <ListControls
           query={query}
@@ -170,7 +211,167 @@ export default function AdminGlobalPricesScreen() {
           )}
         />
       )}
+        </>
+      )}
     </View>
+  );
+}
+
+// Price trajectory per item, one line per store. Only items whose history spans
+// long enough for a trend to mean anything reach this list — the server applies
+// that window, so an item with two purchases a day apart never appears.
+function GrowthTab() {
+  const colors = useColors();
+  const { data, isLoading, error } = useAdminGetPriceGrowth();
+  const [query, setQuery] = React.useState("");
+  const [sortKey, setSortKey] = React.useState<GrowthSort>("growth");
+  const [open, setOpen] = React.useState<Record<number, boolean>>({});
+
+  const visible = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = (data ?? []).filter(
+      (it) =>
+        !q ||
+        it.name.toLowerCase().includes(q) ||
+        it.stores.some((s) => s.storeName.toLowerCase().includes(q)),
+    );
+    return [...filtered].sort((a, b) => {
+      if (sortKey === "growth") return b.growthPct - a.growthPct;
+      if (sortKey === "drop") return a.growthPct - b.growthPct;
+      return a.name.localeCompare(b.name);
+    });
+  }, [data, query, sortKey]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <EmptyState
+          icon="alert-triangle"
+          title="Unable to load price growth"
+          subtitle="You may not have admin access."
+        />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      {(data?.length ?? 0) > 0 ? (
+        <ListControls
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search items or stores…"
+          sortOptions={GROWTH_SORT}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+        />
+      ) : null}
+
+      <FlatList
+        data={visible}
+        keyExtractor={(i) => String(i.catalogItemId)}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <Text style={[styles.caption, { color: colors.mutedForeground }]}>
+            How prices have moved for items with at least two weeks of history.
+            Tap a card for the per-store trend.
+          </Text>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            icon="trending-up"
+            title={query ? "No matching items" : "Not enough history yet"}
+            subtitle={
+              query
+                ? "Try a different search."
+                : "Items need at least two weeks between their first and latest recorded price before a trend can be shown."
+            }
+          />
+        }
+        renderItem={({ item }) => (
+          <GrowthCard
+            item={item}
+            colors={colors}
+            expanded={!!open[item.catalogItemId]}
+            onToggle={() => setOpen((o) => ({ ...o, [item.catalogItemId]: !o[item.catalogItemId] }))}
+          />
+        )}
+      />
+    </>
+  );
+}
+
+function GrowthCard({
+  item,
+  colors,
+  expanded,
+  onToggle,
+}: {
+  item: AdminPriceGrowthItem;
+  colors: ReturnType<typeof useColors>;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const country = item.stores[0]?.countryCode ?? null;
+  const rising = item.growthPct > 0;
+  const flat = Math.abs(item.growthPct) < 0.05;
+  const deltaColor = flat ? colors.mutedForeground : rising ? colors.priceBad : colors.priceGood;
+
+  return (
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+      activeOpacity={0.7}
+      onPress={onToggle}
+    >
+      <View style={styles.cardTop}>
+        <Text style={styles.icon}>{item.icon ?? "🛒"}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={[styles.sub, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {formatPrice(item.firstPrice, country)} → {formatPrice(item.lastPrice, country)} ·{" "}
+            {item.stores.length} store{item.stores.length === 1 ? "" : "s"} ·{" "}
+            {item.purchaseCount} purchase{item.purchaseCount === 1 ? "" : "s"}
+          </Text>
+        </View>
+        <View style={styles.deltaCol}>
+          {/* The arrow is a second channel beside the sign, so direction never
+              rests on colour alone. */}
+          <Feather
+            name={flat ? "minus" : rising ? "arrow-up-right" : "arrow-down-right"}
+            size={13}
+            color={deltaColor}
+          />
+          <Text style={[styles.delta, { color: deltaColor }]}>
+            {rising && !flat ? "+" : ""}
+            {item.growthPct.toFixed(1)}%
+          </Text>
+        </View>
+        <Feather
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={colors.mutedForeground}
+          style={{ marginLeft: 4 }}
+        />
+      </View>
+
+      {expanded ? (
+        <View style={[styles.stores, { borderTopColor: colors.border }]}>
+          <PriceGrowthChart series={item.stores} countryCode={country} />
+          <Text style={[styles.span, { color: colors.mutedForeground }]}>
+            {item.spanDays} days of history · {item.firstDate} to {item.lastDate}
+          </Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
   );
 }
 
@@ -272,4 +473,15 @@ const styles = StyleSheet.create({
   storePrice: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
   badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  tabBar: { flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: 1 },
+  tab: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  deltaCol: { flexDirection: "row", alignItems: "center", gap: 3 },
+  delta: { fontSize: 15, fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] },
+  span: { fontSize: 11.5, fontFamily: "Inter_400Regular", marginTop: 10 },
 });

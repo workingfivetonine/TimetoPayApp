@@ -7,8 +7,12 @@
  */
 
 export * from './adminActionResult';
+export * from './adminGetPriceGrowthParams';
 export * from './adminMergeResult';
 export * from './adminMergeUsersInput';
+export * from './adminPriceGrowthItem';
+export * from './adminPriceGrowthPoint';
+export * from './adminPriceGrowthStore';
 export * from './adminReceiptSummary';
 export * from './adminReviewDigestResult';
 export * from './adminSetRoleInput';

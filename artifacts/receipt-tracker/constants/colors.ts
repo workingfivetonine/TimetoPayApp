@@ -43,6 +43,23 @@ const colors = {
     // Warning / caution
     warning: "#935a00",
     warningBackground: "#fdecd0",
+
+    // Categorical chart series, in FIXED slot order — assigned by position and
+    // never cycled, so a series keeps its colour when the set is filtered.
+    // Validated against the light card surface (#ffffff): lightness band,
+    // chroma floor, colour-vision separation and normal-vision separation all
+    // pass. Slots 3/4/5 fall under 3:1 contrast, which is why every chart using
+    // these MUST carry a legend naming each series — colour never carries
+    // identity on its own. Past 6 series, fold the rest into one "Other" line
+    // rather than inventing a 7th hue.
+    chartSeries: [
+      "#2a78d6", // blue
+      "#eb6834", // orange
+      "#1baf7a", // aqua
+      "#eda100", // yellow
+      "#e87ba4", // magenta
+      "#008300", // green
+    ],
   },
   dark: {
     text: "#eef1f5",
@@ -88,6 +105,19 @@ const colors = {
     // Warning / caution
     warning: "#f5a623",
     warningBackground: "#332204",
+
+    // Same six hues re-stepped for the dark card surface (#272643) — a selected
+    // dark palette, not an automatic flip of the light one. All six clear 3:1
+    // here. The green is lighter than its light-mode twin specifically to clear
+    // contrast against this surface.
+    chartSeries: [
+      "#3987e5", // blue
+      "#d95926", // orange
+      "#199e70", // aqua
+      "#c98500", // yellow
+      "#d55181", // magenta
+      "#12a012", // green
+    ],
   },
   radius: 12,
 };
