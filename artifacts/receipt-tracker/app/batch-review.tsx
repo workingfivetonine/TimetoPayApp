@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -16,7 +18,7 @@ import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useMergeReceipts, useGetReceipt } from "@workspace/api-client-react";
+import { useMergeReceipts, useGetReceipt, useListReceipts } from "@workspace/api-client-react";
 import {
   getGetShoppingListQueryKey,
   getListItemsQueryKey,
@@ -128,6 +130,8 @@ export default function BatchReviewScreen() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  // The just-scanned receipt the user wants to fold into one they already had.
+  const [mergeIntoSource, setMergeIntoSource] = useState<BatchReceiptSummary | null>(null);
 
   const editor = useLineItemEditor();
   // Keep the summary card in step with a store rename without refetching the
@@ -210,6 +214,46 @@ export default function BatchReviewScreen() {
           Alert.alert(
             "Couldn't merge receipts",
             "Something went wrong merging these receipts. Please try again.",
+          );
+        },
+      },
+    );
+  };
+
+  // Fold a just-scanned receipt into one the user already had — the case where a
+  // receipt arrives in pieces (a second page photographed later, an emailed PDF
+  // for a trip already logged). Same endpoint as in-batch merge: earliest
+  // purchase date wins and the sources are deleted, so the existing receipt is
+  // the one that survives.
+  const handleMergeIntoExisting = (targetId: number) => {
+    const source = mergeIntoSource;
+    if (!source || mergeMutation.isPending) return;
+
+    mergeMutation.mutate(
+      { data: { receiptIds: [targetId, source.id] } },
+      {
+        onSuccess: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          invalidateAll();
+          // The scanned row is gone from the DB now, so drop it from the batch.
+          const next = receipts.filter((r) => r.id !== source.id);
+          setReceipts(next);
+          setBatchReceipts(next);
+          setSelected((prev) => {
+            const s = new Set(prev);
+            s.delete(source.id);
+            return s;
+          });
+          setMergeIntoSource(null);
+          if (next.length === 0) {
+            clearBatchReceipts();
+            router.replace(`/receipt/${targetId}`);
+          }
+        },
+        onError: () => {
+          Alert.alert(
+            "Couldn't merge",
+            "Something went wrong merging into that receipt. Please try again.",
           );
         },
       },
@@ -310,6 +354,16 @@ export default function BatchReviewScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.cardAction}
+                    onPress={() => setMergeIntoSource(r)}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="git-merge" size={14} color={colors.primary} />
+                    <Text style={[styles.cardActionText, { color: colors.primary }]}>
+                      Merge into existing
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cardAction}
                     onPress={() => router.push(`/receipt/${r.id}`)}
                     activeOpacity={0.7}
                   >
@@ -365,6 +419,14 @@ export default function BatchReviewScreen() {
         </TouchableOpacity>
       </View>
 
+      <MergeIntoExistingModal
+        source={mergeIntoSource}
+        excludeIds={receipts.map((r) => r.id)}
+        pending={mergeMutation.isPending}
+        onPick={handleMergeIntoExisting}
+        onClose={() => setMergeIntoSource(null)}
+      />
+
       <ZoomableImageModal
         visible={previewUri != null}
         uri={previewUri}
@@ -378,8 +440,183 @@ export default function BatchReviewScreen() {
   );
 }
 
+// Picks an already-saved receipt to fold a freshly-scanned one into. The
+// receipts in this batch are excluded — merging a batch row into another batch
+// row is what the checkboxes already do.
+function MergeIntoExistingModal({
+  source,
+  excludeIds,
+  pending,
+  onPick,
+  onClose,
+}: {
+  source: BatchReceiptSummary | null;
+  excludeIds: number[];
+  pending: boolean;
+  onPick: (targetId: number) => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const { format } = useCurrency();
+  const [query, setQuery] = useState("");
+  const { data: all, isLoading } = useListReceipts({
+    query: { queryKey: getListReceiptsQueryKey(), enabled: source != null },
+  });
+
+  const candidates = React.useMemo(() => {
+    const exclude = new Set(excludeIds);
+    const q = query.trim().toLowerCase();
+    return (all ?? [])
+      .filter((r) => !exclude.has(r.id))
+      .filter((r) => (q ? (r.storeName ?? "").toLowerCase().includes(q) : true))
+      .sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime());
+  }, [all, excludeIds, query]);
+
+  return (
+    <Modal
+      visible={source != null}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              Merge into which receipt?
+            </Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x" size={20} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.modalHint, { color: colors.mutedForeground }]}>
+            {source
+              ? `"${source.storeName}" will be folded into the receipt you pick, and its own row removed.`
+              : ""}
+          </Text>
+
+          <View
+            style={[
+              styles.modalSearch,
+              { backgroundColor: colors.secondary, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="search" size={15} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.modalSearchInput, { color: colors.foreground }]}
+              placeholder="Find a receipt by store…"
+              placeholderTextColor={colors.mutedForeground}
+              value={query}
+              onChangeText={setQuery}
+              autoCorrect={false}
+            />
+          </View>
+
+          {isLoading ? (
+            <View style={styles.modalLoading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : candidates.length === 0 ? (
+            <Text style={[styles.modalEmpty, { color: colors.mutedForeground }]}>
+              {query ? "No receipts match that search." : "You have no other receipts to merge into."}
+            </Text>
+          ) : (
+            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+              {candidates.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  style={[styles.modalRow, { borderBottomColor: colors.border }]}
+                  onPress={() => onPick(r.id)}
+                  disabled={pending}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.modalRowTitle, { color: colors.foreground }]}
+                      numberOfLines={1}
+                    >
+                      {r.storeName}
+                    </Text>
+                    <Text style={[styles.modalRowMeta, { color: colors.mutedForeground }]}>
+                      {formatDate(r.purchasedAt)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.modalRowTotal, { color: colors.foreground }]}>
+                    {format(Number(r.total))}
+                  </Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {pending ? (
+            <View style={styles.modalLoading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalSheet: {
+    maxHeight: "80%",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  modalHint: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 19,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  modalSearch: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  modalSearchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  modalList: { marginTop: 8 },
+  modalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  modalRowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  modalRowMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  modalRowTotal: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  modalLoading: { padding: 28, alignItems: "center" },
+  modalEmpty: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    padding: 28,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
