@@ -22,6 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { EmptyState } from "@/components/EmptyState";
 import { CustomLineChart } from "@/components/CustomLineChart";
 import { CustomBarChart } from "@/components/CustomBarChart";
+import { PivotTable } from "@/components/PivotTable";
 
 type Aggregation = "count" | "sum" | "avg" | "min" | "max";
 type Granularity = "day" | "week" | "month" | "year";
@@ -276,7 +277,16 @@ export default function AdminAnalyticsScreen() {
               </View>
             ) : data.kind === "time" ? (
               <>
-                <CustomLineChart series={data.series} granularity={granularity} unit={data.unit} />
+                {/* Several lines crossing over a handful of points each reads
+                    as noise, not a trend — a pivot table says the same numbers
+                    precisely instead of asking the eye to untangle crossing
+                    lines. A single, unsplit series stays a line chart, where a
+                    trend over time is exactly the point. */}
+                {data.series.length > 1 ? (
+                  <PivotTable series={data.series} granularity={granularity} unit={data.unit} />
+                ) : (
+                  <CustomLineChart series={data.series} granularity={granularity} unit={data.unit} />
+                )}
                 <Text style={[styles.footnote, { color: colors.mutedForeground }]}>
                   {data.rowCount.toLocaleString()} row{data.rowCount === 1 ? "" : "s"}
                   {data.otherCount > 0 ? ` · ${data.otherCount} more folded into "Other"` : ""}
