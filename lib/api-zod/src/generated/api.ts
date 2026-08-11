@@ -1401,7 +1401,7 @@ export const AdminGetCustomChartQueryParams = zod.object({
   "splitBy": zod.coerce.string().optional().describe('A category-field key for a second line\/series per value. Only valid when groupBy is a date field.'),
   "aggregation": zod.enum(['count', 'sum', 'avg', 'min', 'max']),
   "measure": zod.coerce.string().optional().describe('A number-field key. Required unless aggregation is count.'),
-  "filters": zod.coerce.string().optional().describe('A JSON-encoded object of categoryFieldKey -> exact value, ANDed together (e.g. {\"storeCountry\":\"US\",\"category\":\"Dairy\"}). This is also how a currency\/country filter works — there\'s no separate currency column, so pinning storeCountry (or countryCode) to one value is what makes summing money meaningful.\n')
+  "filters": zod.coerce.string().optional().describe('A JSON-encoded object of categoryFieldKey -> array of values. A row matches a field if its value is ANY of that field\'s listed values (OR within the field); a row must match every listed field (AND across fields) — e.g. {\"storeCountry\":[\"US\",\"GB\"],\"category\": [\"Dairy\"]} means (US or GB) and Dairy. This is also how a currency\/ country filter works — there\'s no separate currency column, so pinning storeCountry (or countryCode) is what makes summing money meaningful.\n')
 })
 
 export const AdminGetCustomChartResponse = zod.object({

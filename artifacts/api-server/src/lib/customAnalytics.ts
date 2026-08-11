@@ -302,13 +302,14 @@ export interface ChartQueryInput {
   splitBy?: string;
   aggregation: string;
   measure?: string;
-  // Restrict to rows where each named category field equals its given value —
-  // an AND of equality filters, applied before grouping. This is also how a
+  // Restrict to rows where each named category field's value is ONE OF the
+  // given list — an OR within a field, ANDed across different fields, applied
+  // before grouping. ("Milk" or "Eggs") AND ("US" or "GB"). This is also how a
   // "currency" or "country" filter works: there's no separate currency column,
-  // so pinning storeCountry/countryCode to one value is what makes summing
-  // money meaningful (mixed countries otherwise silently added incompatible
-  // currencies together as if they were the same unit).
-  filters?: Record<string, string>;
+  // so pinning storeCountry/countryCode to a set of values is what makes
+  // summing money meaningful (unfiltered, rows from incompatible currencies
+  // otherwise silently get added together as if they were the same unit).
+  filters?: Record<string, string[]>;
 }
 
 export async function computeCustomChart(
@@ -353,12 +354,17 @@ export async function computeCustomChart(
     splitBy = input.splitBy;
   }
 
-  const filters: Record<string, string> = {};
-  for (const [field, value] of Object.entries(input.filters ?? {})) {
+  const filters: Record<string, string[]> = {};
+  for (const [field, values] of Object.entries(input.filters ?? {})) {
     if (!meta.categoryFields.some((f) => f.key === field)) {
       return { error: `"${field}" is not a field on ${meta.label}` };
     }
-    filters[field] = value;
+    // An empty (or, after stripping non-strings, empty) value list is treated
+    // as "not filtered" rather than an error — matching `.includes()` against
+    // an empty array would match nothing and silently zero out every row,
+    // which is a much worse failure than just ignoring a no-op filter.
+    const clean = (Array.isArray(values) ? values : []).filter((v): v is string => typeof v === "string");
+    if (clean.length > 0) filters[field] = clean;
   }
 
   // Granularity is a display nicety, not a correctness question, so an
@@ -383,12 +389,12 @@ async function runQuery(
     aggregation: Aggregation;
     measure?: string;
     unit: "currency" | "count";
-    filters: Record<string, string>;
+    filters: Record<string, string[]>;
   },
 ): Promise<ChartResult> {
   const filterEntries = Object.entries(q.filters);
   const rows = (await src.load()).filter((r) =>
-    filterEntries.every(([field, value]) => r.cats[field] === value),
+    filterEntries.every(([field, values]) => values.includes(r.cats[field])),
   );
   return q.isDateGroupBy
     ? buildTimeResult(rows, q.granularity, q.splitBy, q.aggregation, q.measure, q.unit)

@@ -69,14 +69,21 @@ export default function AdminAnalyticsScreen() {
   const [splitBy, setSplitBy] = React.useState<string | null>(null);
   const [aggregation, setAggregation] = React.useState<Aggregation>("sum");
   const [measure, setMeasure] = React.useState<string | null>(null);
-  // One optional exact-match filter per category field (e.g. storeCountry ->
-  // "US", category -> "Dairy"), ANDed together server-side. Empty = no filter.
-  const [filters, setFilters] = React.useState<Record<string, string>>({});
+  // Zero or more selected values per category field (e.g. storeCountry ->
+  // ["US","GB"], category -> ["Dairy"]) — a value matches if it's ANY of the
+  // selected values (OR within a field), ANDed across different fields
+  // server-side. An empty/absent array means that field isn't filtered.
+  const [filters, setFilters] = React.useState<Record<string, string[]>>({});
   const [openPicker, setOpenPicker] = React.useState<null | {
     title: string;
     options: { key: string; label: string }[];
     onPick: (key: string) => void;
     loading?: boolean;
+    // Present only for a filter picker: which field it's toggling, so the
+    // modal can read the CURRENT selection live from `filters` on every
+    // render rather than from a snapshot that would go stale the moment the
+    // first option is tapped.
+    fieldKey?: string;
   }>(null);
   const [pickerSearch, setPickerSearch] = React.useState("");
   // Bumped only on a genuinely FRESH picker open, never on the silent update
@@ -109,8 +116,8 @@ export default function AdminAnalyticsScreen() {
     if (!sourceMeta) return;
     setGroupBy(sourceMeta.dateFields[0]?.key ?? sourceMeta.categoryFields[0]?.key ?? null);
     setSplitBy(null);
-    // A filter from the previous source's fields is meaningless once the field
-    // list underneath it has changed, same reasoning as groupBy/measure below.
+    // Filters from the previous source's fields are meaningless once the field
+    // list underneath them has changed, same reasoning as groupBy/measure below.
     setFilters({});
     if (sourceMeta.measureFields.length > 0) {
       setAggregation("sum");
@@ -146,42 +153,60 @@ export default function AdminAnalyticsScreen() {
   }, [isDateGroupBy]);
 
   // Whichever of this source's category fields represents a country, if any —
-  // and, if the admin has actually filtered it to one value, that value. This
-  // is what lets a currency-typed measure format correctly: with no country
-  // pinned, rows from different countries could be summed together as if
-  // their currencies were interchangeable, which they aren't.
+  // and, if the admin has pinned it to EXACTLY one value, that value. This is
+  // what lets a currency-typed measure format correctly: with zero selected
+  // (unfiltered) or two-plus selected, rows from different countries could
+  // still be summed together as if their currencies were interchangeable,
+  // which they aren't — only a single pinned country is unambiguous.
   const countryFieldKey = sourceMeta?.categoryFields.find((f) => COUNTRY_FIELD_KEYS.includes(f.key))?.key ?? null;
-  const activeCountryCode = countryFieldKey ? filters[countryFieldKey] ?? null : null;
+  const countryFilterValues = countryFieldKey ? filters[countryFieldKey] ?? [] : [];
+  const activeCountryCode = countryFilterValues.length === 1 ? countryFilterValues[0]! : null;
 
   const displayValueLabel = (fieldKey: string, raw: string): string =>
     COUNTRY_FIELD_KEYS.includes(fieldKey) ? countryName(raw) ?? raw : raw;
 
-  const setFilter = (fieldKey: string, value: string | null) => {
+  const filterSummary = (fieldKey: string): string => {
+    const selected = filters[fieldKey] ?? [];
+    if (selected.length === 0) return "All";
+    if (selected.length === 1) return displayValueLabel(fieldKey, selected[0]!);
+    return `${selected.length} selected`;
+  };
+
+  const toggleFilterValue = (fieldKey: string, value: string) => {
     setFilters((prev) => {
-      const next = { ...prev };
-      if (value) next[fieldKey] = value;
-      else delete next[fieldKey];
-      return next;
+      const current = prev[fieldKey] ?? [];
+      const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+      const copy = { ...prev };
+      if (next.length > 0) copy[fieldKey] = next;
+      else delete copy[fieldKey];
+      return copy;
+    });
+  };
+
+  const clearFilter = (fieldKey: string) => {
+    setFilters((prev) => {
+      if (!(fieldKey in prev)) return prev;
+      const copy = { ...prev };
+      delete copy[fieldKey];
+      return copy;
     });
   };
 
   const openFilterPicker = async (field: AdminCustomChartField) => {
     if (!source) return;
     const cacheKey = `${source}:${field.key}`;
-    const optionsFor = (values: string[]) => [
-      { key: "", label: "All" },
-      ...values.map((v) => ({ key: v, label: displayValueLabel(field.key, v) })),
-    ];
+    const optionsFor = (values: string[]) => values.map((v) => ({ key: v, label: displayValueLabel(field.key, v) }));
 
     const cached = fieldValuesCache.current.get(cacheKey);
     openPickerFresh({
       title: field.label,
+      fieldKey: field.key,
       options: optionsFor(cached ?? []),
       loading: !cached,
-      onPick: (key) => {
-        setFilter(field.key, key || null);
-        setOpenPicker(null);
-      },
+      // Toggles, and deliberately does not close the modal — picking several
+      // values is the whole point, so each tap applies immediately (the query
+      // re-runs live) and the admin closes the sheet themselves when done.
+      onPick: (key) => toggleFilterValue(field.key, key),
     });
     if (cached) return;
 
@@ -266,13 +291,12 @@ export default function AdminAnalyticsScreen() {
               </Text>
               {sourceMeta.categoryFields.map((f) => {
                 const isCountry = COUNTRY_FIELD_KEYS.includes(f.key);
-                const rawValue = filters[f.key];
                 const label = isCountry ? `${f.label} (currency)` : f.label;
                 return (
                   <PickerRow
                     key={f.key}
                     label={label}
-                    value={rawValue ? displayValueLabel(f.key, rawValue) : "All"}
+                    value={filterSummary(f.key)}
                     onPress={() => void openFilterPicker(f)}
                   />
                 );
@@ -376,9 +400,9 @@ export default function AdminAnalyticsScreen() {
             <View style={[styles.warnBanner, { backgroundColor: colors.warningBackground, borderColor: colors.warning }]}>
               <Feather name="alert-triangle" size={13} color={colors.warning} />
               <Text style={[styles.warnText, { color: colors.warning }]}>
-                No country filter set — if this data spans more than one
-                country, amounts are added together without converting
-                currencies. Filter by country above for a true total.
+                {countryFilterValues.length > 1
+                  ? "More than one country selected — amounts are added together without converting currencies. Pick a single country above for a true total."
+                  : "No country filter set — if this data spans more than one country, amounts are added together without converting currencies. Filter by country above for a true total."}
               </Text>
             </View>
           ) : null}
@@ -435,9 +459,16 @@ export default function AdminAnalyticsScreen() {
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>{openPicker?.title}</Text>
-              <TouchableOpacity onPress={() => setOpenPicker(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="x" size={20} color={colors.foreground} />
-              </TouchableOpacity>
+              <View style={styles.modalHeaderActions}>
+                {openPicker?.fieldKey && (filters[openPicker.fieldKey]?.length ?? 0) > 0 ? (
+                  <TouchableOpacity onPress={() => clearFilter(openPicker.fieldKey!)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={[styles.modalClearText, { color: colors.primary }]}>Clear</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={() => setOpenPicker(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={20} color={colors.foreground} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Search only earns its keep past a handful of options — Math or
@@ -456,19 +487,37 @@ export default function AdminAnalyticsScreen() {
               </View>
             ) : null}
 
+            {openPicker?.fieldKey ? (
+              <Text style={[styles.modalHint, { color: colors.mutedForeground }]}>
+                Pick as many as you need — leave none checked for "All".
+              </Text>
+            ) : null}
+
             <ScrollView keyboardShouldPersistTaps="handled">
               {(openPicker?.options ?? [])
                 .filter((o) => o.label.toLowerCase().includes(pickerSearch.trim().toLowerCase()))
-                .map((o) => (
-                  <TouchableOpacity
-                    key={o.key}
-                    style={[styles.modalRow, { borderBottomColor: colors.border }]}
-                    onPress={() => openPicker!.onPick(o.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.modalRowText, { color: colors.foreground }]}>{o.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                .map((o) => {
+                  const isMulti = !!openPicker?.fieldKey;
+                  const isChecked = isMulti ? (filters[openPicker!.fieldKey!] ?? []).includes(o.key) : false;
+                  return (
+                    <TouchableOpacity
+                      key={o.key}
+                      style={[styles.modalRow, { borderBottomColor: colors.border }]}
+                      onPress={() => openPicker!.onPick(o.key)}
+                      activeOpacity={0.7}
+                    >
+                      {isMulti ? (
+                        <Feather
+                          name={isChecked ? "check-square" : "square"}
+                          size={17}
+                          color={isChecked ? colors.primary : colors.mutedForeground}
+                          style={styles.modalCheckbox}
+                        />
+                      ) : null}
+                      <Text style={[styles.modalRowText, { color: colors.foreground }]}>{o.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               {openPicker?.loading ? (
                 <View style={styles.modalLoading}>
                   <ActivityIndicator color={colors.primary} size="small" />
@@ -550,6 +599,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  modalHeaderActions: { flexDirection: "row", alignItems: "center", gap: 16 },
+  modalClearText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  modalHint: { fontSize: 12, fontFamily: "Inter_400Regular", paddingHorizontal: 20, paddingTop: 10 },
   modalSearch: {
     flexDirection: "row",
     alignItems: "center",
@@ -562,7 +614,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   modalSearchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  modalRow: { paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
+  modalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  modalCheckbox: { marginRight: 12 },
   modalRowText: { fontSize: 15, fontFamily: "Inter_500Medium" },
   modalLoading: { padding: 20, alignItems: "center" },
 });

@@ -39,11 +39,11 @@ router.get("/custom-chart", async (req, res): Promise<void> => {
     return;
   }
 
-  // `filters` arrives as a single JSON-encoded object ({field: value}) rather
-  // than one query param per field — simpler to serialize correctly from the
-  // client than a repeated/bracketed query-param convention, for a value that
-  // never needs to be human-typed into the URL.
-  let parsedFilters: Record<string, string> | undefined;
+  // `filters` arrives as a single JSON-encoded object ({field: [values]})
+  // rather than one query param per field — simpler to serialize correctly
+  // from the client than a repeated/bracketed query-param convention, for a
+  // value that never needs to be human-typed into the URL.
+  let parsedFilters: Record<string, string[]> | undefined;
   if (filters) {
     try {
       const parsed = JSON.parse(filters);
@@ -51,13 +51,13 @@ router.get("/custom-chart", async (req, res): Promise<void> => {
         typeof parsed !== "object" ||
         parsed === null ||
         Array.isArray(parsed) ||
-        Object.values(parsed).some((v) => typeof v !== "string")
+        Object.values(parsed).some((v) => !Array.isArray(v) || v.some((x) => typeof x !== "string"))
       ) {
-        throw new Error("not a flat object of strings");
+        throw new Error("not a flat object of string arrays");
       }
       parsedFilters = parsed;
     } catch {
-      res.status(400).json({ error: "filters must be a JSON object of field -> value strings" });
+      res.status(400).json({ error: "filters must be a JSON object of field -> array of value strings" });
       return;
     }
   }
