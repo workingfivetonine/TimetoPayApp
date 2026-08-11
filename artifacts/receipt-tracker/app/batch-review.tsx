@@ -232,11 +232,23 @@ export default function BatchReviewScreen() {
     mergeMutation.mutate(
       { data: { receiptIds: [targetId, source.id] } },
       {
-        onSuccess: () => {
+        onSuccess: (merged) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           invalidateAll();
-          // The scanned row is gone from the DB now, so drop it from the batch.
-          const next = receipts.filter((r) => r.id !== source.id);
+          const mergedSummary: BatchReceiptSummary = {
+            id: merged.id,
+            storeName: merged.storeName,
+            total: merged.total,
+            itemCount: merged.lineItems.length,
+            purchasedAt: merged.purchasedAt,
+          };
+          // merged.id is whichever receipt actually survived (server picks by
+          // earliest purchase date, not by targetId) — drop the scanned row,
+          // then upsert the survivor's fresh totals into the batch list.
+          const withoutSource = receipts.filter((r) => r.id !== source.id);
+          const next = withoutSource.some((r) => r.id === merged.id)
+            ? withoutSource.map((r) => (r.id === merged.id ? mergedSummary : r))
+            : [mergedSummary, ...withoutSource];
           setReceipts(next);
           setBatchReceipts(next);
           setSelected((prev) => {
@@ -245,9 +257,9 @@ export default function BatchReviewScreen() {
             return s;
           });
           setMergeIntoSource(null);
-          if (next.length === 0) {
+          if (withoutSource.length === 0) {
             clearBatchReceipts();
-            router.replace(`/receipt/${targetId}`);
+            router.replace(`/receipt/${merged.id}`);
           }
         },
         onError: () => {
