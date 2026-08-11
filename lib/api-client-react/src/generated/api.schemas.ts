@@ -67,8 +67,9 @@ export interface AdminPriceGrowthItem {
 }
 
 export interface AdminPriceGrowthResult {
+  /** The window applied; 0 means all time. */
   windowDays: number;
-  /** First day of the reporting window, YYYY-MM-DD. */
+  /** First day of the reporting window, YYYY-MM-DD. For the all-time window this is the earliest price on record across the returned items, not a fixed offset from today. */
   windowStart: string;
   /** Last day of the reporting window, YYYY-MM-DD. Charts use windowStart/windowEnd as a shared x-domain so two items are directly comparable. */
   windowEnd: string;
@@ -971,7 +972,7 @@ export type AdminGetPriceGrowthParams = {
  */
 minSpanDays?: number;
 /**
- * Reporting window. Only these values are accepted; anything else falls back to the default of 90.
+ * Reporting window; 0 means all time, measuring from each item's first recorded price. Only these values are accepted; anything else falls back to the default of 90.
  */
 windowDays?: AdminGetPriceGrowthWindowDays;
 };
@@ -980,6 +981,7 @@ export type AdminGetPriceGrowthWindowDays = typeof AdminGetPriceGrowthWindowDays
 
 
 export const AdminGetPriceGrowthWindowDays = {
+  NUMBER_0: 0,
   NUMBER_90: 90,
   NUMBER_182: 182,
   NUMBER_365: 365,

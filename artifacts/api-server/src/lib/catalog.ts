@@ -426,6 +426,8 @@ export type PriceGrowthItem = {
 export type PriceGrowthResult = {
   // The window every item in this result was measured over. Charts share it as
   // their x-domain so two items are directly comparable side by side.
+  // 0 means all time, in which case windowStart is the earliest price on record
+  // across the returned items rather than a fixed offset from today.
   windowDays: number;
   windowStart: string;
   windowEnd: string;
@@ -436,10 +438,14 @@ export type PriceGrowthResult = {
 // two points a day apart describe noise, not a price trajectory.
 export const PRICE_GROWTH_MIN_SPAN_DAYS = 14;
 
-// Selectable reporting windows, in days. Growth is always measured from the
-// first to the last observation INSIDE the window, so "90 days" means what it
-// says rather than "since we first saw this item".
-export const PRICE_GROWTH_WINDOWS = [90, 182, 365] as const;
+// Selectable reporting windows, in days. Growth is measured from the first to
+// the last observation INSIDE the window, so "90 days" means what it says
+// rather than "since we first saw this item".
+//
+// 0 is the all-time window: no lower bound, so growth runs from each item's
+// very first recorded price.
+export const PRICE_GROWTH_ALL_TIME = 0;
+export const PRICE_GROWTH_WINDOWS = [PRICE_GROWTH_ALL_TIME, 90, 182, 365] as const;
 export const PRICE_GROWTH_DEFAULT_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -460,9 +466,14 @@ export async function computePriceGrowth(
 
   // Whole-day bounds so every chart in a response shares an identical x-domain
   // regardless of the hour the request landed.
+  const allTime = windowDays === PRICE_GROWTH_ALL_TIME;
   const todayMs = Math.floor(Date.now() / DAY_MS) * DAY_MS;
   const windowEnd = new Date(todayMs).toISOString().slice(0, 10);
-  const windowStart = new Date(todayMs - windowDays * DAY_MS).toISOString().slice(0, 10);
+  // For all-time there is no lower bound to filter on; the real start is the
+  // earliest surviving observation, which is only known after aggregating.
+  const windowStart = allTime
+    ? null
+    : new Date(todayMs - windowDays * DAY_MS).toISOString().slice(0, 10);
 
   const rows = await db
     .select({
@@ -507,8 +518,11 @@ export async function computePriceGrowth(
     const price = Number(r.price);
     const day = r.purchasedAt.toISOString().slice(0, 10);
     // Outside the reporting window. Compared as YYYY-MM-DD strings, which sort
-    // lexicographically, so this needs no date parsing.
-    if (day < windowStart || day > windowEnd) continue;
+    // lexicographically, so this needs no date parsing. The upper bound applies
+    // even for all-time: a receipt mis-dated into the future would otherwise
+    // stretch every chart's axis to meet it.
+    if (windowStart !== null && day < windowStart) continue;
+    if (day > windowEnd) continue;
 
     let stores = byItem.get(r.catalogItemId);
     if (!stores) {
@@ -609,5 +623,18 @@ export async function computePriceGrowth(
 
   // Steepest rise first — the point of the view is to surface what is climbing.
   out.sort((a, b) => b.growthPct - a.growthPct);
-  return { windowDays, windowStart, windowEnd, items: out };
+
+  // All-time spans from the oldest price on record across everything returned,
+  // so the charts still share one domain — an item first bought recently simply
+  // occupies the right-hand slice of it, which is itself informative. Falls back
+  // to windowEnd when nothing survived, keeping the range valid rather than null.
+  const effectiveStart =
+    windowStart ??
+    out.reduce<string | null>(
+      (min, it) => (min === null || it.firstDate < min ? it.firstDate : min),
+      null,
+    ) ??
+    windowEnd;
+
+  return { windowDays, windowStart: effectiveStart, windowEnd, items: out };
 }

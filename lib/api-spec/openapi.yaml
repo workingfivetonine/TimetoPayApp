@@ -1163,10 +1163,11 @@ paths:
           required: false
           schema:
             type: integer
-            enum: [90, 182, 365]
+            enum: [0, 90, 182, 365]
           description: >
-            Reporting window. Only these values are accepted; anything else
-            falls back to the default of 90.
+            Reporting window; 0 means all time, measuring from each item's first
+            recorded price. Only these values are accepted; anything else falls
+            back to the default of 90.
       responses:
         "200":
           description: The window, plus items ordered by steepest price growth first
@@ -1435,9 +1436,13 @@ components:
       properties:
         windowDays:
           type: integer
+          description: The window applied; 0 means all time.
         windowStart:
           type: string
-          description: First day of the reporting window, YYYY-MM-DD.
+          description: >
+            First day of the reporting window, YYYY-MM-DD. For the all-time
+            window this is the earliest price on record across the returned
+            items, not a fixed offset from today.
         windowEnd:
           type: string
           description: >

@@ -52,6 +52,8 @@ const GROWTH_WINDOWS: { days: AdminGetPriceGrowthWindowDays; label: string }[] =
   { days: 90, label: "90 days" },
   { days: 182, label: "6 months" },
   { days: 365, label: "1 year" },
+  // 0 = all time: measures from each item's first recorded price.
+  { days: 0, label: "All time" },
 ];
 
 export default function AdminGlobalPricesScreen() {
@@ -332,20 +334,23 @@ function GrowthTab() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <Text style={[styles.caption, { color: colors.mutedForeground }]}>
-            How prices moved over the selected window, for items with at least
-            two weeks of history inside it. Every chart shares the same date
-            range, so items can be compared directly. Tap a card for the
-            per-store trend.
+            {windowDays === 0
+              ? "How prices moved since each item was first recorded, for items with at least two weeks of history. "
+              : "How prices moved over the selected window, for items with at least two weeks of history inside it. "}
+            Every chart shares the same date range, so items can be compared
+            directly. Tap a card for the per-store trend.
           </Text>
         }
         ListEmptyComponent={
           <EmptyState
             icon="trending-up"
-            title={query ? "No matching items" : "Not enough history in this window"}
+            title={query ? "No matching items" : "Not enough history yet"}
             subtitle={
               query
                 ? "Try a different search."
-                : "Items need at least two weeks between their first and latest recorded price inside this window. Try a longer one."
+                : windowDays === 0
+                  ? "Items need at least two weeks between their first and latest recorded price before a trend can be shown."
+                  : "Items need at least two weeks between their first and latest recorded price inside this window. Try a longer one, or All time."
             }
           />
         }

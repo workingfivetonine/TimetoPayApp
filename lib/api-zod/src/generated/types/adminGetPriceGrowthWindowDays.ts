@@ -10,6 +10,7 @@ export type AdminGetPriceGrowthWindowDays = typeof AdminGetPriceGrowthWindowDays
 
 
 export const AdminGetPriceGrowthWindowDays = {
+  NUMBER_0: 0,
   NUMBER_90: 90,
   NUMBER_182: 182,
   NUMBER_365: 365,

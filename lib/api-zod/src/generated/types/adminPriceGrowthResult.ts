@@ -8,8 +8,9 @@
 import type { AdminPriceGrowthItem } from './adminPriceGrowthItem';
 
 export interface AdminPriceGrowthResult {
+  /** The window applied; 0 means all time. */
   windowDays: number;
-  /** First day of the reporting window, YYYY-MM-DD. */
+  /** First day of the reporting window, YYYY-MM-DD. For the all-time window this is the earliest price on record across the returned items, not a fixed offset from today. */
   windowStart: string;
   /** Last day of the reporting window, YYYY-MM-DD. Charts use windowStart/windowEnd as a shared x-domain so two items are directly comparable. */
   windowEnd: string;

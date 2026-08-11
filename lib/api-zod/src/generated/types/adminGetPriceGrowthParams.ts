@@ -14,7 +14,7 @@ export type AdminGetPriceGrowthParams = {
  */
 minSpanDays?: number;
 /**
- * Reporting window. Only these values are accepted; anything else falls back to the default of 90.
+ * Reporting window; 0 means all time, measuring from each item's first recorded price. Only these values are accepted; anything else falls back to the default of 90.
  */
 windowDays?: AdminGetPriceGrowthWindowDays;
 };
