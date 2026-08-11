@@ -460,6 +460,11 @@ export default function ScanScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const summaries: BatchReceiptSummary[] = [];
     let failures = 0;
+    // Kept so the all-failed path below can give the same cause-specific
+    // guidance as a single-photo failure, instead of one generic message —
+    // if photos fail for different reasons, the last one wins, which is
+    // still more useful than no reason at all.
+    let lastError: unknown = null;
     // These run CONCURRENTLY, so progress has to count what has finished. The
     // old label was set from the loop index before each request started, which
     // meant all of them fired at once and it read "photo 5 of 5" while nothing
@@ -476,8 +481,9 @@ export default function ScanScreen() {
             const base64 = await toJpegBase64(asset.uri, asset.width, asset.height);
             const result = await callApi<SavedReceipt>("parse-and-save", { imageBase64: base64 });
             summaries.push(toSummary(result));
-          } catch {
+          } catch (err) {
             failures++;
+            lastError = err;
           } finally {
             // Counted in `finally` so a failed photo still advances the bar —
             // otherwise the bar stalls short of the end and looks stuck.
@@ -492,10 +498,7 @@ export default function ScanScreen() {
     }
 
     if (summaries.length === 0) {
-      showErrorToast(
-        "Couldn't process photos",
-        "None of the selected photos could be analyzed. Make sure they're clear, readable receipts and try again.",
-      );
+      showErrorToast("Couldn't process photos", failureReason(lastError, "image"));
       return;
     }
 
