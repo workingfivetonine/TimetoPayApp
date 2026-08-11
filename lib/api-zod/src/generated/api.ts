@@ -175,6 +175,24 @@ export const CreateItemResponse = zod.object({
 
 
 /**
+ * @summary Suggest existing item names for scanned lines that almost match one
+ */
+export const SuggestItemNamesBody = zod.object({
+  "storeName": zod.string().describe('Only items bought at this store are considered.'),
+  "names": zod.array(zod.string()).describe('Scanned line-item names, in order. At most 100 are considered.')
+})
+
+export const SuggestItemNamesResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "index": zod.number().describe('Position in the submitted names array.'),
+  "suggestedName": zod.string(),
+  "itemId": zod.number(),
+  "score": zod.number().describe('Similarity, 0–1.')
+}))
+})
+
+
+/**
  * @summary Mark an item as ran out, recording the current timestamp
  */
 export const MarkRanOutParams = zod.object({

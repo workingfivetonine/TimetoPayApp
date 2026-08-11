@@ -1,11 +1,91 @@
 import { Router } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { itemsTable, lineItemsTable, receiptsTable } from "@workspace/db";
+import { itemsTable, lineItemsTable, receiptsTable, storesTable } from "@workspace/db";
 import { CreateItemBody, MergeItemBody } from "@workspace/api-zod";
 import { isValidCategory } from "../lib/categories";
+import {
+  bestFuzzyMatchScored,
+  SIMILARITY_THRESHOLD,
+  SUGGESTION_THRESHOLD,
+} from "../lib/textSimilarity";
 
 const router = Router();
+
+// How many names one request may ask about. A receipt has tens of lines, not
+// thousands, and each name is compared against the store's whole item history.
+const MAX_SUGGESTION_NAMES = 100;
+
+// Suggest an existing item name for freshly-scanned lines that ALMOST match
+// something already bought at this store.
+//
+// This exists because scan-time matching is deliberately conservative: it merges
+// only at SIMILARITY_THRESHOLD, since a wrong merge silently corrupts price
+// history with no confirmation step. That leaves abbreviations ("CHKN BRST")
+// minting a duplicate item every scan. Here the user confirms, so the bar can be
+// lower — the answer is advisory and never applied on its own.
+router.post("/name-suggestions", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const { storeName, names } = req.body as { storeName?: unknown; names?: unknown };
+
+  if (typeof storeName !== "string" || !storeName.trim()) {
+    res.status(400).json({ error: "storeName is required" });
+    return;
+  }
+  if (!Array.isArray(names)) {
+    res.status(400).json({ error: "names must be an array" });
+    return;
+  }
+
+  const wanted = names
+    .slice(0, MAX_SUGGESTION_NAMES)
+    .map((n) => (typeof n === "string" ? n : ""));
+
+  // Same candidate set the scan-time matcher uses: items this user has actually
+  // bought at THIS store. A store-wide or account-wide pool would surface names
+  // from shops that don't stock the product.
+  const storeHistory = await db
+    .selectDistinct({ id: itemsTable.id, name: itemsTable.name })
+    .from(lineItemsTable)
+    .innerJoin(receiptsTable, eq(lineItemsTable.receiptId, receiptsTable.id))
+    .innerJoin(itemsTable, eq(lineItemsTable.itemId, itemsTable.id))
+    .innerJoin(storesTable, eq(receiptsTable.storeId, storesTable.id))
+    .where(
+      and(
+        eq(receiptsTable.userId, userId),
+        sql`lower(btrim(${storesTable.name})) = lower(btrim(${storeName}))`,
+      ),
+    );
+
+  const suggestions: { index: number; suggestedName: string; itemId: number; score: number }[] = [];
+
+  if (storeHistory.length > 0) {
+    const known = new Set(storeHistory.map((c) => c.name.trim().toLowerCase()));
+    for (const [index, name] of wanted.entries()) {
+      const trimmed = name.trim();
+      if (!trimmed) continue;
+      // Already exactly what we have — scan matching will reuse the item, so
+      // there is nothing to ask about.
+      if (known.has(trimmed.toLowerCase())) continue;
+
+      const best = bestFuzzyMatchScored(trimmed, storeHistory, (c) => c.name);
+      if (!best) continue;
+      // At or above the merge bar the server will reuse the item anyway, so
+      // asking would be noise. Below the suggestion floor it is probably a
+      // genuinely different product.
+      if (best.score >= SIMILARITY_THRESHOLD || best.score < SUGGESTION_THRESHOLD) continue;
+
+      suggestions.push({
+        index,
+        suggestedName: best.candidate.name,
+        itemId: best.candidate.id,
+        score: Math.round(best.score * 100) / 100,
+      });
+    }
+  }
+
+  res.json({ suggestions });
+});
 
 router.get("/", async (req, res): Promise<void> => {
   const userId = req.userId!;

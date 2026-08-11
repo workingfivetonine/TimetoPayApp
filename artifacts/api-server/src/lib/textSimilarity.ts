@@ -53,6 +53,55 @@ export function similarity(a: string, b: string): number {
 // different products, so leave it here unless there's data to justify a move.
 export const SIMILARITY_THRESHOLD = 0.85;
 
+// Floor for OFFERING a name as a suggestion the user must confirm. Below
+// SIMILARITY_THRESHOLD because the two answer different questions: the
+// threshold is "safe to merge silently", this is "worth asking about".
+//
+// The band between them is the abbreviation case the auto-merge deliberately
+// refuses to touch, which would otherwise silently mint a duplicate item:
+//   "Greek Yogurt"        vs "GRK YOGURT"      0.83  suggest
+//   "Whole Milk 2L"       vs "WHL MLK 2L"      0.77  suggest
+//   "Chicken Breast 500g" vs "CHKN BRST 500G"  0.74  suggest
+//   "Sourdough Bread"     vs "SRDGH BRD"       0.60  suggest (boundary)
+//
+// Measured at 0.6 rather than lower because the next band down is mostly
+// genuinely different products — "Chicken Breast" vs "Chicken Thighs" scores
+// 0.54 and "Apples" vs "Apple Juice" 0.50, and offering those trains people to
+// dismiss the prompt without reading it. One known false positive survives
+// ("Tomatoes" vs "Tomato Paste", 0.64); that is acceptable for a suggestion the
+// user must accept, and would NOT be acceptable for an automatic merge.
+//
+// Heavy synonyms stay out of reach by design: "Coke" vs "Coca Cola" scores 0.25
+// and "OJ" vs "Orange Juice" 0.18. Catching those needs meaning, not spelling.
+export const SUGGESTION_THRESHOLD = 0.6;
+
+// Like bestFuzzyMatch but returns the score alongside the candidate and applies
+// no threshold, so callers can band the result themselves.
+export function bestFuzzyMatchScored<T>(
+  name: string,
+  candidates: T[],
+  nameOf: (candidate: T) => string,
+): { candidate: T; score: number } | null {
+  const targetLoose = looseKey(name);
+  const targetTokens = tokenSortKey(name);
+  if (!targetLoose && !targetTokens) return null;
+
+  let best: T | null = null;
+  let bestScore = 0;
+  for (const candidate of candidates) {
+    const candidateName = nameOf(candidate);
+    const score = Math.max(
+      similarity(targetLoose, looseKey(candidateName)),
+      similarity(targetTokens, tokenSortKey(candidateName)),
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+  return best === null ? null : { candidate: best, score: bestScore };
+}
+
 // Best match for `name` among `candidates`, or null if nothing clears the bar.
 // Compares on both the loose key (typos / OCR garble) and the token-sort key
 // (word reordering), taking whichever scores higher.

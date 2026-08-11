@@ -27,6 +27,26 @@ export interface CatalogGlobalItem {
   stores: CatalogGlobalStorePrice[];
 }
 
+export interface ItemNameSuggestionInput {
+  /** Only items bought at this store are considered. */
+  storeName: string;
+  /** Scanned line-item names, in order. At most 100 are considered. */
+  names: string[];
+}
+
+export interface ItemNameSuggestion {
+  /** Position in the submitted names array. */
+  index: number;
+  suggestedName: string;
+  itemId: number;
+  /** Similarity, 0–1. */
+  score: number;
+}
+
+export interface ItemNameSuggestionResult {
+  suggestions: ItemNameSuggestion[];
+}
+
 export interface AdminPriceGrowthPoint {
   /** Purchase day, YYYY-MM-DD. Same-day purchases are averaged into one point. */
   date: string;

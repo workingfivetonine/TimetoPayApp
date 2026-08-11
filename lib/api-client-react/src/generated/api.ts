@@ -54,6 +54,8 @@ import type {
   Item,
   ItemHistoryReport,
   ItemInput,
+  ItemNameSuggestionInput,
+  ItemNameSuggestionResult,
   ItemPriceHistory,
   ItemUpdate,
   LineItem,
@@ -686,6 +688,76 @@ export const useCreateItem = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateItemMutationOptions(options));
+    }
+
+export const getSuggestItemNamesUrl = () => {
+
+
+
+
+  return `/api/items/name-suggestions`
+}
+
+/**
+ * @summary Suggest existing item names for scanned lines that almost match one
+ */
+export const suggestItemNames = async (itemNameSuggestionInput: ItemNameSuggestionInput, options?: RequestInit): Promise<ItemNameSuggestionResult> => {
+
+  return customFetch<ItemNameSuggestionResult>(getSuggestItemNamesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(itemNameSuggestionInput)
+  }
+);}
+
+
+
+
+export const getSuggestItemNamesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suggestItemNames>>, TError,{data: BodyType<ItemNameSuggestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suggestItemNames>>, TError,{data: BodyType<ItemNameSuggestionInput>}, TContext> => {
+
+const mutationKey = ['suggestItemNames'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suggestItemNames>>, {data: BodyType<ItemNameSuggestionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  suggestItemNames(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuggestItemNamesMutationResult = NonNullable<Awaited<ReturnType<typeof suggestItemNames>>>
+    export type SuggestItemNamesMutationBody = BodyType<ItemNameSuggestionInput>
+    export type SuggestItemNamesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Suggest existing item names for scanned lines that almost match one
+ */
+export const useSuggestItemNames = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suggestItemNames>>, TError,{data: BodyType<ItemNameSuggestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suggestItemNames>>,
+        TError,
+        {data: BodyType<ItemNameSuggestionInput>},
+        TContext
+      > => {
+      return useMutation(getSuggestItemNamesMutationOptions(options));
     }
 
 export const getMarkRanOutUrl = (id: number,) => {

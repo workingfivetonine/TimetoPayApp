@@ -166,6 +166,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/Item"
 
+  /items/name-suggestions:
+    post:
+      operationId: suggestItemNames
+      tags: [items]
+      summary: Suggest existing item names for scanned lines that almost match one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemNameSuggestionInput"
+      responses:
+        "200":
+          description: >
+            Advisory suggestions only, for names that near-match an item already
+            bought at this store. Names that match exactly, or closely enough to
+            be merged automatically on save, are omitted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemNameSuggestionResult"
+
   /items/{id}/ran-out:
     post:
       operationId: markRanOut
@@ -1429,6 +1451,43 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CatalogGlobalStorePrice"
+
+    ItemNameSuggestionInput:
+      type: object
+      required: [storeName, names]
+      properties:
+        storeName:
+          type: string
+          description: Only items bought at this store are considered.
+        names:
+          type: array
+          items:
+            type: string
+          description: Scanned line-item names, in order. At most 100 are considered.
+
+    ItemNameSuggestion:
+      type: object
+      required: [index, suggestedName, itemId, score]
+      properties:
+        index:
+          type: integer
+          description: Position in the submitted names array.
+        suggestedName:
+          type: string
+        itemId:
+          type: integer
+        score:
+          type: number
+          description: Similarity, 0–1.
+
+    ItemNameSuggestionResult:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemNameSuggestion"
 
     AdminPriceGrowthResult:
       type: object

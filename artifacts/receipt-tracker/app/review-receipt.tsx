@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import {
   getListStoresQueryKey,
   getGetSpendAnalyticsQueryKey,
   getGetDailySpendQueryKey,
+  useSuggestItemNames,
 } from "@workspace/api-client-react";
 import {
   getPendingReceipt,
@@ -79,6 +80,50 @@ export default function ReviewReceiptScreen() {
   // decimal ("2", "2.", "0.5") instead of the value snapping back to the old
   // number on every keystroke.
   const [numText, setNumText] = useState<Record<string, string>>({});
+
+  // Existing item names that scanned lines almost match. Advisory: scan-time
+  // matching won't merge these on its own (an abbreviation scores below the
+  // auto-merge bar), so without this each scan quietly mints a duplicate item
+  // and splits the price history. Keyed by line index.
+  const [nameHints, setNameHints] = useState<Record<number, string>>({});
+  const [dismissedHints, setDismissedHints] = useState<Record<number, boolean>>({});
+  const { mutateAsync: fetchNameSuggestions } = useSuggestItemNames();
+
+  // Re-run whenever the store changes: the candidate pool is "what you've bought
+  // HERE", so correcting a misread store name changes the answer.
+  const storeKey = receipt?.storeName?.trim().toLowerCase() ?? "";
+  const lineNames = React.useMemo(() => receipt?.lineItems.map((li) => li.name) ?? [], [receipt]);
+  // Stable identity for the effect. Serialised rather than joined on a
+  // separator because item names can contain any character, and this must only
+  // change when the names actually do. It is never parsed back — the request
+  // sends the array itself.
+  const lineNamesKey = JSON.stringify(lineNames);
+  useEffect(() => {
+    if (!storeKey || lineNames.length === 0) {
+      setNameHints({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchNameSuggestions({
+          data: { storeName: storeKey, names: lineNames },
+        });
+        if (cancelled) return;
+        const map: Record<number, string> = {};
+        for (const s of res.suggestions) map[s.index] = s.suggestedName;
+        setNameHints(map);
+      } catch {
+        // A failed suggestion lookup must never block the review — the receipt
+        // saves fine without it.
+        if (!cancelled) setNameHints({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeKey, lineNamesKey, fetchNameSuggestions]);
   // `allowEmpty` is for the nullable adjustment fields (delivery fee / tax /
   // discount), where clearing the box MEANS "no such charge" and has to reach the
   // setter so it can null the value. Without it the input looked empty while the
@@ -532,6 +577,34 @@ export default function ReviewReceiptScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Suggested existing name. Offered, never applied automatically:
+                  the server won't merge at this similarity because a wrong merge
+                  corrupts price history silently, so the decision is the
+                  user's. Accepting it keeps one item and one price history
+                  instead of minting a near-duplicate. */}
+              {nameHints[idx] && !dismissedHints[idx] && nameHints[idx] !== li.name ? (
+                <View style={[styles.hintRow, { backgroundColor: colors.accent, borderColor: colors.border }]}>
+                  <Feather name="link-2" size={12} color={colors.primary} />
+                  <Text style={[styles.hintText, { color: colors.foreground }]} numberOfLines={2}>
+                    You usually call this{" "}
+                    <Text style={{ fontFamily: "Inter_600SemiBold" }}>{nameHints[idx]}</Text> here
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setItemField(idx, "name", nameHints[idx]!)}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Text style={[styles.hintUse, { color: colors.primary }]}>Use it</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setDismissedHints((d) => ({ ...d, [idx]: true }))}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
+                    accessibilityLabel="Dismiss name suggestion"
+                  >
+                    <Feather name="x" size={13} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               {/* Price + Qty row */}
               <View style={styles.itemNumRow}>
                 <View style={{ flex: 1, marginRight: 8 }}>
@@ -778,6 +851,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 7,
+  },
+  hintText: { flex: 1, fontSize: 12.5, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  hintUse: { fontSize: 12.5, fontFamily: "Inter_600SemiBold" },
   itemNameInput: {
     borderRadius: 8,
     borderWidth: 1,
