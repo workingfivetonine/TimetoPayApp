@@ -54,6 +54,7 @@ import type {
   Item,
   ItemHistoryReport,
   ItemInput,
+  ItemNameSearchResult,
   ItemNameSuggestionInput,
   ItemNameSuggestionResult,
   ItemPriceHistory,
@@ -80,6 +81,7 @@ import type {
   RenameSavedShoppingListInput,
   SavedShoppingList,
   SavedShoppingListDetail,
+  SearchItemNamesParams,
   ShoppingList,
   SpendAnalytics,
   Store,
@@ -689,6 +691,90 @@ export const useCreateItem = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateItemMutationOptions(options));
     }
+
+export const getSearchItemNamesUrl = (params: SearchItemNamesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/items/name-search?${stringifiedParams}` : `/api/items/name-search`
+}
+
+/**
+ * @summary Type-ahead item names, from the user's own items then the shared catalog
+ */
+export const searchItemNames = async (params: SearchItemNamesParams, options?: RequestInit): Promise<ItemNameSearchResult> => {
+
+  return customFetch<ItemNameSearchResult>(getSearchItemNamesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchItemNamesQueryKey = (params?: SearchItemNamesParams,) => {
+    return [
+    `/api/items/name-search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchItemNamesQueryOptions = <TData = Awaited<ReturnType<typeof searchItemNames>>, TError = ErrorType<unknown>>(params: SearchItemNamesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchItemNames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchItemNamesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchItemNames>>> = ({ signal }) => searchItemNames(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchItemNames>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchItemNamesQueryResult = NonNullable<Awaited<ReturnType<typeof searchItemNames>>>
+export type SearchItemNamesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Type-ahead item names, from the user's own items then the shared catalog
+ */
+
+export function useSearchItemNames<TData = Awaited<ReturnType<typeof searchItemNames>>, TError = ErrorType<unknown>>(
+ params: SearchItemNamesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchItemNames>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchItemNamesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getSuggestItemNamesUrl = () => {
 

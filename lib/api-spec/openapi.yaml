@@ -166,6 +166,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Item"
 
+  /items/name-search:
+    get:
+      operationId: searchItemNames
+      tags: [items]
+      summary: Type-ahead item names, from the user's own items then the shared catalog
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: At least 2 characters; shorter queries return nothing.
+      responses:
+        "200":
+          description: Matching names, the user's own first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemNameSearchResult"
+
   /items/name-suggestions:
     post:
       operationId: suggestItemNames
@@ -1451,6 +1471,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CatalogGlobalStorePrice"
+
+    ItemNameSearchMatch:
+      type: object
+      required: [name, source]
+      properties:
+        name:
+          type: string
+        source:
+          type: string
+          enum: [history, catalog]
+          description: >
+            history = one of the user's own items; catalog = a canonical name
+            from the shared catalog.
+
+    ItemNameSearchResult:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemNameSearchMatch"
 
     ItemNameSuggestionInput:
       type: object

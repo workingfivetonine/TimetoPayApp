@@ -27,6 +27,27 @@ export interface CatalogGlobalItem {
   stores: CatalogGlobalStorePrice[];
 }
 
+/**
+ * history = one of the user's own items; catalog = a canonical name from the shared catalog.
+ */
+export type ItemNameSearchMatchSource = typeof ItemNameSearchMatchSource[keyof typeof ItemNameSearchMatchSource];
+
+
+export const ItemNameSearchMatchSource = {
+  history: 'history',
+  catalog: 'catalog',
+} as const;
+
+export interface ItemNameSearchMatch {
+  name: string;
+  /** history = one of the user's own items; catalog = a canonical name from the shared catalog. */
+  source: ItemNameSearchMatchSource;
+}
+
+export interface ItemNameSearchResult {
+  suggestions: ItemNameSearchMatch[];
+}
+
 export interface ItemNameSuggestionInput {
   /** Only items bought at this store are considered. */
   storeName: string;
@@ -984,6 +1005,13 @@ export interface ExportData {
   items: ExportItem[];
   lineItems: ExportLineItem[];
 }
+
+export type SearchItemNamesParams = {
+/**
+ * At least 2 characters; shorter queries return nothing.
+ */
+q: string;
+};
 
 export type AdminGetPriceGrowthParams = {
 /**

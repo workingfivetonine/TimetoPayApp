@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { itemsTable, lineItemsTable, receiptsTable, storesTable } from "@workspace/db";
+import {
+  itemsTable,
+  lineItemsTable,
+  receiptsTable,
+  storesTable,
+  catalogItemsTable,
+} from "@workspace/db";
 import { CreateItemBody, MergeItemBody } from "@workspace/api-zod";
 import { isValidCategory } from "../lib/categories";
 import {
@@ -15,6 +21,67 @@ const router = Router();
 // How many names one request may ask about. A receipt has tens of lines, not
 // thousands, and each name is compared against the store's whole item history.
 const MAX_SUGGESTION_NAMES = 100;
+
+const NAME_SEARCH_MIN_CHARS = 2;
+const NAME_SEARCH_LIMIT = 8;
+
+// Type-ahead for an item name.
+//
+// Two sources, in priority order:
+//   1. The user's OWN items. Reusing an existing name keeps one item and one
+//      price history instead of splitting it across near-duplicates, so these
+//      always rank first.
+//   2. The shared catalog — canonical names built from everyone's receipts and
+//      tidied by an admin. Real product names as people actually write them.
+//
+// The catalog is safe to expose here because a canonical NAME is vocabulary,
+// not a purchase record: no price, store, date or identity is attached. The
+// region scoping and coarsening in lib/catalog.ts guard the PRICE aggregate,
+// which this endpoint never touches.
+router.get("/name-search", async (req, res): Promise<void> => {
+  const userId = req.userId!;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+
+  // Too short to be meaningful — a single letter would match half the catalog.
+  if (q.length < NAME_SEARCH_MIN_CHARS) {
+    res.json({ suggestions: [] });
+    return;
+  }
+
+  const pattern = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+
+  const own = await db
+    .selectDistinct({ name: itemsTable.name })
+    .from(itemsTable)
+    .where(and(eq(itemsTable.userId, userId), sql`${itemsTable.name} ILIKE ${pattern}`))
+    .orderBy(itemsTable.name)
+    .limit(NAME_SEARCH_LIMIT);
+
+  const seen = new Set(own.map((r) => r.name.trim().toLowerCase()));
+  const suggestions: { name: string; source: "history" | "catalog" }[] = own.map((r) => ({
+    name: r.name,
+    source: "history",
+  }));
+
+  if (suggestions.length < NAME_SEARCH_LIMIT) {
+    const shared = await db
+      .selectDistinct({ name: catalogItemsTable.canonicalName })
+      .from(catalogItemsTable)
+      .where(sql`${catalogItemsTable.canonicalName} ILIKE ${pattern}`)
+      .orderBy(catalogItemsTable.canonicalName)
+      .limit(NAME_SEARCH_LIMIT);
+
+    for (const row of shared) {
+      if (suggestions.length >= NAME_SEARCH_LIMIT) break;
+      const key = row.name.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      suggestions.push({ name: row.name, source: "catalog" as const });
+    }
+  }
+
+  res.json({ suggestions });
+});
 
 // Suggest an existing item name for freshly-scanned lines that ALMOST match
 // something already bought at this store.

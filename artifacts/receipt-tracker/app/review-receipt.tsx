@@ -24,6 +24,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import { StoreNameField } from "@/components/StoreNameField";
+import { ItemNameField } from "@/components/ItemNameField";
 import { ZoomableImageModal } from "@/components/ZoomableImageModal";
 import {
   getGetShoppingListQueryKey,
@@ -552,22 +553,13 @@ export default function ReviewReceiptScreen() {
                 {rowUncertain && (
                   <Feather name="alert-triangle" size={13} color={colors.warning} style={{ marginRight: 6, marginTop: 2 }} />
                 )}
-                <TextInput
-                  style={[
-                    styles.itemNameInput,
-                    {
-                      flex: 1,
-                      backgroundColor: li.nameUncertain ? warnBg : colors.card,
-                      borderColor: li.nameUncertain ? warnBorder : colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  value={li.name}
-                  onChangeText={(v) => setItemField(idx, "name", v)}
-                  placeholder="Item name"
-                  placeholderTextColor={colors.mutedForeground}
-                  returnKeyType="done"
-                />
+                <View style={{ flex: 1 }}>
+                  <ItemNameField
+                    value={li.name}
+                    onChangeText={(v) => setItemField(idx, "name", v)}
+                    uncertain={li.nameUncertain}
+                  />
+                </View>
                 <TouchableOpacity
                   onPress={() => removeItem(idx)}
                   style={styles.deleteBtn}

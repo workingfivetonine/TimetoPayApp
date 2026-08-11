@@ -26,6 +26,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import type { LineItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
+import { ItemNameField } from "@/components/ItemNameField";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { notify } from "@/lib/confirm";
 import { getApiOrigin } from "@/lib/apiBase";
@@ -223,14 +224,7 @@ export function LineItemEditModal({ editor }: { editor: LineItemEditor }) {
 
         <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
           <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>ITEM NAME</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
-            value={fields.name}
-            onChangeText={fields.setName}
-            placeholder="Item name"
-            placeholderTextColor={colors.mutedForeground}
-            autoFocus
-          />
+          <ItemNameField value={fields.name} onChangeText={fields.setName} autoFocus />
 
           <View style={styles.twoCol}>
             <View style={{ flex: 1 }}>

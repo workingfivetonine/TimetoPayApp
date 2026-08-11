@@ -175,6 +175,21 @@ export const CreateItemResponse = zod.object({
 
 
 /**
+ * @summary Type-ahead item names, from the user's own items then the shared catalog
+ */
+export const SearchItemNamesQueryParams = zod.object({
+  "q": zod.coerce.string().describe('At least 2 characters; shorter queries return nothing.')
+})
+
+export const SearchItemNamesResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "name": zod.string(),
+  "source": zod.enum(['history', 'catalog']).describe('history = one of the user\'s own items; catalog = a canonical name from the shared catalog.\n')
+}))
+})
+
+
+/**
  * @summary Suggest existing item names for scanned lines that almost match one
  */
 export const SuggestItemNamesBody = zod.object({
