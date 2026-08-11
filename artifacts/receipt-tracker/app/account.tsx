@@ -308,53 +308,19 @@ export default function AccountScreen() {
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : me?.isAdmin ? (
-          <>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/admin")}
-              activeOpacity={0.7}
-            >
-              <Feather name="users" size={18} color={colors.primary} />
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Admin: all users</Text>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/admin/global")}
-              activeOpacity={0.7}
-            >
-              <Feather name="tag" size={18} color={colors.primary} />
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Global prices</Text>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/admin/catalog")}
-              activeOpacity={0.7}
-            >
-              <Feather name="layers" size={18} color={colors.primary} />
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Manage catalog</Text>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/admin/board")}
-              activeOpacity={0.7}
-            >
-              <Feather name="message-square" size={18} color={colors.primary} />
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Board moderation</Text>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/admin/analytics")}
-              activeOpacity={0.7}
-            >
-              <Feather name="bar-chart-2" size={18} color={colors.primary} />
-              <Text style={[styles.rowText, { color: colors.foreground }]}>Build a chart</Text>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          </>
+          // Every admin destination lives in one place now — the /admin hub —
+          // reached from here and from the Home tab's identical "Admin tools"
+          // link. One row here instead of five keeps this screen from being a
+          // second, easily-drifted copy of that hub's own list.
+          <TouchableOpacity
+            style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push("/admin")}
+            activeOpacity={0.7}
+          >
+            <Feather name="shield" size={18} color={colors.primary} />
+            <Text style={[styles.rowText, { color: colors.foreground }]}>Admin tools</Text>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
         ) : null}
 
         <TouchableOpacity
