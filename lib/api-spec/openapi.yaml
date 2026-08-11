@@ -1185,6 +1185,80 @@ paths:
                 items:
                   $ref: "#/components/schemas/CatalogGlobalItem"
 
+  /admin/analytics/custom-chart/meta:
+    get:
+      operationId: adminGetCustomChartMeta
+      tags: [admin]
+      summary: Whitelisted data sources and fields the custom chart builder can query (admin only)
+      responses:
+        "200":
+          description: Every source, and its date/category/number fields, the builder can use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCustomChartMetaResult"
+
+  /admin/analytics/custom-chart:
+    get:
+      operationId: adminGetCustomChart
+      tags: [admin]
+      summary: Run an admin-built chart query against a whitelisted data source (admin only)
+      parameters:
+        - name: source
+          in: query
+          required: true
+          schema:
+            type: string
+          description: A source key from the meta endpoint (e.g. "receipts").
+        - name: groupBy
+          in: query
+          required: true
+          schema:
+            type: string
+          description: A date-field or category-field key from that source.
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month, year]
+          description: Only used when groupBy is a date field. Defaults to month.
+        - name: splitBy
+          in: query
+          required: false
+          schema:
+            type: string
+          description: A category-field key for a second line/series per value. Only valid when groupBy is a date field.
+        - name: aggregation
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [count, sum, avg, min, max]
+        - name: measure
+          in: query
+          required: false
+          schema:
+            type: string
+          description: A number-field key. Required unless aggregation is count.
+      responses:
+        "200":
+          description: The chart data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCustomChartResult"
+        "400":
+          description: The combination of source/groupBy/aggregation/measure/splitBy isn't valid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
   /admin/catalog/price-growth:
     get:
       operationId: adminGetPriceGrowth
@@ -1530,6 +1604,95 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ItemNameSuggestion"
+
+    AdminCustomChartField:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        unit:
+          type: string
+          enum: [currency, count]
+          description: Only present on a measure field; tells the client how to format its values.
+
+    AdminCustomChartSource:
+      type: object
+      required: [key, label, dateFields, categoryFields, measureFields]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        dateFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCustomChartField"
+        categoryFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCustomChartField"
+        measureFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCustomChartField"
+          description: Empty when the source has no number field — count is still available.
+
+    AdminCustomChartMetaResult:
+      type: object
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCustomChartSource"
+
+    AdminCustomChartPoint:
+      type: object
+      required: [bucket, value]
+      properties:
+        bucket:
+          type: string
+          description: A date-bucket key (e.g. "2026-03") when grouped by date, or a category label otherwise.
+        value:
+          type: number
+
+    AdminCustomChartSeries:
+      type: object
+      required: [key, points]
+      properties:
+        key:
+          type: string
+          description: The split value this line represents, or "all" when not split.
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCustomChartPoint"
+
+    AdminCustomChartResult:
+      type: object
+      required: [kind, unit, series, otherCount, rowCount]
+      properties:
+        kind:
+          type: string
+          enum: [time, category]
+          description: time = a line chart over date buckets; category = a ranked bar chart.
+        unit:
+          type: string
+          enum: [currency, count]
+          description: Resolved server-side from the chosen measure (or "count" for the count aggregation).
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCustomChartSeries"
+        otherCount:
+          type: integer
+          description: Distinct split values / categories folded into one "Other" entry beyond the display cap.
+        rowCount:
+          type: integer
+          description: Rows that actually fed the chart, after excluding any missing the chosen measure.
 
     AdminPriceGrowthResult:
       type: object

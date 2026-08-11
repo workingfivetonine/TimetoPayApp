@@ -9,6 +9,7 @@ import shoppingListRouter from "./shoppingList";
 import catalogRouter from "./catalog";
 import adminRouter from "./admin";
 import adminCatalogRouter from "./adminCatalog";
+import adminAnalyticsRouter from "./adminAnalytics";
 import meRouter from "./me";
 import boardRouter from "./board";
 import supportRouter from "./support";
@@ -39,6 +40,7 @@ router.use("/catalog", catalogRouter);
 router.use("/board", boardRouter);
 router.use("/support", supportRouter);
 router.use("/admin/catalog", adminCatalogRouter);
+router.use("/admin/analytics", adminAnalyticsRouter);
 router.use("/admin", adminRouter);
 
 export default router;

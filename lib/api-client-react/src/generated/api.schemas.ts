@@ -68,6 +68,83 @@ export interface ItemNameSuggestionResult {
   suggestions: ItemNameSuggestion[];
 }
 
+/**
+ * Only present on a measure field; tells the client how to format its values.
+ */
+export type AdminCustomChartFieldUnit = typeof AdminCustomChartFieldUnit[keyof typeof AdminCustomChartFieldUnit];
+
+
+export const AdminCustomChartFieldUnit = {
+  currency: 'currency',
+  count: 'count',
+} as const;
+
+export interface AdminCustomChartField {
+  key: string;
+  label: string;
+  /** Only present on a measure field; tells the client how to format its values. */
+  unit?: AdminCustomChartFieldUnit;
+}
+
+export interface AdminCustomChartSource {
+  key: string;
+  label: string;
+  dateFields: AdminCustomChartField[];
+  categoryFields: AdminCustomChartField[];
+  /** Empty when the source has no number field — count is still available. */
+  measureFields: AdminCustomChartField[];
+}
+
+export interface AdminCustomChartMetaResult {
+  sources: AdminCustomChartSource[];
+}
+
+export interface AdminCustomChartPoint {
+  /** A date-bucket key (e.g. "2026-03") when grouped by date, or a category label otherwise. */
+  bucket: string;
+  value: number;
+}
+
+export interface AdminCustomChartSeries {
+  /** The split value this line represents, or "all" when not split. */
+  key: string;
+  points: AdminCustomChartPoint[];
+}
+
+/**
+ * time = a line chart over date buckets; category = a ranked bar chart.
+ */
+export type AdminCustomChartResultKind = typeof AdminCustomChartResultKind[keyof typeof AdminCustomChartResultKind];
+
+
+export const AdminCustomChartResultKind = {
+  time: 'time',
+  category: 'category',
+} as const;
+
+/**
+ * Resolved server-side from the chosen measure (or "count" for the count aggregation).
+ */
+export type AdminCustomChartResultUnit = typeof AdminCustomChartResultUnit[keyof typeof AdminCustomChartResultUnit];
+
+
+export const AdminCustomChartResultUnit = {
+  currency: 'currency',
+  count: 'count',
+} as const;
+
+export interface AdminCustomChartResult {
+  /** time = a line chart over date buckets; category = a ranked bar chart. */
+  kind: AdminCustomChartResultKind;
+  /** Resolved server-side from the chosen measure (or "count" for the count aggregation). */
+  unit: AdminCustomChartResultUnit;
+  series: AdminCustomChartSeries[];
+  /** Distinct split values / categories folded into one "Other" entry beyond the display cap. */
+  otherCount: number;
+  /** Rows that actually fed the chart, after excluding any missing the chosen measure. */
+  rowCount: number;
+}
+
 export interface AdminPriceGrowthPoint {
   /** Purchase day, YYYY-MM-DD. Same-day purchases are averaged into one point. */
   date: string;
@@ -1011,6 +1088,55 @@ export type SearchItemNamesParams = {
  * At least 2 characters; shorter queries return nothing.
  */
 q: string;
+};
+
+export type AdminGetCustomChartParams = {
+/**
+ * A source key from the meta endpoint (e.g. "receipts").
+ */
+source: string;
+/**
+ * A date-field or category-field key from that source.
+ */
+groupBy: string;
+/**
+ * Only used when groupBy is a date field. Defaults to month.
+ */
+granularity?: AdminGetCustomChartGranularity;
+/**
+ * A category-field key for a second line/series per value. Only valid when groupBy is a date field.
+ */
+splitBy?: string;
+aggregation: AdminGetCustomChartAggregation;
+/**
+ * A number-field key. Required unless aggregation is count.
+ */
+measure?: string;
+};
+
+export type AdminGetCustomChartGranularity = typeof AdminGetCustomChartGranularity[keyof typeof AdminGetCustomChartGranularity];
+
+
+export const AdminGetCustomChartGranularity = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+  year: 'year',
+} as const;
+
+export type AdminGetCustomChartAggregation = typeof AdminGetCustomChartAggregation[keyof typeof AdminGetCustomChartAggregation];
+
+
+export const AdminGetCustomChartAggregation = {
+  count: 'count',
+  sum: 'sum',
+  avg: 'avg',
+  min: 'min',
+  max: 'max',
+} as const;
+
+export type AdminGetCustomChart400 = {
+  error: string;
 };
 
 export type AdminGetPriceGrowthParams = {

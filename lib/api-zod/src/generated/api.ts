@@ -1352,6 +1352,59 @@ export const AdminGetGlobalPricesResponse = zod.array(AdminGetGlobalPricesRespon
 
 
 /**
+ * @summary Whitelisted data sources and fields the custom chart builder can query (admin only)
+ */
+export const AdminGetCustomChartMetaResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "dateFields": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "unit": zod.enum(['currency', 'count']).optional().describe('Only present on a measure field; tells the client how to format its values.')
+})),
+  "categoryFields": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "unit": zod.enum(['currency', 'count']).optional().describe('Only present on a measure field; tells the client how to format its values.')
+})),
+  "measureFields": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "unit": zod.enum(['currency', 'count']).optional().describe('Only present on a measure field; tells the client how to format its values.')
+})).describe('Empty when the source has no number field — count is still available.')
+}))
+})
+
+
+/**
+ * @summary Run an admin-built chart query against a whitelisted data source (admin only)
+ */
+export const AdminGetCustomChartQueryParams = zod.object({
+  "source": zod.coerce.string().describe('A source key from the meta endpoint (e.g. \"receipts\").'),
+  "groupBy": zod.coerce.string().describe('A date-field or category-field key from that source.'),
+  "granularity": zod.enum(['day', 'week', 'month', 'year']).optional().describe('Only used when groupBy is a date field. Defaults to month.'),
+  "splitBy": zod.coerce.string().optional().describe('A category-field key for a second line\/series per value. Only valid when groupBy is a date field.'),
+  "aggregation": zod.enum(['count', 'sum', 'avg', 'min', 'max']),
+  "measure": zod.coerce.string().optional().describe('A number-field key. Required unless aggregation is count.')
+})
+
+export const AdminGetCustomChartResponse = zod.object({
+  "kind": zod.enum(['time', 'category']).describe('time = a line chart over date buckets; category = a ranked bar chart.'),
+  "unit": zod.enum(['currency', 'count']).describe('Resolved server-side from the chosen measure (or \"count\" for the count aggregation).'),
+  "series": zod.array(zod.object({
+  "key": zod.string().describe('The split value this line represents, or \"all\" when not split.'),
+  "points": zod.array(zod.object({
+  "bucket": zod.string().describe('A date-bucket key (e.g. \"2026-03\") when grouped by date, or a category label otherwise.'),
+  "value": zod.number()
+}))
+})),
+  "otherCount": zod.number().describe('Distinct split values \/ categories folded into one \"Other\" entry beyond the display cap.'),
+  "rowCount": zod.number().describe('Rows that actually fed the chart, after excluding any missing the chosen measure.')
+})
+
+
+/**
  * @summary Price trajectory per item, split by store, for items with enough history (admin only)
  */
 export const adminGetPriceGrowthQueryMinSpanDaysMin = 0;

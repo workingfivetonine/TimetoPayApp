@@ -345,6 +345,15 @@ export default function AccountScreen() {
               <Text style={[styles.rowText, { color: colors.foreground }]}>Board moderation</Text>
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/admin/analytics")}
+              activeOpacity={0.7}
+            >
+              <Feather name="bar-chart-2" size={18} color={colors.primary} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>Build a chart</Text>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
           </>
         ) : null}
 

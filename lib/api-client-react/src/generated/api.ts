@@ -21,6 +21,10 @@ import type {
 
 import type {
   AdminActionResult,
+  AdminCustomChartMetaResult,
+  AdminCustomChartResult,
+  AdminGetCustomChart400,
+  AdminGetCustomChartParams,
   AdminGetPriceGrowthParams,
   AdminMergeResult,
   AdminMergeUsersInput,
@@ -4636,6 +4640,167 @@ export function useAdminGetGlobalPrices<TData = Awaited<ReturnType<typeof adminG
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetGlobalPricesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetCustomChartMetaUrl = () => {
+
+
+
+
+  return `/api/admin/analytics/custom-chart/meta`
+}
+
+/**
+ * @summary Whitelisted data sources and fields the custom chart builder can query (admin only)
+ */
+export const adminGetCustomChartMeta = async ( options?: RequestInit): Promise<AdminCustomChartMetaResult> => {
+
+  return customFetch<AdminCustomChartMetaResult>(getAdminGetCustomChartMetaUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetCustomChartMetaQueryKey = () => {
+    return [
+    `/api/admin/analytics/custom-chart/meta`
+    ] as const;
+    }
+
+
+export const getAdminGetCustomChartMetaQueryOptions = <TData = Awaited<ReturnType<typeof adminGetCustomChartMeta>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChartMeta>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetCustomChartMetaQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetCustomChartMeta>>> = ({ signal }) => adminGetCustomChartMeta({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChartMeta>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetCustomChartMetaQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetCustomChartMeta>>>
+export type AdminGetCustomChartMetaQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whitelisted data sources and fields the custom chart builder can query (admin only)
+ */
+
+export function useAdminGetCustomChartMeta<TData = Awaited<ReturnType<typeof adminGetCustomChartMeta>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChartMeta>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetCustomChartMetaQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetCustomChartUrl = (params: AdminGetCustomChartParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/custom-chart?${stringifiedParams}` : `/api/admin/analytics/custom-chart`
+}
+
+/**
+ * @summary Run an admin-built chart query against a whitelisted data source (admin only)
+ */
+export const adminGetCustomChart = async (params: AdminGetCustomChartParams, options?: RequestInit): Promise<AdminCustomChartResult> => {
+
+  return customFetch<AdminCustomChartResult>(getAdminGetCustomChartUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetCustomChartQueryKey = (params?: AdminGetCustomChartParams,) => {
+    return [
+    `/api/admin/analytics/custom-chart`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetCustomChartQueryOptions = <TData = Awaited<ReturnType<typeof adminGetCustomChart>>, TError = ErrorType<AdminGetCustomChart400>>(params: AdminGetCustomChartParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetCustomChartQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetCustomChart>>> = ({ signal }) => adminGetCustomChart(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChart>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetCustomChartQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetCustomChart>>>
+export type AdminGetCustomChartQueryError = ErrorType<AdminGetCustomChart400>
+
+
+/**
+ * @summary Run an admin-built chart query against a whitelisted data source (admin only)
+ */
+
+export function useAdminGetCustomChart<TData = Awaited<ReturnType<typeof adminGetCustomChart>>, TError = ErrorType<AdminGetCustomChart400>>(
+ params: AdminGetCustomChartParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetCustomChart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetCustomChartQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
