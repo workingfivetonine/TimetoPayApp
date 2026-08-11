@@ -116,6 +116,22 @@ export default function ReviewReceiptScreen() {
       0
     );
 
+  // Does the stated total match what the line items add up to, once the
+  // receipt-level adjustments are applied? Tolerance is a cent per line item
+  // (plus one) so ordinary per-line rounding doesn't get flagged as a mismatch.
+  const reconciliation = (() => {
+    const items = receipt.lineItems.reduce(
+      (sum, li) => sum + (Number(li.price) || 0) * (Number(li.quantity) || 0),
+      0,
+    );
+    const expected =
+      items + (receipt.tax ?? 0) + (receipt.deliveryFee ?? 0) - (receipt.discount ?? 0);
+    const actual = Number(receipt.total) || 0;
+    const difference = Math.abs(expected - actual);
+    const tolerance = 0.01 * (receipt.lineItems.length + 1);
+    return { expected, actual, difference, matches: difference <= tolerance };
+  })();
+
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListReceiptsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
@@ -130,12 +146,35 @@ export default function ReviewReceiptScreen() {
   // `after` decides where a successful save lands: straight into another scan
   // (for working through a stack of receipts), back where the user came from, or
   // the saved receipt itself.
-  const handleSave = async (after: "receipt" | "scan" | "back" = "receipt") => {
+  const handleSave = async (
+    after: "receipt" | "scan" | "back" = "receipt",
+    // Set by the "Save anyway" branch of the reconciliation prompt. Passed
+    // explicitly rather than held in state because the retry happens in the same
+    // tick as the alert callback, before a state update would be visible.
+    skipTotalCheck = false,
+  ) => {
     const emptyItem = receipt.lineItems.find((li) => !li.name.trim());
     if (emptyItem) {
       Alert.alert("Missing name", "Every item must have a name.");
       return;
     }
+
+    // A total that doesn't add up usually means a missed line item or a misread
+    // price, but plenty of real receipts legitimately don't reconcile (loyalty
+    // adjustments, deposits, rounding). So this warns and lets the user through
+    // rather than blocking a save they know is right.
+    if (!skipTotalCheck && reconciliation && !reconciliation.matches) {
+      Alert.alert(
+        "Total doesn't add up",
+        `The items, tax and fees come to ${format(reconciliation.expected)}, but the receipt total says ${format(reconciliation.actual)} — a difference of ${format(reconciliation.difference)}.\n\nCheck for a missed item or a misread price, or save it as-is if the receipt really does read this way.`,
+        [
+          { text: "Go back and check", style: "cancel" },
+          { text: "Save anyway", onPress: () => void handleSave(after, true) },
+        ],
+      );
+      return;
+    }
+
     setSaving(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -325,6 +364,18 @@ export default function ReviewReceiptScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+
+        {/* Totals reconciliation — surfaced here as well as on save, so a
+            mismatch is visible while the numbers are still in front of you. */}
+        {!reconciliation.matches ? (
+          <View style={[styles.warnBanner, { backgroundColor: warnBg, borderColor: warnBorder }]}>
+            <Feather name="alert-triangle" size={15} color={colors.warning} />
+            <Text style={[styles.warnText, { color: colors.warning }]}>
+              Items add up to {format(reconciliation.expected)}, but the total says{" "}
+              {format(reconciliation.actual)} — check for a missed item
+            </Text>
+          </View>
+        ) : null}
 
         {/* Receipt header fields */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
@@ -583,7 +634,9 @@ export default function ReviewReceiptScreen() {
           ) : (
             <Feather name="plus-circle" size={18} color="#fff" />
           )}
-          <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save & Next"}</Text>
+          <Text style={styles.saveBtnText}>
+            {saving ? "Saving…" : "Save & scan next receipt"}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -597,7 +650,9 @@ export default function ReviewReceiptScreen() {
           activeOpacity={0.85}
         >
           <Feather name="check" size={18} color={colors.foreground} />
-          <Text style={[styles.saveSecondaryBtnText, { color: colors.foreground }]}>Save & Close</Text>
+          <Text style={[styles.saveSecondaryBtnText, { color: colors.foreground }]}>
+            Save & close receipt
+          </Text>
         </TouchableOpacity>
       </View>
 

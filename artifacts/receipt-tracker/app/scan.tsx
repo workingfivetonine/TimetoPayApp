@@ -31,7 +31,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ImageEditor from "@/components/ImageEditor";
 import { setPendingReceipt, type ParsedReceiptData } from "@/stores/pendingReceipt";
 import { setBatchReceipts, type BatchReceiptSummary } from "@/stores/batchReceipts";
-import { takeSharedFile } from "@/stores/sharedFile";
+import { takeSharedFiles } from "@/stores/sharedFile";
 import { getApiOrigin } from "@/lib/apiBase";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 import { canUseWebCamera, captureWithWebCamera } from "@/lib/webCamera";
@@ -61,6 +61,11 @@ interface SavedReceipt {
   // Only parse-pdf returns this — a small thumbnail of the source page.
   previewUri?: string | null;
 }
+
+// How many PDFs one upload may carry. Each is its own request that can fan out
+// to a model call per page, so this bounds a select-all to something the per-user
+// AI quota can actually absorb.
+const MAX_PDFS_PER_UPLOAD = 10;
 
 // A PDF page that matched an already-saved receipt; not persisted to the DB.
 interface DuplicateReceipt {
@@ -159,38 +164,75 @@ export default function ScanScreen() {
 
   // A receipt shared in from another app (see useReceiptShareIntent). Routed here
   // with ?shared=1; the file itself is parked in module state because the intent
-  // arrives outside navigation. `takeSharedFile` clears as it reads, so a remount
+  // arrives outside navigation. `takeSharedFiles` clears as it reads, so a remount
   // can't reprocess it.
   const sharedHandledRef = useRef(false);
   useEffect(() => {
     if (shared !== "1" || sharedHandledRef.current) return;
     sharedHandledRef.current = true;
-    const file = takeSharedFile();
-    if (!file) return;
+    const files = takeSharedFiles();
+    if (files.length === 0) return;
     void (async () => {
-      if (file.kind !== "pdf") {
+      const pdfs = files.filter((f) => f.kind === "pdf");
+      const images = files.filter((f) => f.kind === "image");
+
+      // A mixed share has no single sensible pipeline, and silently scanning
+      // half of it is worse than saying so. PDFs win because they are the more
+      // expensive thing to re-share.
+      if (pdfs.length > 0 && images.length > 0) {
+        Alert.alert(
+          "Mixed files shared",
+          `We'll scan the ${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} you shared. Share the ${images.length} photo${images.length === 1 ? "" : "s"} separately.`,
+        );
+      }
+
+      if (pdfs.length > 0) {
+        const capped = pdfs.slice(0, MAX_PDFS_PER_UPLOAD);
+        let encoded: string[];
+        try {
+          encoded = await Promise.all(capped.map((f) => readFileAsBase64(f.uri)));
+        } catch {
+          showErrorToast(
+            "Couldn't open those files",
+            "We couldn't read the shared PDFs. Try opening TimetoPay and adding them directly.",
+          );
+          return;
+        }
+        if (encoded.length === 1) await parsePdf(encoded[0]!);
+        else await parseMultiplePdfs(encoded);
+        return;
+      }
+
+      const assets: PickedAsset[] = images.map((f) => ({
+        uri: f.uri,
+        width: f.width ?? undefined,
+        height: f.height ?? undefined,
+      }));
+
+      if (assets.length === 1) {
         // Same crop-then-scan path as a picked photo — the editor reads and
         // re-encodes the file itself, so nothing is read here. Dimensions can be
         // absent from a share intent; the editor needs numbers, so fall back to a
         // square and let it re-measure.
         setPendingImage({
-          uri: file.uri,
-          width: file.width ?? 1000,
-          height: file.height ?? 1000,
+          uri: assets[0]!.uri,
+          width: assets[0]!.width ?? 1000,
+          height: assets[0]!.height ?? 1000,
         });
         return;
       }
-      let base64: string;
-      try {
-        base64 = await readFileAsBase64(file.uri);
-      } catch {
-        showErrorToast(
-          "Couldn't open this file",
-          "We couldn't read the shared file. Try opening TimetoPay and adding it directly.",
-        );
-        return;
-      }
-      await parsePdf(base64);
+
+      // Several photos shared at once are ambiguous in exactly the way a
+      // multi-select from the library is, so ask the same question.
+      Alert.alert(
+        "Multiple photos shared",
+        "Are these photos of the same receipt, or different receipts?",
+        [
+          { text: "Same receipt", onPress: () => void parseCombinedReceipt(assets) },
+          { text: "Different receipts", onPress: () => void parseMultipleImages(assets) },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared]);
@@ -501,28 +543,110 @@ export default function ScanScreen() {
       result = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
         copyToCacheDirectory: true,
+        multiple: true,
       });
     } catch {
       showErrorToast("Error", "Could not open the file picker.");
       return;
     }
 
-    if (result.canceled || !result.assets[0]?.uri) return;
+    if (result.canceled || !result.assets?.length) return;
 
-    // Read the picked file into base64 first, then hand off to parsePdf so a
-    // failed parse can be retried without re-picking the file.
-    let base64: string;
+    const picked = result.assets.filter((a) => a.uri);
+    if (picked.length === 0) return;
+
+    // Each PDF is a separate server round-trip that can itself fan out to
+    // PDF_MAX_PAGES model calls, so the count is capped here rather than letting
+    // a stray select-all turn into hundreds of calls.
+    const files = picked.slice(0, MAX_PDFS_PER_UPLOAD);
+    const dropped = picked.length - files.length;
+    if (dropped > 0) {
+      Alert.alert(
+        "Too many PDFs",
+        `You can upload ${MAX_PDFS_PER_UPLOAD} PDFs at a time, so we'll scan the first ${MAX_PDFS_PER_UPLOAD} and skip ${dropped}. Upload the rest in a second batch.`,
+      );
+    }
+
+    // Read the picked files into base64 first, then hand off, so a failed parse
+    // can be retried without re-picking.
+    let encoded: string[];
     try {
-      base64 = await readFileAsBase64(result.assets[0].uri);
+      encoded = await Promise.all(files.map((a) => readFileAsBase64(a.uri)));
     } catch {
       showErrorToast(
-        "Couldn't open this file",
-        "We couldn't read the selected PDF. Try choosing it again, or add the details manually.",
+        "Couldn't open those files",
+        "One of the selected PDFs couldn't be read. Try choosing them again, or add the details manually.",
       );
       return;
     }
 
-    await parsePdf(base64);
+    if (encoded.length === 1) {
+      await parsePdf(encoded[0]!);
+    } else {
+      await parseMultiplePdfs(encoded);
+    }
+  };
+
+  // Scan several PDFs in one go. They are sent SEQUENTIALLY, not in parallel:
+  // each one already fans out to a model call per page, and the server's
+  // per-user concurrency cap would reject the overflow as a rate-limit error
+  // that reads to the user like a failed scan.
+  const parseMultiplePdfs = async (files: string[]) => {
+    setScanning(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const summaries: BatchReceiptSummary[] = [];
+    let failed = 0;
+    let duplicates = 0;
+    let skippedPages = 0;
+
+    try {
+      for (const [index, base64] of files.entries()) {
+        setScanningLabel(`Analyzing PDF ${index + 1} of ${files.length}…`);
+        try {
+          const { receipts, pagesSkipped = 0 } = await callApi<{
+            receipts: (SavedReceipt | DuplicateReceipt)[];
+            pagesSkipped?: number;
+          }>("parse-pdf", { pdfBase64: base64 });
+
+          const saved = receipts.filter((r): r is SavedReceipt => !r.isDuplicate);
+          duplicates += receipts.length - saved.length;
+          skippedPages += pagesSkipped;
+          summaries.push(...saved.map(toSummary));
+        } catch {
+          failed++;
+        }
+      }
+    } finally {
+      setScanning(false);
+    }
+
+    if (summaries.length === 0) {
+      showErrorToast(
+        duplicates > 0 ? "Already uploaded" : "Couldn't read those PDFs",
+        duplicates > 0
+          ? "Every page in these PDFs matches a receipt you've already scanned."
+          : "None of the selected PDFs could be read. They may be blank, low quality, or not receipts.",
+      );
+      return;
+    }
+
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    invalidateAll();
+
+    const notes = [
+      duplicates > 0 ? `${duplicates} duplicate page${duplicates === 1 ? "" : "s"} skipped` : "",
+      failed > 0 ? `${failed} PDF${failed === 1 ? "" : "s"} couldn't be read` : "",
+      skippedPages > 0 ? `${skippedPages} page${skippedPages === 1 ? "" : "s"} over the page limit` : "",
+    ].filter(Boolean);
+
+    showSuccessToast(
+      "PDFs scanned",
+      `${summaries.length} receipt${summaries.length === 1 ? "" : "s"} extracted${notes.length ? ` — ${notes.join(", ")}` : ""}`,
+    );
+
+    setBatchReceipts(summaries);
+    router.replace("/batch-review");
   };
 
   const parsePdf = async (base64: string) => {
@@ -651,7 +775,8 @@ export default function ScanScreen() {
         </View>
 
         <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-          PDFs work best for online order confirmations
+          PDFs work best for online order confirmations — pick up to{" "}
+          {MAX_PDFS_PER_UPLOAD} at once
         </Text>
 
         <View style={[styles.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>

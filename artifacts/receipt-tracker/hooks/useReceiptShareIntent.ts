@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useShareIntent } from "expo-share-intent";
-import { setSharedFile } from "@/stores/sharedFile";
+import { setSharedFiles, type SharedReceiptFile } from "@/stores/sharedFile";
 
 // Accepts a receipt shared into the app from another app (Photos, Files, a mail
 // client) and hands it to the scan screen, which runs the same pipeline as a
@@ -22,27 +22,29 @@ export function useReceiptShareIntent(enabled: boolean) {
   useEffect(() => {
     if (!hasShareIntent) return;
 
-    const file = shareIntent.files?.[0];
-    if (!file) {
-      // Shared text or a URL rather than a file — nothing to scan.
-      resetShareIntent();
-      return;
-    }
-
-    const isPdf =
-      file.mimeType === "application/pdf" || file.fileName?.toLowerCase().endsWith(".pdf");
-    const isImage = file.mimeType?.startsWith("image/");
-    if (!isPdf && !isImage) {
-      resetShareIntent();
-      return;
-    }
-
-    setSharedFile({
-      uri: file.path,
-      kind: isPdf ? "pdf" : "image",
-      width: file.width,
-      height: file.height,
+    // A share sheet can hand over several files at once. Everything that is a
+    // receipt-shaped file is kept; anything else in the selection is dropped
+    // rather than failing the whole share.
+    const files: SharedReceiptFile[] = (shareIntent.files ?? []).flatMap((file) => {
+      const isPdf =
+        file.mimeType === "application/pdf" || file.fileName?.toLowerCase().endsWith(".pdf");
+      const isImage = file.mimeType?.startsWith("image/");
+      if (!isPdf && !isImage) return [];
+      return [{
+        uri: file.path,
+        kind: isPdf ? ("pdf" as const) : ("image" as const),
+        width: file.width,
+        height: file.height,
+      }];
     });
+
+    if (files.length === 0) {
+      // Shared text, a URL, or files we can't read — nothing to scan.
+      resetShareIntent();
+      return;
+    }
+
+    setSharedFiles(files);
     // Consume the native intent now that it's parked in the store, so
     // backgrounding the app doesn't replay it.
     resetShareIntent();
