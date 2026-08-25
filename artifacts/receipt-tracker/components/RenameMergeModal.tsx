@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -99,7 +100,14 @@ export function RenameMergeModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      {/* Scrolls so Cancel / Save stay reachable when the keyboard and a short
+          window leave less room than the card needs. */}
+      <ScrollView
+        style={styles.backdropScroll}
+        contentContainerStyle={styles.backdrop}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
         <View style={[styles.card, { backgroundColor: colors.background }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
@@ -163,13 +171,15 @@ export function RenameMergeModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
+  backdropScroll: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  // flexGrow, not flex: centred while it fits, scrollable once it doesn't.
+  backdrop: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   card: { width: "100%", maxWidth: 420, borderRadius: 16, padding: 20 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   title: { fontSize: 17, fontFamily: "Inter_700Bold" },

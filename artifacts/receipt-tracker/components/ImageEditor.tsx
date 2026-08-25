@@ -1,10 +1,10 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   Platform,
 } from "react-native";
@@ -31,8 +31,6 @@ interface Props {
   onCancel: () => void;
 }
 
-const SCREEN_W = Dimensions.get("window").width;
-const SCREEN_H = Dimensions.get("window").height;
 const HANDLE = 24; // touch target size
 const MIN_CROP = 60;
 
@@ -61,10 +59,19 @@ export default function ImageEditor({
   // Track current image state in a ref (avoids stale closures in async handlers)
   const imgRef = useRef({ uri, w: imageWidth, h: imageHeight });
 
+  // Measured live, not snapshotted at module load. The window this component
+  // lays out in is not always the window the bundle loaded in — rotation, an
+  // iPad running the app in a resizable window, and split-view all change it —
+  // and sizing the image from a stale height pushes the crop handles and the
+  // "Use Photo" button off the bottom of the screen.
+  const { width: windowW, height: windowH } = useWindowDimensions();
+
   const HEADER_H = 56 + insets.top;
   const TOOLBAR_H = 88 + insets.bottom;
-  const availW = SCREEN_W;
-  const availH = SCREEN_H - HEADER_H - TOOLBAR_H - 16;
+  const availW = windowW;
+  // Never let the image area collapse to nothing on a very short window: the
+  // toolbar keeps its space, the image just gets small.
+  const availH = Math.max(120, windowH - HEADER_H - TOOLBAR_H - 16);
 
   // Display dimensions
   const { dW: initDW, dH: initDH } = computeDisplay(
@@ -269,6 +276,22 @@ export default function ImageEditor({
     sharedDW.value = newDW;
     sharedDH.value = newDH;
   };
+
+  // Refit when the available area changes (rotation, a resized window). Skipped
+  // on the first run — `displayDims` is already sized for it — and the crop is
+  // reset rather than rescaled, because a crop the user can no longer see the
+  // edges of is worse than one they have to redraw.
+  const lastFit = useRef({ w: availW, h: availH });
+  useEffect(() => {
+    if (lastFit.current.w === availW && lastFit.current.h === availH) return;
+    lastFit.current = { w: availW, h: availH };
+    const { w: imgW, h: imgH } = imgRef.current;
+    const { dW, dH } = computeDisplay(imgW, imgH, availW, availH);
+    resetCrop(dW, dH);
+    setDisplayDims({ w: dW, h: dH });
+    // resetCrop only writes shared values, so it is stable enough to leave out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availW, availH]);
 
   const [autoFraming, setAutoFraming] = useState(false);
 
@@ -625,6 +648,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#000",
+    // Belt and braces: even if the image is somehow sized larger than the area,
+    // it is clipped instead of painting over the toolbar's buttons.
+    overflow: "hidden",
   },
   handle: {
     // position set by animated style

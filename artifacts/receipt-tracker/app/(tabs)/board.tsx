@@ -777,6 +777,10 @@ export default function BoardScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* The header (with Submit) stays put; everything below it scrolls,
+                so a short window or an open keyboard can never push the tag
+                chips or the disclaimer out of reach. */}
+            <ScrollView contentContainerStyle={styles.composeBody} keyboardShouldPersistTaps="handled" bounces={false}>
             {/* Tag selector */}
             <Text style={[styles.tagLabel, { color: colors.mutedForeground }]}>Tag (optional)</Text>
             <View style={styles.tagRow}>
@@ -826,6 +830,7 @@ export default function BoardScreen() {
             <Text style={[styles.composeDisclaimer, { color: colors.mutedForeground }]}>
               Posts are anonymous and require admin approval before appearing.
             </Text>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -874,6 +879,7 @@ export default function BoardScreen() {
               </TouchableOpacity>
             </View>
 
+            <ScrollView contentContainerStyle={styles.composeBody} keyboardShouldPersistTaps="handled" bounces={false}>
             <TextInput
               style={[styles.composeInput, { color: colors.foreground }]}
               placeholder="Update your post…"
@@ -900,6 +906,7 @@ export default function BoardScreen() {
             <Text style={[styles.composeDisclaimer, { color: colors.mutedForeground }]}>
               Edited posts go back to admin review before appearing again.
             </Text>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1325,11 +1332,16 @@ const styles = StyleSheet.create({
   ineligibleNote: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 12, textAlign: "center" },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   composeSheet: {
+    // Capped against the overlay (flex:1), so the sheet can never grow taller
+    // than the window and push its own header — which holds Submit — off the
+    // top edge.
+    maxHeight: "92%",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    paddingBottom: 36,
+    paddingBottom: 20,
   },
+  composeBody: { paddingBottom: 16 },
   composeHeader: {
     flexDirection: "row",
     alignItems: "center",

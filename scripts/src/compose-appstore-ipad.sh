@@ -15,6 +15,8 @@ R=64
 TOP_GRAD="#06687e"
 BOT_GRAD="#032f3c"
 
+# Captions are App Store metadata: no reference to what the app costs
+# (Guideline 2.3.7). See the note in compose-appstore.sh.
 names=("01-receipts" "02-stores" "03-shopping" "04-analytics" "05-catalog")
 heads=(
   "Snap a receipt.\nWe handle the rest."

@@ -15,6 +15,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+import { LegalConsent } from "@/components/LegalConsent";
 
 // Remember the last email used to sign in, so it's pre-filled next time.
 const LAST_EMAIL_KEY = "lastSignInEmail";
@@ -189,6 +190,12 @@ export default function SignInPage() {
                   without Sign in with Apple violates App Review Guideline 4.8.
                   Google stays available on Android and web. */}
               {Platform.OS !== "ios" ? <GoogleAuthButton label="Sign in with Google" /> : null}
+
+              {/* The agreement is a gating checkbox on sign-up; here it is a
+                  notice, because this person already agreed when they
+                  registered. Guideline 1.2 asks that the terms be presented
+                  before logging in, not that they be re-accepted. */}
+              <LegalConsent action="signing in" />
 
               <View style={styles.linkRow}>
                 <Text style={{ color: colors.mutedForeground }}>Don't have an account? </Text>

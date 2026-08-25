@@ -12,6 +12,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
+import { screenContent } from "../lib/contentFilter";
 
 const router = Router();
 
@@ -206,6 +207,14 @@ router.post("/", async (req, res): Promise<void> => {
     return;
   }
 
+  // Objectionable-content screening (App Store Guideline 1.2). A "block" never
+  // reaches the database; a "review" overrides auto-approve so a human sees it.
+  const screening = screenContent(trimmed);
+  if (screening.verdict === "block") {
+    res.status(400).json({ error: screening.reason });
+    return;
+  }
+
   const resolvedTag = tag && VALID_TAGS.has(tag) ? tag : null;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
@@ -213,7 +222,10 @@ router.post("/", async (req, res): Promise<void> => {
 
   // Trusted posters (admin-flagged) and admins skip the moderation queue — their
   // posts go live immediately (status "approved", stamped as approved now).
-  const autoApprove = !!req.isAdmin || !!user?.boardAutoApprove;
+  // Flagged wording is the one thing that pulls them back into it: auto-approve
+  // is otherwise an unmoderated path straight to the live board.
+  const autoApprove =
+    (!!req.isAdmin || !!user?.boardAutoApprove) && screening.verdict !== "review";
   const status = autoApprove ? "approved" : "pending";
 
   const [post] = await db
@@ -251,12 +263,19 @@ router.patch("/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const screening = screenContent(trimmed);
+  if (screening.verdict === "block") {
+    res.status(400).json({ error: screening.reason });
+    return;
+  }
+
   const [post] = await db.select().from(boardPostsTable).where(eq(boardPostsTable.id, postId));
   if (!post) { res.status(404).json({ error: "Post not found" }); return; }
   if (post.userId !== userId) { res.status(403).json({ error: "Not your post" }); return; }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  const keepsApproval = !!req.isAdmin || !!user?.boardAutoApprove;
+  const keepsApproval =
+    (!!req.isAdmin || !!user?.boardAutoApprove) && screening.verdict !== "review";
   const status = keepsApproval ? post.status : "pending";
 
   await db
@@ -470,13 +489,20 @@ router.post("/:id/replies", async (req, res): Promise<void> => {
     return;
   }
 
+  const screening = screenContent(trimmed);
+  if (screening.verdict === "block") {
+    res.status(400).json({ error: screening.reason });
+    return;
+  }
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const region = buildRegion(user?.countryCode ?? null, user?.stateCode ?? null);
 
-  // Trusted posters + admins skip moderation. An auto-approved reply is live at
-  // once, so bump the parent post's reply count immediately (mirrors what the
-  // admin reply-approve path does).
-  const autoApprove = !!req.isAdmin || !!user?.boardAutoApprove;
+  // Trusted posters + admins skip moderation, unless the screening flagged the
+  // wording. An auto-approved reply is live at once, so bump the parent post's
+  // reply count immediately (mirrors what the admin reply-approve path does).
+  const autoApprove =
+    (!!req.isAdmin || !!user?.boardAutoApprove) && screening.verdict !== "review";
   const status = autoApprove ? "approved" : "pending";
 
   const [reply] = await db
@@ -660,6 +686,11 @@ router.post("/report", async (req, res): Promise<void> => {
 // POST /board/block — hide everything from a post or reply's author, for the
 // caller only, effective immediately. Resolves the author server-side for the
 // same reason as report: the client never has to know who wrote a reply.
+//
+// Blocking also files a moderation report. Guideline 1.2 asks that blocking
+// "notify the developer of the inappropriate content", not just hide it, so the
+// block and the report are written together: someone reaching for Block has
+// told us something is wrong here whether or not they also tapped Report.
 router.post("/block", async (req, res): Promise<void> => {
   const blockerId = req.userId!;
   const { postId, replyId } = req.body as { postId?: unknown; replyId?: unknown };
@@ -678,10 +709,25 @@ router.post("/block", async (req, res): Promise<void> => {
   if (!target) { res.status(404).json({ error: "Not found" }); return; }
   if (target.userId === blockerId) { res.status(400).json({ error: "You can't block yourself" }); return; }
 
-  await db
-    .insert(boardBlocksTable)
-    .values({ blockerId, blockedId: target.userId })
-    .onConflictDoNothing();
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(boardBlocksTable)
+      .values({ blockerId, blockedId: target.userId })
+      .onConflictDoNothing();
+
+    // onConflictDoNothing: if they already reported this exact item, that
+    // report stands — a block on top of it is not a second signal.
+    await tx
+      .insert(boardReportsTable)
+      .values({
+        reporterId: blockerId,
+        postId: hasPost ? (postId as number) : null,
+        replyId: hasReply ? (replyId as number) : null,
+        reason: "blocked_user",
+        detail: null,
+      })
+      .onConflictDoNothing();
+  });
 
   res.status(201).json({ success: true });
 });
@@ -733,28 +779,54 @@ router.get("/admin/reports", requireAdmin, async (_req, res): Promise<void> => {
   const postIds = reports.filter((r) => r.postId != null).map((r) => r.postId as number);
   const replyIds = reports.filter((r) => r.replyId != null).map((r) => r.replyId as number);
 
+  // The author comes back with the report so a moderator can act on the person,
+  // not only the post — Guideline 1.2 asks for ejecting repeat offenders, and
+  // that needs a name to click through to.
   const [posts, replies] = await Promise.all([
     postIds.length
-      ? db.select({ id: boardPostsTable.id, content: boardPostsTable.content }).from(boardPostsTable).where(inArray(boardPostsTable.id, postIds))
+      ? db
+          .select({
+            id: boardPostsTable.id,
+            content: boardPostsTable.content,
+            authorId: boardPostsTable.userId,
+            authorUsername: usersTable.username,
+          })
+          .from(boardPostsTable)
+          .leftJoin(usersTable, eq(usersTable.id, boardPostsTable.userId))
+          .where(inArray(boardPostsTable.id, postIds))
       : Promise.resolve([]),
     replyIds.length
-      ? db.select({ id: boardRepliesTable.id, content: boardRepliesTable.content }).from(boardRepliesTable).where(inArray(boardRepliesTable.id, replyIds))
+      ? db
+          .select({
+            id: boardRepliesTable.id,
+            content: boardRepliesTable.content,
+            authorId: boardRepliesTable.userId,
+            authorUsername: usersTable.username,
+          })
+          .from(boardRepliesTable)
+          .leftJoin(usersTable, eq(usersTable.id, boardRepliesTable.userId))
+          .where(inArray(boardRepliesTable.id, replyIds))
       : Promise.resolve([]),
   ]);
-  const postContent = new Map(posts.map((p) => [p.id, p.content]));
-  const replyContent = new Map(replies.map((r) => [r.id, r.content]));
+  const byPost = new Map(posts.map((p) => [p.id, p]));
+  const byReply = new Map(replies.map((r) => [r.id, r]));
 
   res.json(
-    reports.map((r) => ({
-      id: r.id,
-      postId: r.postId,
-      replyId: r.replyId,
-      reason: r.reason,
-      detail: r.detail,
-      createdAt: r.createdAt.toISOString(),
+    reports.map((r) => {
       // Null means the reported content was deleted since the report was filed.
-      content: r.postId != null ? postContent.get(r.postId) ?? null : replyContent.get(r.replyId!) ?? null,
-    })),
+      const target = r.postId != null ? byPost.get(r.postId) : byReply.get(r.replyId!);
+      return {
+        id: r.id,
+        postId: r.postId,
+        replyId: r.replyId,
+        reason: r.reason,
+        detail: r.detail,
+        createdAt: r.createdAt.toISOString(),
+        content: target?.content ?? null,
+        authorId: target?.authorId ?? null,
+        authorUsername: target?.authorUsername ?? null,
+      };
+    }),
   );
 });
 

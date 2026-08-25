@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
@@ -34,6 +35,10 @@ interface Props {
 
 export function ReportBlockSheet({ visible, onClose, onReport, onBlock, reportPending, blockPending }: Props) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  // An absolute cap, not "85%": the sheet's parent is auto-height, and a
+  // percentage against an indefinite parent is ignored by the layout engine.
+  const { height: windowHeight } = useWindowDimensions();
   const [stage, setStage] = useState<Stage>("menu");
 
   const close = () => {
@@ -45,7 +50,19 @@ export function ReportBlockSheet({ visible, onClose, onReport, onBlock, reportPe
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close}>
         <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Height-capped and scrollable. The reasons stage is the tallest of
+              the three, and in a short window (landscape, or the app in a small
+              window on iPad) an uncapped sheet puts the last reasons and Cancel
+              below the bottom edge with no way to reach them — on the exact
+              screen App Review asks to see demonstrated. */}
+          <ScrollView
+            style={[
+              styles.sheet,
+              { backgroundColor: colors.card, borderColor: colors.border, maxHeight: windowHeight * 0.85 },
+            ]}
+            contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + 30 }]}
+            bounces={false}
+          >
             {stage === "menu" && (
               <>
                 <Text style={[styles.title, { color: colors.foreground }]}>More options</Text>
@@ -118,7 +135,7 @@ export function ReportBlockSheet({ visible, onClose, onReport, onBlock, reportPe
                 </TouchableOpacity>
               </>
             )}
-          </View>
+          </ScrollView>
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
@@ -136,8 +153,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 18,
     borderWidth: 1,
     borderBottomWidth: 0,
+  },
+  // Padding lives on the content container so it scrolls with the rows rather
+  // than eating into the capped height.
+  sheetContent: {
     padding: 18,
-    paddingBottom: 30,
     gap: 2,
   },
   title: {

@@ -39,6 +39,21 @@ FILENAMES (either way)
   05-analytics.png
   06-catalog.png
 
+CAPTION RULE — NO PRICE REFERENCES
+==================================
+Screenshot captions are App Store metadata, and Guideline 2.3.7 forbids any
+reference to what the app costs. "Free", "100% free", "no subscription" and
+"discounted" are ALL price references. Version 1.0 (4) was rejected over a
+caption reading "Every feature. Completely free."
+
+Grocery prices are the product, so captions about lower grocery prices are
+fine. Our own price is never mentioned — put that in the App Store description
+instead, where it is allowed.
+
+The same rule applies to the raw captures: never shoot a screen that has "it's
+free" / "create your free account" on it (the signed-out landing screen does),
+because the composed image carries that text into the metadata too.
+
 THEN COMPOSE
 ============
 From the project root:

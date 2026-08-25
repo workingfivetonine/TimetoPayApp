@@ -4,7 +4,6 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import {
   ActivityIndicator,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+import { LegalConsent } from "@/components/LegalConsent";
 import { PasswordRequirements } from "@/components/PasswordRequirements";
 import { passwordMeetsPolicy } from "@/utils/passwordPolicy";
 
@@ -22,15 +22,6 @@ function clerkErrMsg(e: unknown): string {
   if (!e) return "Something went wrong. Please try again.";
   const err = e as { longMessage?: string; message?: string };
   return err.longMessage ?? err.message ?? "Something went wrong. Please try again.";
-}
-
-function openLegal(page: "terms" | "privacy") {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined") window.location.href = `/${page}`;
-  } else {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
-    void Linking.openURL(`https://${domain}/${page}`);
-  }
 }
 
 export default function SignUpPage() {
@@ -45,9 +36,19 @@ export default function SignUpPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  // Terms agreement (App Store Guideline 1.2). Gates every route into an
+  // account, so it is checked here as well as in the button's disabled state —
+  // the Google button is a separate component and can't read that state.
+  const [agreed, setAgreed] = React.useState(false);
+
+  const canSubmit = !!emailAddress && passwordMeetsPolicy(password) && agreed && !busy;
 
   const handleSubmit = async () => {
     if (busy) return;
+    if (!agreed) {
+      setError("Please agree to the Terms of Use and Privacy Policy to continue.");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -193,34 +194,30 @@ export default function SignUpPage() {
 
               {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
 
+              {/* Above the buttons, not below them: Guideline 1.2 wants the
+                  agreement presented before registering, and it has to gate
+                  the Google path too — hence a checkbox rather than a note. */}
+              <LegalConsent required checked={agreed} onChange={setAgreed} />
+
               <TouchableOpacity
-                style={[
-                  styles.button,
-                  { backgroundColor: colors.primary },
-                  (!emailAddress || !passwordMeetsPolicy(password) || busy) && styles.buttonDisabled,
-                ]}
+                style={[styles.button, { backgroundColor: colors.primary }, !canSubmit && styles.buttonDisabled]}
                 onPress={handleSubmit}
-                disabled={!emailAddress || !passwordMeetsPolicy(password) || busy}
+                disabled={!canSubmit}
                 activeOpacity={0.85}
               >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
               </TouchableOpacity>
 
-              <Text style={[styles.legalNote, { color: colors.mutedForeground }]}>
-                By signing up you agree to our{" "}
-                <Text style={[styles.legalNoteLink, { color: colors.primary }]} onPress={() => openLegal("terms")}>
-                  Terms
-                </Text>
-                {" "}and{" "}
-                <Text style={[styles.legalNoteLink, { color: colors.primary }]} onPress={() => openLegal("privacy")}>
-                  Privacy Policy
-                </Text>.
-              </Text>
-
               {/* Hidden on iOS only: offering a third-party social login there
                   without Sign in with Apple violates App Review Guideline 4.8.
                   Google stays available on Android and web. */}
-              {Platform.OS !== "ios" ? <GoogleAuthButton label="Sign up with Google" /> : null}
+              {Platform.OS !== "ios" ? (
+                <GoogleAuthButton
+                  label="Sign up with Google"
+                  disabled={!agreed}
+                  disabledReason="Please agree to the Terms of Use and Privacy Policy to continue."
+                />
+              ) : null}
 
               <View style={styles.linkRow}>
                 <Text style={{ color: colors.mutedForeground }}>Already have an account? </Text>
@@ -282,6 +279,4 @@ const styles = StyleSheet.create({
   passwordRow: { position: "relative", justifyContent: "center" },
   passwordInput: { paddingRight: 44 },
   eyeBtn: { position: "absolute", right: 12, padding: 4 },
-  legalNote: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18, marginTop: 16 },
-  legalNoteLink: { fontFamily: "Inter_600SemiBold" },
 });

@@ -38,6 +38,12 @@ BOT_GRAD="#032f3c"
 
 # Home leads — it is the first screen in the app, so it is the first screen on
 # the listing. Apple allows up to ten images, so adding it costs nothing.
+#
+# CAPTION RULE (App Store Guideline 2.3.7): screenshot captions are metadata, so
+# they may not reference the app's price — and "free", "discounted" and "no
+# subscription" all count as price references. Version 1.0 (4) was rejected for
+# a caption reading "Every feature. Completely free." Talk about what the app
+# does, never what it costs. Grocery prices are fine; OUR price is not.
 names=("01-home" "02-receipts" "03-stores" "04-shopping" "05-analytics" "06-catalog" "07-createlist" "08-shopmode")
 heads=(
   "Turn receipts into\nreal savings"
@@ -45,7 +51,7 @@ heads=(
   "Compare the true\ncost of every store"
   "A list that finds\nthe lowest price"
   "See where your\nmoney really goes"
-  "Every feature.\nCompletely free."
+  "Real prices from\nshoppers near you"
   "Know what ran out\nbefore you go"
   "Grouped by store.\nTicked off as you go."
 )
