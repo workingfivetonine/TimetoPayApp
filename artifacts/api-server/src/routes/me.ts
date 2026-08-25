@@ -10,6 +10,7 @@ import {
   isUsernameAvailable,
   generateUniqueUsername,
 } from "../lib/username";
+import { screenUsername } from "../lib/contentFilter";
 import { clerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
 import { sendAccountDeletedEmail, sendWelcomeEmail } from "../lib/email/transactional";
@@ -219,6 +220,13 @@ router.get("/username-available", async (req, res): Promise<void> => {
     res.json({ valid: false, available: false });
     return;
   }
+  // A handle that fails content screening reports as unavailable rather than
+  // invalid: the format hint would be wrong, and naming the matched term would
+  // just tell someone what to spell around. PATCH /profile refuses it too.
+  if (screenUsername(username).verdict !== "allow") {
+    res.json({ valid: true, available: false });
+    return;
+  }
   res.json({ valid: true, available: await isUsernameAvailable(username) });
 });
 
@@ -244,6 +252,14 @@ router.patch("/profile", async (req, res): Promise<void> => {
 
   if (!isValidUsernameFormat(username)) {
     res.status(400).json({ error: "Username must be 3–20 letters, numbers, or underscores." });
+    return;
+  }
+  // A username is public UGC — it is the byline on every board post — but it has
+  // no moderation queue behind it, so screening is pass/fail (Guideline 1.2).
+  // 400, not 409: "taken" would be a lie, and would invite retries.
+  const usernameScreening = screenUsername(username);
+  if (usernameScreening.verdict !== "allow") {
+    res.status(400).json({ error: usernameScreening.reason });
     return;
   }
   const taken = await db

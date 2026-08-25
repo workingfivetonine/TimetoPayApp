@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   TextInput,
 } from "react-native";
@@ -97,7 +97,9 @@ function PriceTrendChart({
   cardColor,
 }: ChartProps) {
   const { symbol } = useCurrency();
-  const screenW = Dimensions.get("window").width;
+  // Reactive, so the chart refits on rotation or a window resize instead of
+  // being drawn at whatever width the screen happened to be on first render.
+  const { width: screenW } = useWindowDimensions();
   const svgW = screenW - 32;
   const svgH = CHART_H;
 

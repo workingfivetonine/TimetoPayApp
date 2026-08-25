@@ -5,6 +5,7 @@ import {
   catalogItemsTable,
   catalogStoresTable,
   adminNotificationStateTable,
+  boardReportsTable,
 } from "@workspace/db";
 import { logger } from "./logger";
 import { loopsSendTransactional } from "./email/loops";
@@ -18,12 +19,25 @@ export interface DigestSection {
   samples: string[];
 }
 
+/**
+ * Open moderation reports. Unlike every other section this is NOT windowed —
+ * it is the whole standing queue, so an ignored report keeps showing up in
+ * tomorrow's digest instead of scrolling past once. We tell users in the terms
+ * that reports are acted on within 24 hours (App Store Guideline 1.2); this is
+ * what makes that promise reach a human.
+ */
+export interface OpenReports extends DigestSection {
+  /** Age of the oldest open report, in whole hours. 0 when there are none. */
+  oldestHours: number;
+}
+
 export interface AdminDigest {
   since: Date | null;
   until: Date;
   items: DigestSection;
   stores: DigestSection;
   users: DigestSection;
+  reports: OpenReports;
   total: number;
 }
 
@@ -146,18 +160,67 @@ export async function computeAdminDigest(
     }),
   };
 
+  const reports = await computeOpenReports(until);
+
   return {
     since,
     until,
     items,
     stores,
     users,
-    total: items.count + stores.count + users.count,
+    reports,
+    // Open reports count toward the total, so the digest keeps being sent while
+    // any report is unresolved rather than going quiet on a queue that matters.
+    total: items.count + stores.count + users.count + reports.count,
   };
 }
 
-function fmtSection(label: string, s: DigestSection): { text: string; html: string } {
-  const head = `${s.count} new ${label}`;
+/** Every unresolved report, whenever it was filed. See `OpenReports`. */
+async function computeOpenReports(until: Date): Promise<OpenReports> {
+  const open = eq(boardReportsTable.status, "open");
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(boardReportsTable)
+    .where(open);
+
+  const rows = await db
+    .select({
+      id: boardReportsTable.id,
+      reason: boardReportsTable.reason,
+      postId: boardReportsTable.postId,
+      replyId: boardReportsTable.replyId,
+      createdAt: boardReportsTable.createdAt,
+    })
+    .from(boardReportsTable)
+    .where(open)
+    // Oldest first: the ones closest to breaching the 24-hour commitment are
+    // the ones worth naming in the email.
+    .orderBy(boardReportsTable.createdAt)
+    .limit(SAMPLE_LIMIT);
+
+  const oldest = rows[0]?.createdAt;
+  return {
+    count,
+    oldestHours: oldest
+      ? Math.max(0, Math.floor((until.getTime() - oldest.getTime()) / 3_600_000))
+      : 0,
+    samples: rows.map((r) => {
+      const target = r.postId != null ? `post #${r.postId}` : `reply #${r.replyId}`;
+      const hours = Math.max(0, Math.floor((until.getTime() - r.createdAt.getTime()) / 3_600_000));
+      return `${r.reason} on ${target} (${hours}h)`;
+    }),
+  };
+}
+
+// `qualifier` is "new" for the windowed sections; the open-reports section is a
+// standing backlog, not new arrivals, so it passes its own.
+function fmtSection(
+  label: string,
+  s: DigestSection,
+  qualifier = "new",
+): { text: string; html: string } {
+  const head = `${s.count} ${qualifier} ${label}`;
   if (s.count === 0) {
     return { text: `• ${head}`, html: `<li><strong>${head}</strong></li>` };
   }
@@ -177,27 +240,38 @@ function escapeHtml(s: string): string {
 }
 
 function composeEmail(digest: AdminDigest): { subject: string; text: string; html: string } {
+  // Moderation leads the subject line when there is any: a flagged post has a
+  // 24-hour clock on it, a new catalog item does not.
   const subject =
-    digest.total > 0
-      ? `TimetoPay — ${digest.total} new item(s) to review`
-      : `TimetoPay — nothing new to review`;
+    digest.reports.count > 0
+      ? `TimetoPay — ${digest.reports.count} open content report(s)`
+      : digest.total > 0
+        ? `TimetoPay — ${digest.total} new item(s) to review`
+        : `TimetoPay — nothing new to review`;
   const sinceLine = digest.since
     ? `Since ${digest.since.toISOString()}`
     : `All time (first digest)`;
 
   const sections = [
+    fmtSection("content report(s)", digest.reports, "open"),
     fmtSection("catalog item(s)", digest.items),
     fmtSection("catalog store(s)", digest.stores),
     fmtSection("user(s)", digest.users),
   ];
+
+  const overdue =
+    digest.reports.count > 0 && digest.reports.oldestHours >= 24
+      ? `ACT NOW: the oldest open report is ${digest.reports.oldestHours}h old, past the 24-hour commitment in our terms.`
+      : null;
 
   const text = [
     "TimetoPay — admin review digest",
     sinceLine,
     "",
     ...sections.map((s) => s.text),
+    ...(overdue ? ["", overdue] : []),
     "",
-    "Review them in the admin area (Manage catalog / Users).",
+    "Review them in the admin area (Board moderation / Manage catalog / Users).",
   ].join("\n");
 
   const html = [
@@ -207,7 +281,8 @@ function composeEmail(digest: AdminDigest): { subject: string; text: string; htm
     `<ul style="line-height:1.6">`,
     ...sections.map((s) => s.html),
     `</ul>`,
-    `<p style="color:#6b7280">Review them in the admin area (Manage catalog / Users).</p>`,
+    ...(overdue ? [`<p style="color:#b91c1c;font-weight:600">${escapeHtml(overdue)}</p>`] : []),
+    `<p style="color:#6b7280">Review them in the admin area (Board moderation / Manage catalog / Users).</p>`,
     `</div>`,
   ].join("");
 

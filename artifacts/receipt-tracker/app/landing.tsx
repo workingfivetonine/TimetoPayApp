@@ -15,20 +15,10 @@ import {
 } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { openLegalPage } from "@/lib/legal";
 import { InstallAppButton } from "@/components/InstallAppButton";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
-
-// Privacy / Support are standalone server-rendered pages (see server/serve.js),
-// not in-app routes — open them as full web pages.
-function openLegalPage(page: "privacy" | "terms" | "support") {
-  if (Platform.OS === "web") {
-    window.location.href = `/${page}`;
-  } else {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
-    void Linking.openURL(`https://${domain}/${page}`);
-  }
-}
 
 // Optional donation page (overridable via env). Nothing in the app is paid —
 // this is a voluntary "buy us a coffee" link, not a plan or upgrade.

@@ -29,7 +29,23 @@ function useWarmUpBrowser() {
   }, []);
 }
 
-export function GoogleAuthButton({ label = "Continue with Google" }: { label?: string }) {
+interface GoogleAuthButtonProps {
+  label?: string;
+  /**
+   * Blocks the SSO flow. Sign-up uses this for the terms checkbox: OAuth would
+   * otherwise be a way into an account that never presented the agreement
+   * (App Store Guideline 1.2).
+   */
+  disabled?: boolean;
+  /** Shown in place of the usual error when a disabled button is pressed. */
+  disabledReason?: string;
+}
+
+export function GoogleAuthButton({
+  label = "Continue with Google",
+  disabled = false,
+  disabledReason,
+}: GoogleAuthButtonProps) {
   useWarmUpBrowser();
   const { startSSOFlow } = useSSO();
   const router = useRouter();
@@ -39,6 +55,12 @@ export function GoogleAuthButton({ label = "Continue with Google" }: { label?: s
   const [error, setError] = React.useState<string | null>(null);
 
   const onPress = React.useCallback(async () => {
+    if (disabled) {
+      // Kept pressable rather than inert so the reason is discoverable: a
+      // greyed-out button with no explanation reads as a broken one.
+      setError(disabledReason ?? null);
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -71,7 +93,7 @@ export function GoogleAuthButton({ label = "Continue with Google" }: { label?: s
     } finally {
       setBusy(false);
     }
-  }, [router, startSSOFlow]);
+  }, [disabled, disabledReason, router, startSSOFlow]);
 
   return (
     <View>
@@ -85,10 +107,11 @@ export function GoogleAuthButton({ label = "Continue with Google" }: { label?: s
         style={[
           styles.button,
           { borderColor: colors.input, backgroundColor: colors.card },
-          busy && styles.buttonDisabled,
+          (busy || disabled) && styles.buttonDisabled,
         ]}
         onPress={onPress}
         disabled={busy}
+        accessibilityState={{ disabled }}
         activeOpacity={0.85}
         accessibilityRole="button"
       >

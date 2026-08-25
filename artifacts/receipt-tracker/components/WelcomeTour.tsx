@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -77,7 +78,14 @@ export function WelcomeTour() {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={() => finish()}>
-      <View style={styles.backdrop}>
+      {/* The backdrop scrolls so the Next / Upload buttons under the card stay
+          reachable when the window is shorter than the card — landscape, a
+          large accessibility text size, or the app in a small window. */}
+      <ScrollView
+        style={styles.backdropScroll}
+        contentContainerStyle={styles.backdrop}
+        bounces={false}
+      >
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <TouchableOpacity
             style={styles.skip}
@@ -170,15 +178,20 @@ export function WelcomeTour() {
             </View>
           )}
         </View>
-      </View>
+      </ScrollView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  backdropScroll: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  backdrop: {
+    // flexGrow, not flex: the card stays centred when it fits and the container
+    // grows past the viewport when it doesn't.
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,

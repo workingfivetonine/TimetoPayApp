@@ -135,6 +135,35 @@ account screens (`EXPO_PUBLIC_DONATE_URL`).
 - **Admin review-digest** (`lib/adminDigest.ts`, Loops transactional): the single admin is emailed new `catalog_items`/`catalog_stores`/`users` since the last send. Singleton `admin_notification_state.lastDigestSentAt` is the high-water cursor; window is half-open `(cursor, now]` with `now` from DB (read as text, coerced via `new Date()`). **scheduled** enforces min-gap, skips when empty, and ATOMICALLY CLAIMS the window before sending (`UPDATE ... WHERE last_digest_sent_at IS NOT DISTINCT FROM since`, rolled back if the send throws); **manual** (`POST /admin/review-digest/test`) always sends (even empty), ignores gap, never advances cursor. First tick after boot has a null cursor ⇒ reports all existing data once. Env: `ADMIN_DIGEST_INTERVAL_MS` (default daily), `ADMIN_DIGEST_MIN_GAP_MS` (default 12h, prevents restart-loop spam), `ADMIN_DIGEST_INITIAL_DELAY_MS` (default 60s), `ADMIN_EMAIL`.
 - **Offline guide sync** (user + SEPARATE admin guide): guide text lives ONCE in `@workspace/guide-content` as two arrays — `GUIDE_SECTIONS` (user) + `GUIDE_ADMIN_SECTIONS` (admin), each with its own title/tagline/footer. `app/help.tsx` renders user sections to everyone, admin sections + a separate "Download Admin PDF" button ONLY when `/me` `isAdmin`; both map `imageFile` → static `require()` in `GUIDE_IMAGES`. `imageFile` is OPTIONAL (admin text-only sections render without a screenshot). `generate-guide` rebuilds both `docs/guide/*.{md,pdf}` (pdfkit, byte-reproducible via pinned `CreationDate`) and copies both PDFs into `assets/guide/`. **After editing guide copy or a screenshot, rerun the generator** so neither bundled PDF drifts (`generate-guide:check` enforces this). When adding a section: add it to the right array AND (if it has a screenshot) add its key to `GUIDE_IMAGES` (Metro needs static `require()` literals).
 
+### User-generated content (App Store Guideline 1.2)
+The community board is the app's only UGC surface, and Apple requires a specific
+set of precautions for it. All five are implemented; **don't remove one without
+replacing it** — the app is rejected without them.
+- **EULA before registering.** `components/LegalConsent.tsx`. On sign-up it is a
+  required checkbox gating BOTH the email button and `GoogleAuthButton`
+  (`disabled` prop) — OAuth must not be a way in that skipped the agreement. On
+  sign-in the same copy renders as a notice (no re-acceptance). Terms text lives
+  in `artifacts/receipt-tracker/public/terms.html` and states the zero-tolerance
+  policy, the report/block mechanisms and a **24-hour** commitment on reports;
+  `lib/legal.ts` `openLegalPage` is the single URL source for every link to it.
+- **Filtering.** `artifacts/api-server/src/lib/contentFilter.ts`.
+  `screenContent` returns `block` (refuse the write, 400) / `review` (accept but
+  force into the moderation queue, **overriding `boardAutoApprove`**) / `allow`.
+  Wired into `POST /board`, `PATCH /board/:id` and `POST /board/:id/replies`.
+  `screenUsername` has no review tier (a handle has no queue to fall into) and is
+  wired into `PATCH /me/profile` + `GET /me/username-available`. Word lists are
+  matched whole-word with a length guard so "Niger"/"cumin"/"shiitake" survive;
+  substring matching is used only for usernames and spelled-out letter runs.
+- **Reporting.** `components/ReportBlockSheet.tsx` → `POST /board/report`.
+- **Blocking.** Same sheet → `POST /board/block`. Instant (`getBlockedUserIds`
+  filters the feed) and it **also files a report** (`reason: "blocked_user"`) in
+  the same transaction, because the guideline requires a block to notify the
+  developer, not merely hide content. Undo in Account → Blocked accounts.
+- **Acting within 24h.** Reports surface in `/admin/board` AND in the admin
+  digest email (`lib/adminDigest.ts`): open reports are NOT windowed by the
+  cursor, they count toward `total` so the digest keeps arriving while any report
+  is unresolved, and the subject line leads with them.
+
 ### Public landing & SEO
 `app/landing.tsx` is a public marketing homepage (web + native) for signed-out
 users. `app/_layout.tsx` `InitialLayout` redirects signed-out users on non-public
@@ -159,13 +188,24 @@ the sitemap).
 - **Account**: profile, region, optional home address (geocoded for store distances), notification toggles, the optional donation card, admin links, contact support, sign out, delete account.
 - **Admin: Global prices** (`/admin/global`): cross-user most-recent price per canonical item (overall + per-store, lowest highlighted).
 - **Admin: Manage catalog** (`/admin/catalog`): merge/rename/split spelling variants into canonical entries (never mutates private rows). Auto-suggested merges + two gpt-5.2 AI assists ("Suggest categories", "Find duplicates with AI"). Store logos uploaded as resized base64 data URIs (≤~1MB, validated server-side).
-- **Admin: Board moderation** (`/admin/board`): approve/reject pending posts; `boardAutoApprove` per user skips the queue.
+- **Admin: Board moderation** (`/admin/board`): three queues — **Reports** (user flags and blocks, oldest-first, flagged red past 24h, remove-content or dismiss, click through to the author), then pending **Posts** and **Replies** to approve/reject. `boardAutoApprove` per user skips the approval queue but NOT the content filter.
 
 ## Gotchas
 
 - `expo-camera` must be v16.x (Expo SDK 54); v56+ breaks with `createPermissionHook` error.
 - Run `pnpm run typecheck:libs` before `pnpm --filter @workspace/api-server run typecheck` so lib declarations build first.
-- `EXPO_PUBLIC_DOMAIN` is used in `scan.tsx` / `landing.tsx` to construct URLs.
+- `EXPO_PUBLIC_DOMAIN` is used in `scan.tsx` / `lib/legal.ts` to construct URLs.
+- **App Store screenshot captions are metadata**: `scripts/src/compose-appstore*.sh`
+  may never mention what the app costs — "free", "no subscription" and
+  "discounted" are all price references under Guideline 2.3.7, and 1.0 (4) was
+  rejected for one. Same rule for the raw captures: don't shoot a screen that
+  says "it's free" (the signed-out landing screen does).
+- **iPhone-only by design** (`ios.supportsTablet: false`), so the app runs on
+  iPad in compatibility mode — in a window whose size need not match the one the
+  JS bundle loaded in. Never snapshot `Dimensions.get("window")` at module
+  scope; use `useWindowDimensions()`. Modal sheets need a height cap and a
+  ScrollView, or their action buttons end up below the bottom edge with no way
+  to reach them.
 - `expo-share-intent`'s declared type for `androidIntentFilters` is `("text/*" | "image/*" | "video/*" | "*/*")[]`, but we pass `"application/pdf"`. It works (`expo config --type introspect` shows it written into the manifest, and the intent filter is valid Android) but it is **off-contract** — a future plugin version could start validating and silently drop it. The documented-safe alternative is `*/*`, which would put TimetoPay in the share sheet for every file type.
 - Reminder emails are only as real as their Loops templates. A new event type with no template in the dashboard is a **silent no-op** — the code is correct and nothing arrives.
 - Tests derive a test database from `DATABASE_URL` and fail to even load the vitest config without it.

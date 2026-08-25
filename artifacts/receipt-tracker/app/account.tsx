@@ -31,6 +31,7 @@ import {
 import { countryName, usStateName } from "@workspace/geo";
 import { useColors } from "@/hooks/useColors";
 import { getApiOrigin } from "@/lib/apiBase";
+import { openLegalPage } from "@/lib/legal";
 import { ShareInvite } from "@/components/ShareInvite";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -123,15 +124,6 @@ export default function AccountScreen() {
         { text: "Cancel", style: "cancel" },
         { text: "Sign out", style: "destructive", onPress: doSignOut },
       ]);
-    }
-  };
-
-  const openLegalPage = (page: "privacy" | "terms" | "support") => {
-    if (Platform.OS === "web") {
-      if (typeof window !== "undefined") window.location.href = `/${page}`;
-    } else {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN || "www.5to9shopping.com";
-      void Linking.openURL(`https://${domain}/${page}`);
     }
   };
 
@@ -703,7 +695,15 @@ function SupportModal({ visible, onClose, getToken, colors }: SupportModalProps)
         style={supportStyles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[supportStyles.sheet, { backgroundColor: colors.background }]}>
+        {/* Scrollable and height-capped: the form is tall enough that in a
+            short window (landscape, or a small window on iPad) "Send to
+            Support" would otherwise sit below the bottom edge unreachable. */}
+        <ScrollView
+          style={[supportStyles.sheet, { backgroundColor: colors.background }]}
+          contentContainerStyle={supportStyles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
           <View style={[supportStyles.header, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={handleClose}>
               <Text style={[supportStyles.cancel, { color: colors.mutedForeground }]}>Cancel</Text>
@@ -792,7 +792,7 @@ function SupportModal({ visible, onClose, getToken, colors }: SupportModalProps)
               </Text>
             </>
           )}
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -800,7 +800,10 @@ function SupportModal({ visible, onClose, getToken, colors }: SupportModalProps)
 
 const supportStyles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 },
+  // The overlay is flex:1, so a percentage cap resolves here. Padding moves to
+  // the content container so it scrolls rather than eating the capped height.
+  sheet: { maxHeight: "88%", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  sheetContent: { padding: 20, paddingBottom: 36 },
   header: {
     flexDirection: "row",
     alignItems: "center",
